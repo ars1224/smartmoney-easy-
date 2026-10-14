@@ -1,0 +1,19 @@
+<div class="sm-progress">
+  <div class="sm-progress__label">
+    <span>{{ label }}</span>
+    <span>{{ safeValue }}%</span>
+  </div>
+  <div
+    class="sm-progress__track"
+    role="progressbar"
+    [attr.aria-label]="label"
+    aria-valuemin="0"
+    aria-valuemax="100"
+    [attr.aria-valuenow]="safeValue"
+  >
+    <span
+      class="sm-progress__value sm-progress__value--{{ tone }}"
+      [style.width.%]="safeValue"
+    ></span>
+  </div>
+</div>

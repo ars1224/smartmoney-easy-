@@ -1,0 +1,64 @@
+:host {
+  display: inline-flex;
+}
+
+.sm-button {
+  min-height: 44px;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--sm-radius-md);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.sm-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.sm-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sm-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sm-button--primary {
+  color: var(--sm-color-on-dark);
+  background: var(--sm-color-teal);
+}
+
+.sm-button--primary:hover:not(:disabled) {
+  background: var(--sm-color-teal-dark);
+}
+
+.sm-button--secondary {
+  color: var(--sm-color-navy);
+  background: var(--sm-color-surface);
+  border-color: var(--sm-color-border);
+}
+
+.sm-button--danger {
+  color: var(--sm-color-coral);
+  background: var(--sm-color-coral-soft);
+  border-color: var(--sm-color-coral);
+}
+
+.sm-button__spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.5rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: sm-spin 700ms linear infinite;
+}
+
+@keyframes sm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

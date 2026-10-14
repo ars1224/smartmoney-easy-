@@ -1,0 +1,14 @@
+<button
+  class="sm-button sm-button--{{ variant }}"
+  [attr.aria-busy]="loading"
+  [disabled]="disabled || loading"
+  [type]="type"
+  (click)="activate()"
+>
+  @if (loading) {
+    <span class="sm-button__spinner" aria-hidden="true"></span>
+    <span>Loading</span>
+  } @else {
+    <span>{{ label }}</span>
+  }
+</button>

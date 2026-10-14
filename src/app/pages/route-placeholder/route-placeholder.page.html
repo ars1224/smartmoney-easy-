@@ -1,0 +1,37 @@
+<ion-content [fullscreen]="true">
+  <main class="placeholder" [class.placeholder--public]="data.publicPage">
+    @if (data.publicPage) {
+      <img
+        class="placeholder__logo"
+        src="assets/branding/smartmoney-easy-horizontal-logo.png"
+        alt="SmartMoney! Easy"
+      />
+    }
+
+    <app-sm-card labelledBy="placeholder-title">
+      <p class="placeholder__eyebrow">{{ data.eyebrow }}</p>
+      <h1 id="placeholder-title">{{ data.title }}</h1>
+      <p class="placeholder__description">{{ data.description }}</p>
+
+      <app-sm-alert
+        title="Phase 1 complete"
+        message="The responsive route and shared interface foundation are ready. Detailed feature content will be added in its assigned phase."
+      ></app-sm-alert>
+
+      @if (!data.publicPage) {
+        <div class="placeholder__sample" aria-label="Shared component preview">
+          <app-sm-progress label="Example progress" [value]="62"></app-sm-progress>
+        </div>
+      }
+
+      <div class="placeholder__actions">
+        @if (data.nextLink) {
+          <a class="placeholder__link" [routerLink]="data.nextLink">{{ data.nextLabel }}</a>
+        }
+        @if (data.publicPage) {
+          <a class="placeholder__link" routerLink="/app/dashboard">Preview app shell</a>
+        }
+      </div>
+    </app-sm-card>
+  </main>
+</ion-content>
