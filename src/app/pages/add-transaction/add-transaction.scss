@@ -1,0 +1,319 @@
+
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+// Main Page
+.add-transaction-page {
+  width: min(100%, 72rem);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  color: var(--sm-color-text, #102440);
+}
+
+// Page Header
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+
+  h1 {
+    margin: 0 0 0.5rem;
+    color: var(--sm-color-navy, #102440);
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    font-weight: 800;
+  }
+
+  p {
+    margin: 0;
+    color: var(--sm-color-text-muted, #66788a);
+    font-size: 0.9rem;
+  }
+}
+
+// Back Button
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0.65rem 1.25rem;
+  background: #fff;
+  color: var(--sm-color-navy, #102440);
+  border: 1px solid var(--sm-color-border, #d6e1e9);
+  border-radius: 9px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover {
+    background: #eef3f6;
+  }
+}
+
+// Form + Help Panel Layout
+.transaction-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+  align-items: start;
+  gap: 1.5rem;
+}
+
+// Main Form Card
+.form-card {
+  min-width: 0;
+  padding: 1.75rem;
+  background: var(--sm-color-surface, #fff);
+  border: 1px solid var(--sm-color-border, #d6e1e9);
+  border-radius: 14px;
+  box-shadow: var(
+    --sm-shadow-card,
+    0 6px 18px rgba(16, 36, 64, 0.08)
+  );
+}
+
+.transaction-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+// Two-column Field Layout
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.6rem;
+
+  > label {
+    color: var(--sm-color-navy, #102440);
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  > input,
+  > select {
+    width: 100%;
+    min-height: 46px;
+    padding: 0.75rem 0.9rem;
+    background: #fff;
+    color: var(--sm-color-text, #102440);
+    border: 1px solid var(--sm-color-border, #d6e1e9);
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: 0.875rem;
+    outline: none;
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+
+    &:focus {
+      border-color: var(--sm-color-teal, #0b8f8c);
+      box-shadow: 0 0 0 3px rgba(11, 143, 140, 0.12);
+    }
+
+    &::placeholder {
+      color: #9ba8b5;
+    }
+  }
+}
+
+// Income / Expense Selector
+.type-selector {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 4px;
+  min-height: 46px;
+  background: #f0f4f6;
+  border: 1px solid var(--sm-color-border, #d6e1e9);
+  border-radius: 9px;
+
+  label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    color: #52677f;
+    font-size: 0.825rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:has(input:checked) {
+      background: #fff;
+      color: var(--sm-color-teal-dark, #087b78);
+      box-shadow: 0 1px 4px rgba(16, 36, 64, 0.1);
+    }
+
+    &:focus-within {
+      outline: 2px solid var(--sm-color-teal, #0b8f8c);
+      outline-offset: 2px;
+    }
+  }
+
+  input[type="radio"] {
+    accent-color: var(--sm-color-teal, #0b8f8c);
+  }
+}
+
+// Category Information
+.form-notice {
+  padding: 1rem 1.15rem;
+  background: #e1f4f2;
+  border-radius: 10px;
+  color: #087b78;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+// Form Buttons
+.form-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.save-btn,
+.cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0.75rem 1rem;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background-color 160ms ease;
+}
+
+.save-btn {
+  background: var(--sm-color-teal, #0b8f8c);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--sm-color-teal-dark, #087b78);
+  }
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+}
+
+.cancel-btn {
+  background: #fff;
+  color: var(--sm-color-navy, #102440);
+  border: 1px solid var(--sm-color-border, #d6e1e9);
+
+  &:hover {
+    background: #f0f4f6;
+  }
+}
+
+// Right-side Help Panel
+.help-card {
+  min-width: 0;
+  padding: 1.5rem;
+  background: #fff5d6;
+  border: 1px solid #f4e9bb;
+  border-radius: 12px;
+  box-shadow: 0 5px 16px rgba(16, 36, 64, 0.06);
+
+  h3 {
+    margin: 0 0 0.75rem;
+    color: var(--sm-color-navy, #102440);
+    font-size: 1rem;
+    font-weight: 800;
+  }
+
+  p {
+    margin: 0;
+    color: #52677f;
+    font-size: 0.85rem;
+    line-height: 1.7;
+  }
+}
+
+
+/* Reactive Form Validation */
+.field-error {
+  display: block;
+  color: #d64545;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.form-group input.ng-invalid.ng-touched,
+.form-group select.ng-invalid.ng-touched {
+  border-color: #d64545;
+}
+
+
+// Tablet Layout
+@media (max-width: 900px) {
+  .transaction-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .help-card {
+    max-width: 100%;
+  }
+}
+
+// Mobile Layout
+@media (max-width: 600px) {
+  .add-transaction-page {
+    padding: 1rem;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .back-btn {
+    align-self: flex-start;
+  }
+
+  .form-card {
+    padding: 1rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .transaction-form {
+    gap: 1.25rem;
+  }
+
+  .form-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .save-btn,
+  .cancel-btn {
+    width: 100%;
+  }
+}

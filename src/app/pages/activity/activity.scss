@@ -1,0 +1,243 @@
+
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+// Main Page
+.activity-page {
+  width: min(100%, 72rem);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  color: var(--sm-color-text);
+}
+
+// Activity Header
+.activity-header {
+  margin-bottom: var(--sm-space-6);
+
+  h1 {
+    margin: 0 0 var(--sm-space-2);
+    color: var(--sm-color-navy);
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    font-weight: 800;
+  }
+
+  p {
+    margin: 0;
+    color: var(--sm-color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+}
+
+// Filter and Add Transaction Button
+.activity-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sm-space-4);
+  margin-bottom: var(--sm-space-5);
+}
+
+.source-filter {
+  min-width: 170px;
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  background: var(--sm-color-surface);
+  color: var(--sm-color-navy);
+  border: 1px solid var(--sm-color-border);
+  border-radius: var(--sm-radius-md);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.add-transaction-btn {
+  min-height: 44px;
+  padding: 0.75rem 1.25rem;
+  background: var(--sm-color-teal);
+  color: var(--sm-color-on-dark);
+  border: none;
+  border-radius: var(--sm-radius-md);
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: background-color 160ms ease;
+
+  &:hover:not(:disabled) {
+    background: var(--sm-color-teal-dark);
+    cursor: pointer;
+  }
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+}
+
+// Transaction Table Card
+.transaction-card {
+  overflow: hidden;
+  background: var(--sm-color-surface);
+  border: 1px solid var(--sm-color-border);
+  border-radius: var(--sm-radius-lg);
+  box-shadow: var(--sm-shadow-card);
+}
+
+.transaction-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+
+  thead {
+    background: var(--sm-color-surface);
+  }
+
+  th {
+    padding: 1.25rem;
+    color: var(--sm-color-text-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+    border-bottom: 1px solid var(--sm-color-border);
+  }
+
+  td {
+    padding: 1.25rem;
+    color: var(--sm-color-text);
+    font-size: 0.875rem;
+    vertical-align: middle;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--sm-color-border);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: var(--sm-color-background);
+    }
+  }
+
+  tbody td:first-child {
+    font-weight: 700;
+  }
+}
+
+// Transaction Category Badge
+.category-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.85rem;
+  background: var(--sm-color-teal-soft);
+  color: var(--sm-color-teal-dark);
+  border-radius: var(--sm-radius-pill);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+// Transaction Amount
+.amount-column {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.transaction-table td.income {
+  color: var(--sm-color-green);
+  font-weight: 800;
+}
+
+.transaction-table td.expense {
+  color: var(--sm-color-navy);
+  font-weight: 700;
+}
+
+// Automatic Suggestions Notice
+.activity-notice {
+  width: min(100%, 36rem);
+  margin-top: var(--sm-space-6);
+  padding: var(--sm-space-5);
+  background: var(--sm-color-green-soft);
+  border: 1px solid #cdebd9;
+  border-radius: var(--sm-radius-lg);
+  box-shadow: var(--sm-shadow-card);
+
+  h3 {
+    margin: 0 0 var(--sm-space-2);
+    color: var(--sm-color-green);
+    font-size: 0.95rem;
+    font-weight: 800;
+  }
+
+  p {
+    margin: 0;
+    color: var(--sm-color-text-muted);
+    font-size: 0.8rem;
+    line-height: 1.6;
+  }
+}
+
+// Mobile Responsive Layout
+@media (max-width: 700px) {
+  .activity-page {
+    padding: var(--sm-space-4);
+  }
+
+  .activity-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .source-filter,
+  .add-transaction-btn {
+    width: 100%;
+  }
+
+  .transaction-table {
+    thead {
+      display: none;
+    }
+
+    tbody tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "description amount"
+        "source source"
+        "category category";
+      gap: var(--sm-space-2);
+      padding: var(--sm-space-4);
+    }
+
+    td {
+      display: block;
+      padding: 0;
+    }
+
+    td:nth-child(1) {
+      grid-area: description;
+    }
+
+    td:nth-child(2) {
+      grid-area: source;
+      color: var(--sm-color-text-muted);
+      font-size: 0.75rem;
+    }
+
+    td:nth-child(3) {
+      grid-area: category;
+    }
+
+    td:nth-child(4) {
+      grid-area: amount;
+      font-size: 0.875rem;
+    }
+  }
+
+  .activity-notice {
+    width: 100%;
+  }
+}

@@ -1,0 +1,92 @@
+<main class="activity-page">
+
+  <!-- Activity Header -->
+  <header class="activity-header">
+    <div>
+      <h1>Activity</h1>
+      <p>Cash and bank transactions with editable categories.</p>
+    </div>
+  </header>
+
+  <!-- Transaction Controls -->
+  <div class="activity-controls">
+    <select
+    class="source-filter"
+    aria-label="Filter transactions by source"
+    [value]="selectedSource"
+    (change)="changeSource($event)"
+    >
+    <option value="all">All sources</option>
+    <option value="cash">Cash</option>
+    <option value="bank">Bank</option>
+    </select>
+
+
+    <button
+    class="add-transaction-btn"
+    type="button"
+    routerLink="/app/activity/add"
+    >
+    + Add manual transaction
+    </button>
+
+  </div>
+
+  <!-- Transactions Table -->
+  <section class="transaction-card">
+    <table class="transaction-table">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Source</th>
+          <th>Category</th>
+          <th class="amount-column">Amount</th>
+        </tr>
+      </thead>
+
+
+    <tbody>
+    @for (transaction of filteredTransactions; track transaction.id) {
+        <tr>
+        <td>{{ transaction.description }}</td>
+
+        <td>
+            {{ transaction.source === 'cash' ? 'Cash' : 'Bank' }}
+        </td>
+
+        <td>
+            <span class="category-badge">
+            {{ transaction.category }}
+            </span>
+        </td>
+
+        <td
+            class="amount-column"
+            [class.income]="transaction.amount >= 0"
+            [class.expense]="transaction.amount < 0"
+        >
+            {{ formatAmount(transaction.amount) }}
+        </td>
+        </tr>
+    } @empty {
+        <tr>
+        <td colspan="4" class="empty-state">
+            No transactions found for this source.
+        </td>
+        </tr>
+    }
+    </tbody>
+
+    </table>
+  </section>
+
+  <!-- Information Notice -->
+  <aside class="activity-notice">
+    <h3>Automatic suggestions, manual control</h3>
+    <p>
+      SmartMoney! Easy suggests categories from transaction
+      descriptions. Users can change them at any time.
+    </p>
+  </aside>
+
+</main>
