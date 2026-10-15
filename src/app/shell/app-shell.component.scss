@@ -3,10 +3,15 @@
   min-height: 100%;
 }
 
+
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   background: var(--sm-color-background);
 }
+
 
 .sidebar {
   position: fixed;
@@ -102,8 +107,15 @@
   font-size: 1.1rem;
 }
 
+
 .app-shell__body {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  -webkit-overflow-scrolling: touch;
 }
 
 .app-header {
@@ -139,10 +151,12 @@
   text-decoration: none;
 }
 
+
 .app-shell__content {
-  min-height: calc(100vh - 4rem);
-  padding-bottom: 5.5rem;
+  min-height: calc(100dvh - 4rem);
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
 }
+ 
 
 .bottom-nav {
   position: fixed;
