@@ -269,6 +269,32 @@
 }
 
 
+/* Selected Cash Wallet Balance */
+.wallet-balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+
+  padding: 0.85rem 1rem;
+
+  background: var(--sm-color-teal-soft, #e1f4f2);
+  border-radius: 9px;
+
+  span {
+    color: var(--sm-color-text-muted, #66788a);
+    font-size: 0.75rem;
+  }
+
+  strong {
+    color: var(--sm-color-teal-dark, #087b78);
+    font-size: 0.875rem;
+    font-weight: 800;
+  }
+}
+
+
 // Tablet Layout
 @media (max-width: 900px) {
   .transaction-layout {

@@ -1,12 +1,12 @@
-
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import {
   FormBuilder,
   ReactiveFormsModule,
   Validators
 } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ManualTransactionsService } from '../../core/services/manual-transactions.service';
+import { CashWalletService } from '../../core/services/cash-wallet.service';
 
 
 type TransactionType = 'income' | 'expense';
@@ -18,7 +18,10 @@ type TransactionType = 'income' | 'expense';
   templateUrl: './add-transaction.html',
   styleUrl: './add-transaction.scss',
 })
-export class AddTransaction {
+
+
+
+export class AddTransaction implements OnInit {
 
   private readonly fb = inject(FormBuilder);
 
@@ -26,6 +29,8 @@ export class AddTransaction {
 
   private readonly manualTransactions =
   inject(ManualTransactionsService);
+
+  private readonly cashWalletService = inject(CashWalletService);
 
   saveError = '';
   isSaving = false;
@@ -35,13 +40,7 @@ export class AddTransaction {
 
   // Cash wallets available for manual transactions
   // Additional wallets will be loaded from the backend later.
-  readonly cashWallets = [
-    {
-      id: 'nzd-cash',
-      name: 'NZD Cash',
-      currency: 'NZD'
-    }
-  ];
+  readonly cashWallets = this.cashWalletService.getWallets();
 
   // Expense categories
   readonly expenseCategories = [
@@ -61,6 +60,38 @@ export class AddTransaction {
     'Gift',
     'Other'
   ];
+
+
+ngOnInit(): void {
+  const id = this.activatedRoute.snapshot.paramMap.get('id');
+
+  // No ID means we're creating a new transaction.
+  if (!id) {
+    return;
+  }
+
+  this.editId = id;
+
+  // Find the existing manual transaction.
+  const transaction = this.manualTransactions.getById(id);
+
+  if (!transaction) {
+    this.loadError = 'Transaction not found.';
+    this.transactionForm.disable();
+    return;
+  }
+
+  // Populate the form with existing values.
+  this.transactionForm.patchValue({
+    type: transaction.type,
+    assetId: transaction.assetId,
+    amount: transaction.amount,
+    category: transaction.category,
+    date: transaction.date,
+    note: transaction.note
+  });
+}
+
 
   // Reactive Transaction Form
   readonly transactionForm = this.fb.nonNullable.group({
@@ -93,6 +124,37 @@ export class AddTransaction {
       : this.expenseCategories;
   }
 
+
+get selectedWalletBalance(): string {
+
+  // Get the wallet selected in the form.
+  const walletId =
+    this.transactionForm.controls.assetId.value;
+
+  // Find the wallet.
+  const wallet =
+    this.cashWalletService.getWalletById(walletId);
+
+  if (!wallet) {
+    return 'Unavailable';
+  }
+
+  // Calculate its balance from saved transactions.
+  const balance =
+    this.cashWalletService.getBalance(wallet.id);
+
+  // Format using the wallet's own currency.
+  return new Intl.NumberFormat('en-NZ', {
+    style: 'currency',
+    currency: wallet.currency,
+    currencyDisplay: 'code',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(balance);
+
+}
+
+
   // Change transaction type and reset category
   setTransactionType(type: TransactionType): void {
     if (this.transactionForm.controls.type.value === type) {
@@ -117,16 +179,15 @@ export class AddTransaction {
   }
 
 
-async saveTransaction(): Promise<void> {
 
+async saveTransaction(): Promise<void> {
   this.saveError = '';
 
-  // Prevent duplicate submissions
-  if (this.isSaving) {
+  if (this.isSaving || this.loadError) {
     return;
   }
 
-  // Validate the form
+  // Validate all fields.
   if (this.transactionForm.invalid) {
     this.transactionForm.markAllAsTouched();
     return;
@@ -135,14 +196,24 @@ async saveTransaction(): Promise<void> {
   this.isSaving = true;
 
   try {
-
-    // Get all form values
     const formData = this.transactionForm.getRawValue();
 
-    // Save the manual cash transaction
-    this.manualTransactions.add(formData);
+    if (this.isEditMode && this.editId) {
 
-    // Return to Activity page
+      // Update an existing Cash transaction.
+      this.manualTransactions.update(
+        this.editId,
+        formData
+      );
+
+    } else {
+
+      // Create a new Cash transaction.
+      this.manualTransactions.add(formData);
+
+    }
+
+    // Return to Activity history.
     await this.router.navigateByUrl('/app/activity');
 
   } catch (error) {
@@ -150,14 +221,24 @@ async saveTransaction(): Promise<void> {
     this.saveError =
       error instanceof Error
         ? error.message
-        : 'Unable to save transaction. Please try again.';
+        : 'Unable to save transaction.';
 
   } finally {
-
     this.isSaving = false;
-
   }
 }
+
+
+
+private readonly activatedRoute = inject(ActivatedRoute);
+
+editId: string | null = null;
+loadError = '';
+
+get isEditMode(): boolean {
+  return this.editId !== null;
+}
+
 
 }
 

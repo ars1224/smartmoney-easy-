@@ -32,51 +32,92 @@
 
   </div>
 
+    @if (deleteError) {
+    <p class="delete-error" role="alert">
+        {{ deleteError }}
+    </p>
+    }
+
   <!-- Transactions Table -->
   <section class="transaction-card">
     <table class="transaction-table">
-      <thead>
-        <tr>
-          <th>Description</th>
-          <th>Source</th>
-          <th>Category</th>
-          <th class="amount-column">Amount</th>
-        </tr>
-      </thead>
 
+    <thead>
+    <tr>
+        <th>Description</th>
+        <th>Source</th>
+        <th>Category</th>
+        <th class="amount-column">Amount</th>
+        <th class="actions-column">Actions</th>
+    </tr>
+    </thead>
+        <tbody>
+        @for (transaction of filteredTransactions; track transaction.id) {
+            <tr>
+            <td>{{ transaction.description }}</td>
 
-    <tbody>
-    @for (transaction of filteredTransactions; track transaction.id) {
-        <tr>
-        <td>{{ transaction.description }}</td>
+            <td>
+                {{ transaction.source === 'cash' ? 'Cash' : 'Bank' }}
+            </td>
 
-        <td>
-            {{ transaction.source === 'cash' ? 'Cash' : 'Bank' }}
-        </td>
+            <td>
+                <span class="category-badge">
+                {{ transaction.category }}
+                </span>
+            </td>
 
-        <td>
-            <span class="category-badge">
-            {{ transaction.category }}
-            </span>
-        </td>
+            <td
+                class="amount-column"
+                [class.income]="transaction.amount >= 0"
+                [class.expense]="transaction.amount < 0"
+            >
+                {{ formatAmount(transaction.amount) }}
+            </td>   
 
-        <td
-            class="amount-column"
-            [class.income]="transaction.amount >= 0"
-            [class.expense]="transaction.amount < 0"
-        >
-            {{ formatAmount(transaction.amount) }}
-        </td>
-        </tr>
-    } @empty {
-        <tr>
-        <td colspan="4" class="empty-state">
-            No transactions found for this source.
-        </td>
-        </tr>
-    }
-    </tbody>
+            <td class="actions-column">
+            @if (transaction.source === 'cash') {
 
+                <div class="transaction-actions">
+
+                <!-- Edit Transaction -->
+                <a
+                    class="edit-transaction-btn"
+                    [routerLink]="['/app/activity/edit', transaction.id]"
+                    [attr.aria-label]="'Edit ' + transaction.description"
+                >
+                    Edit
+                </a>
+
+                <!-- Delete Transaction -->
+                <button
+                    type="button"
+                    class="delete-transaction-btn"
+                    (click)="deleteTransaction(transaction)"
+                    [attr.aria-label]="'Delete ' + transaction.description"
+                >
+                    Delete
+                </button>
+
+                </div>
+
+            } @else {
+
+                <span class="read-only-label">
+                Read-only
+                </span>
+
+            }
+            </td>
+
+            </tr>
+        } @empty {
+            <tr>
+            <td colspan="5" class="empty-state">
+                No transactions found for this source.
+            </td>
+            </tr>
+        }
+        </tbody>
     </table>
   </section>
 

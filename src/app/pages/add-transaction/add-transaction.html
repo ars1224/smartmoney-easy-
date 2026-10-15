@@ -4,7 +4,10 @@
   <!-- Page Header -->
   <header class="page-header">
     <div>
-      <h1>Add transaction</h1>
+        <h1>
+        {{ isEditMode ? 'Edit transaction' : 'Add transaction' }}
+        </h1>
+
       <p>Manual entries update the selected cash wallet.</p>
     </div>
 
@@ -59,20 +62,33 @@
             </div>
           </div>
 
-          <div class="form-group">
-            <label for="account">Account / Asset</label>
 
-            <select
-              id="account"
-              formControlName="assetId"
-            >
-              @for (wallet of cashWallets; track wallet.id) {
-                <option [value]="wallet.id">
-                  {{ wallet.name }}
-                </option>
-              }
-            </select>
-          </div>
+        <div class="form-group">
+
+        <label for="account">Account / Asset</label>
+
+        <select
+            id="account"
+            formControlName="assetId"
+        >
+            @for (wallet of cashWallets; track wallet.id) {
+            <option [value]="wallet.id">
+                {{ wallet.name }}
+            </option>
+            }
+        </select>
+
+        <!-- Current Cash Wallet Balance -->
+        <div class="wallet-balance">
+            <span>Current cash balance</span>
+
+            <strong>
+            {{ selectedWalletBalance }}
+            </strong>
+        </div>
+
+        </div>
+
 
         </div>
 
@@ -183,15 +199,28 @@
         </p>
         }
 
+
+        @if (loadError) {
+        <p class="field-error" role="alert">
+            {{ loadError }}
+        </p>
+        }
+
         <!-- Form Actions -->
         <div class="form-actions">
-          
+
         <button
         type="submit"
         class="save-btn"
-        [disabled]="isSaving"
+        [disabled]="isSaving || !!loadError"
         >
-        {{ isSaving ? 'Saving...' : 'Save transaction' }}
+        {{
+            isSaving
+            ? 'Saving...'
+            : isEditMode
+                ? 'Update transaction'
+                : 'Save transaction'
+        }}
         </button>
 
           <a

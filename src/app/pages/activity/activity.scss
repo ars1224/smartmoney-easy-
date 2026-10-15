@@ -1,84 +1,96 @@
 
+/* SmartMoney! Easy — Activity */
+
 :host {
   display: block;
   width: 100%;
   min-width: 0;
 }
 
-// Main Page
 .activity-page {
+  box-sizing: border-box;
   width: min(100%, 72rem);
-  min-height: 100%;
   margin: 0 auto;
   padding: clamp(1rem, 3vw, 2.5rem);
   color: var(--sm-color-text);
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 }
 
-// Activity Header
+/* Header */
+
 .activity-header {
-  margin-bottom: var(--sm-space-6);
+  margin-bottom: 1.5rem;
 
   h1 {
-    margin: 0 0 var(--sm-space-2);
+    margin: 0 0 0.5rem;
     color: var(--sm-color-navy);
-    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    font-size: clamp(1.5rem, 3vw, 2.25rem);
     font-weight: 800;
   }
 
   p {
     margin: 0;
     color: var(--sm-color-text-muted);
-    font-size: 0.9rem;
+    font-size: 0.875rem;
     line-height: 1.5;
   }
 }
 
-// Filter and Add Transaction Button
+/* Controls */
+
 .activity-controls {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   flex-wrap: wrap;
-  gap: var(--sm-space-4);
-  margin-bottom: var(--sm-space-5);
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.source-filter,
+.add-transaction-btn {
+  min-height: 44px;
+  padding: 0.7rem 1rem;
+  border-radius: var(--sm-radius-md);
+  font: inherit;
+  font-size: 0.875rem;
 }
 
 .source-filter {
   min-width: 170px;
-  min-height: 44px;
-  padding: 0.65rem 1rem;
   background: var(--sm-color-surface);
   color: var(--sm-color-navy);
   border: 1px solid var(--sm-color-border);
-  border-radius: var(--sm-radius-md);
-  font-size: 0.875rem;
   cursor: pointer;
 }
 
 .add-transaction-btn {
-  min-height: 44px;
-  padding: 0.75rem 1.25rem;
   background: var(--sm-color-teal);
-  color: var(--sm-color-on-dark);
-  border: none;
-  border-radius: var(--sm-radius-md);
-  font-size: 0.875rem;
+  color: white;
+  border: 0;
   font-weight: 700;
-  transition: background-color 160ms ease;
+  cursor: pointer;
 
   &:hover:not(:disabled) {
     background: var(--sm-color-teal-dark);
-    cursor: pointer;
   }
 
   &:disabled {
-    opacity: 0.65;
+    opacity: 0.6;
     cursor: not-allowed;
   }
 }
 
-// Transaction Table Card
+/* Transactions */
+
 .transaction-card {
+  width: 100%;
+  min-width: 0;
   overflow: hidden;
   background: var(--sm-color-surface);
   border: 1px solid var(--sm-color-border);
@@ -91,31 +103,20 @@
   border-collapse: collapse;
   text-align: left;
 
-  thead {
-    background: var(--sm-color-surface);
+  th,
+  td {
+    padding: 1rem;
+    font-size: 0.875rem;
   }
 
   th {
-    padding: 1.25rem;
     color: var(--sm-color-text-muted);
     font-size: 0.8rem;
     font-weight: 700;
-    border-bottom: 1px solid var(--sm-color-border);
-  }
-
-  td {
-    padding: 1.25rem;
-    color: var(--sm-color-text);
-    font-size: 0.875rem;
-    vertical-align: middle;
   }
 
   tbody tr {
-    border-bottom: 1px solid var(--sm-color-border);
-
-    &:last-child {
-      border-bottom: none;
-    }
+    border-top: 1px solid var(--sm-color-border);
 
     &:hover {
       background: var(--sm-color-background);
@@ -124,52 +125,106 @@
 
   tbody td:first-child {
     font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  td.income {
+    color: var(--sm-color-green);
+    font-weight: 800;
+  }
+
+  td.expense {
+    color: var(--sm-color-navy);
+    font-weight: 700;
   }
 }
 
-// Transaction Category Badge
+.amount-column {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .category-badge {
   display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 0.85rem;
+  max-width: 100%;
+  padding: 0.4rem 0.8rem;
   background: var(--sm-color-teal-soft);
   color: var(--sm-color-teal-dark);
   border-radius: var(--sm-radius-pill);
   font-size: 0.75rem;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
-// Transaction Amount
-.amount-column {
-  text-align: right;
-  white-space: nowrap;
+/* Actions */
+
+.actions-column {
+  text-align: center;
 }
 
-.transaction-table td.income {
-  color: var(--sm-color-green);
-  font-weight: 800;
+.transaction-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
-.transaction-table td.expense {
-  color: var(--sm-color-navy);
+.edit-transaction-btn,
+.delete-transaction-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.8rem;
   font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
 }
 
-// Automatic Suggestions Notice
+.edit-transaction-btn {
+  background: var(--sm-color-teal-soft);
+  color: var(--sm-color-teal-dark);
+  border: 1px solid transparent;
+}
+
+.delete-transaction-btn {
+  background: #fce8e8;
+  color: #c53737;
+  border: 1px solid #f5caca;
+}
+
+.edit-transaction-btn:hover {
+  background: #ccebe8;
+}
+
+.delete-transaction-btn:hover {
+  background: #f8d4d4;
+}
+
+.read-only-label {
+  color: var(--sm-color-text-muted);
+  font-size: 0.75rem;
+}
+
+/* Information and errors */
+
 .activity-notice {
   width: min(100%, 36rem);
-  margin-top: var(--sm-space-6);
-  padding: var(--sm-space-5);
+  margin-top: 1.5rem;
+  padding: 1.25rem;
   background: var(--sm-color-green-soft);
   border: 1px solid #cdebd9;
   border-radius: var(--sm-radius-lg);
   box-shadow: var(--sm-shadow-card);
 
   h3 {
-    margin: 0 0 var(--sm-space-2);
+    margin: 0 0 0.5rem;
     color: var(--sm-color-green);
     font-size: 0.95rem;
-    font-weight: 800;
   }
 
   p {
@@ -180,64 +235,149 @@
   }
 }
 
-// Mobile Responsive Layout
+.delete-error {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  color: #b42323;
+  background: #fce8e8;
+  border: 1px solid #f5caca;
+  border-radius: 8px;
+}
+
+/* Mobile — Figma layout */
+
 @media (max-width: 700px) {
   .activity-page {
-    padding: var(--sm-space-4);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem 0.875rem 6rem;
+  }
+
+  .activity-header {
+    order: 1;
+    margin: 0;
   }
 
   .activity-controls {
-    flex-direction: column;
-    align-items: stretch;
+    display: contents;
   }
 
-  .source-filter,
-  .add-transaction-btn {
+  .source-filter {
+    order: 2;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .delete-error {
+    order: 3;
+    margin: 0;
+  }
+
+  .transaction-card {
+    order: 4;
+  }
+
+  .transaction-table,
+  .transaction-table tbody {
+    display: block;
     width: 100%;
   }
 
-  .transaction-table {
-    thead {
-      display: none;
-    }
+  .transaction-table thead {
+    display: none;
+  }
 
-    tbody tr {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-areas:
-        "description amount"
-        "source source"
-        "category category";
-      gap: var(--sm-space-2);
-      padding: var(--sm-space-4);
-    }
+  .transaction-table tbody tr {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "description amount"
+      "source source"
+      "category category"
+      "actions actions";
+    gap: 0.5rem;
+    padding: 1rem;
+  }
 
-    td {
-      display: block;
-      padding: 0;
-    }
+  .transaction-table tbody td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    text-align: left;
+  }
 
-    td:nth-child(1) {
-      grid-area: description;
-    }
+  .transaction-table tbody td:nth-child(1) {
+    grid-area: description;
+    overflow-wrap: anywhere;
+  }
 
-    td:nth-child(2) {
-      grid-area: source;
-      color: var(--sm-color-text-muted);
-      font-size: 0.75rem;
-    }
+  .transaction-table tbody td:nth-child(2) {
+    grid-area: source;
+    color: var(--sm-color-text-muted);
+    font-size: 0.75rem;
+  }
 
-    td:nth-child(3) {
-      grid-area: category;
-    }
+  .transaction-table tbody td:nth-child(3) {
+    grid-area: category;
+  }
 
-    td:nth-child(4) {
-      grid-area: amount;
-      font-size: 0.875rem;
-    }
+  .transaction-table tbody td:nth-child(4) {
+    grid-area: amount;
+    text-align: right;
+  }
+
+  .transaction-table tbody td:nth-child(5) {
+    grid-area: actions;
+  }
+
+  .transaction-actions {
+    justify-content: flex-end;
+  }
+
+  .transaction-table tbody tr:has(.empty-state) {
+    display: block;
+  }
+
+  .transaction-table .empty-state {
+    padding: 1rem;
+    text-align: center;
+    white-space: normal;
   }
 
   .activity-notice {
+    order: 5;
     width: 100%;
+    margin: 0;
+  }
+
+  .add-transaction-btn {
+    order: 6;
+    width: 100%;
+  }
+}
+
+/* Extra-small phones */
+
+@media (max-width: 320px) {
+  .activity-page {
+    padding-inline: 0.625rem;
+  }
+
+  .transaction-table tbody tr {
+    grid-template-areas:
+      "description description"
+      "source amount"
+      "category category"
+      "actions actions";
+    padding: 0.75rem;
+  }
+
+  .transaction-table tbody td:nth-child(4) {
+    font-size: 0.8rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }

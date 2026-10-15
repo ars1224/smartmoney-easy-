@@ -66,6 +66,16 @@ export const routes: Routes = [
           ),
       },
 
+
+      {
+        path: 'activity/edit/:id',
+        loadComponent: () =>
+          import('./pages/add-transaction/add-transaction').then(
+            (m) => m.AddTransaction
+          ),
+      },
+
+
       {
         path: 'activity',
         loadComponent: () =>

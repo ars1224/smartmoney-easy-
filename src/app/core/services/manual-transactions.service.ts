@@ -114,4 +114,105 @@ export class ManualTransactionsService {
 
     return transaction;
   }
+
+
+getById(id: string): ManualTransaction | undefined {
+  return this.getAll().find(
+    transaction => transaction.id === id
+  );
+}
+
+
+update(
+  id: string,
+  input: NewManualTransaction
+): ManualTransaction {
+
+  const transactions = this.getAll();
+
+  const index = transactions.findIndex(
+    transaction => transaction.id === id
+  );
+
+  if (index === -1) {
+    throw new Error('Transaction not found.');
+  }
+
+  // Validate the amount
+  if (
+    !Number.isFinite(input.amount) ||
+    input.amount <= 0 ||
+    Math.abs(
+      input.amount * 100 - Math.round(input.amount * 100)
+    ) > 1e-7
+  ) {
+    throw new Error('Enter a valid transaction amount.');
+  }
+
+  // Validate required fields
+  if (
+    (input.type !== 'income' && input.type !== 'expense') ||
+    !input.assetId.trim() ||
+    !input.category.trim() ||
+    !input.date.trim() ||
+    input.note.length > 250
+  ) {
+    throw new Error('Invalid transaction details.');
+  }
+
+  const updatedTransaction: ManualTransaction = {
+    ...transactions[index],
+    ...input,
+    id,
+    source: 'cash'
+  };
+
+  transactions[index] = updatedTransaction;
+
+  if (typeof window === 'undefined') {
+    throw new Error('Browser storage is unavailable.');
+  }
+
+  try {
+    window.localStorage.setItem(
+      this.storageKey,
+      JSON.stringify(transactions)
+    );
+  } catch {
+    throw new Error('Unable to update transaction.');
+  }
+
+  return updatedTransaction;
+}
+
+
+remove(id: string): boolean {
+
+  const transactions = this.getAll();
+
+  const remainingTransactions = transactions.filter(
+    transaction => transaction.id !== id
+  );
+
+  // Transaction does not exist
+  if (remainingTransactions.length === transactions.length) {
+    return false;
+  }
+
+  if (typeof window === 'undefined') {
+    throw new Error('Browser storage is unavailable.');
+  }
+
+  try {
+    window.localStorage.setItem(
+      this.storageKey,
+      JSON.stringify(remainingTransactions)
+    );
+  } catch {
+    throw new Error('Unable to delete transaction.');
+  }
+
+  return true;
+}
+
 }
