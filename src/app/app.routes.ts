@@ -35,6 +35,7 @@ export const routes: Routes = [
         },
       },
       { path: '', redirectTo: 'login', pathMatch: 'full' },
+      
     ],
   },
   {
@@ -131,6 +132,15 @@ export const routes: Routes = [
         },
       },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+
+      {
+        path: 'profile-settings',
+        loadComponent: () =>
+          import('./pages/profile-settings/profile-settings.page').then(
+            (m) => m.ProfileSettingsPage,
+          ),
+      },
+
     ],
   },
   {

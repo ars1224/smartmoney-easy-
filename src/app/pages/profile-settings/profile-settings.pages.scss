@@ -1,0 +1,107 @@
+ion-content {
+  --background: var(--sm-color-background);
+}
+
+.profile-settings {
+  width: min(100%, 90rem);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+}
+
+.profile-settings__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sm-space-4);
+  margin-bottom: var(--sm-space-8);
+}
+
+.profile-settings__eyebrow {
+  margin: 0 0 var(--sm-space-2);
+  color: var(--sm-color-teal-dark);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-settings__header h1 {
+  margin: 0;
+  color: var(--sm-color-navy);
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  line-height: 1.2;
+}
+
+.profile-settings__description {
+  margin: var(--sm-space-2) 0 0;
+  color: var(--sm-color-text-muted);
+  line-height: 1.6;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sm-space-6);
+}
+
+.settings-card {
+  min-height: 5.5rem;
+}
+
+.settings-card h2 {
+  margin: 0;
+  color: var(--sm-color-navy);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.settings-card p {
+  margin: var(--sm-space-3) 0;
+  color: var(--sm-color-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.settings-card__open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sm-space-2);
+  min-height: 2rem;
+  padding: 0;
+  color: var(--sm-color-teal-dark);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-card__open:focus-visible {
+  outline: 2px solid var(--sm-color-teal);
+  outline-offset: 4px;
+}
+
+.settings-card--danger h2,
+.settings-card--danger .settings-card__open {
+  color: var(--sm-color-coral);
+}
+
+.settings-card--danger {
+  padding: var(--sm-space-2);
+  margin: calc(var(--sm-space-2) * -1);
+  background: var(--sm-color-coral-soft);
+  border-radius: var(--sm-radius-md);
+}
+
+@media (max-width: 48rem) {
+  .profile-settings__header {
+    flex-direction: column;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+    gap: var(--sm-space-4);
+  }
+}

@@ -1,0 +1,43 @@
+
+
+<ion-content [fullscreen]="true">
+  <main class="profile-settings">
+    <header class="profile-settings__header">
+      <div>
+        <p class="profile-settings__eyebrow">Your account</p>
+        <h1>Profile settings</h1>
+        <p class="profile-settings__description">
+          Personal details, privacy and connected data
+        </p>
+      </div>
+
+      <app-sm-button
+        label="Back to profile"
+        variant="secondary"
+        (pressed)="goBack()"
+      ></app-sm-button>
+    </header>
+
+    <section class="settings-grid" aria-label="Profile settings">
+      @for (item of settings; track item.action) {
+        <app-sm-card>
+          <article
+            class="settings-card"
+            [class.settings-card--danger]="item.danger"
+          >
+            <h2>{{ item.title }}</h2>
+            <p>{{ item.description }}</p>
+
+            <button
+              type="button"
+              class="settings-card__open"
+              (click)="openSetting(item.action)"
+            >
+              Open <span aria-hidden="true">→</span>
+            </button>
+          </article>
+        </app-sm-card>
+      }
+    </section>
+  </main>
+</ion-content>
