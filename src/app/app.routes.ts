@@ -83,18 +83,15 @@ export const routes: Routes = [
             (m) => m.Activity,
           ),
       },
+
       {
         path: 'budgets',
         loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page').then(
-            (m) => m.RoutePlaceholderPage,
+          import('./pages/budgets/budgets').then(
+            (m) => m.Budgets
           ),
-        data: {
-          eyebrow: 'Plan spending',
-          title: 'Budgets',
-          description: 'Budget limits, progress and supportive alerts will appear here.',
-        },
       },
+
       {
         path: 'goals',
         loadComponent: () =>
