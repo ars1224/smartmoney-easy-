@@ -1,6 +1,5 @@
-
 import { Component } from '@angular/core';
-import { IonContent } from '@ionic/angular/ion-content';
+import { IonContent } from '@ionic/angular';
 
 import { SmCardComponent } from '../../shared/ui/sm-card/sm-card.component';
 import { SmButtonComponent } from '../../shared/ui/sm-button/sm-button.component';
