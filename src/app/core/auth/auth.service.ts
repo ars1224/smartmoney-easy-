@@ -16,10 +16,21 @@ interface StoredSession {
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly currentUserSignal = signal<SmartMoneyUser | null>(this.readSession());
+  private readonly currentUserSignal = signal<SmartMoneyUser | null>(null);
+  private sessionExpiresAt: number | null = null;
+  private expiryTimeout: ReturnType<typeof setTimeout> | null = null;
 
   readonly currentUser = this.currentUserSignal.asReadonly();
   readonly isAuthenticated = computed(() => this.currentUserSignal() !== null);
+
+  constructor() {
+    const session = this.readSession();
+    if (session) {
+      this.currentUserSignal.set(session.user);
+      this.sessionExpiresAt = session.expiresAt;
+      this.scheduleExpiryCheck();
+    }
+  }
 
   login(email: string, password: string): Observable<SmartMoneyUser> {
     if (email.toLowerCase() === 'error@smartmoney.test') {
@@ -35,14 +46,33 @@ export class AuthService {
   }
 
   register(name: string, email: string, _password: string): Observable<SmartMoneyUser> {
+    if (email.toLowerCase() === 'error@smartmoney.test') {
+      return throwError(
+        () => new Error('We could not create your account. Please check your details and try again.'),
+      );
+    }
+
     const user: SmartMoneyUser = { name: name.trim(), email: email.trim().toLowerCase() };
     this.saveSession(user);
     return of(user).pipe(delay(450));
   }
 
   logout(): void {
+    if (this.expiryTimeout) {
+      clearTimeout(this.expiryTimeout);
+      this.expiryTimeout = null;
+    }
     localStorage.removeItem(SESSION_KEY);
+    this.sessionExpiresAt = null;
     this.currentUserSignal.set(null);
+  }
+
+  hasValidSession(): boolean {
+    if (!this.currentUserSignal() || !this.sessionExpiresAt || this.sessionExpiresAt <= Date.now()) {
+      this.logout();
+      return false;
+    }
+    return true;
   }
 
   private saveSession(user: SmartMoneyUser): void {
@@ -51,10 +81,12 @@ export class AuthService {
       expiresAt: Date.now() + SESSION_LENGTH_MS,
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    this.sessionExpiresAt = session.expiresAt;
     this.currentUserSignal.set(user);
+    this.scheduleExpiryCheck();
   }
 
-  private readSession(): SmartMoneyUser | null {
+  private readSession(): StoredSession | null {
     try {
       const raw = localStorage.getItem(SESSION_KEY);
       if (!raw) return null;
@@ -63,11 +95,26 @@ export class AuthService {
         localStorage.removeItem(SESSION_KEY);
         return null;
       }
-      return session.user;
+      return session;
     } catch {
       localStorage.removeItem(SESSION_KEY);
       return null;
     }
+  }
+
+  private scheduleExpiryCheck(): void {
+    if (this.expiryTimeout) clearTimeout(this.expiryTimeout);
+    if (!this.sessionExpiresAt) return;
+
+    const maximumTimeout = 2_147_483_647;
+    const delayUntilCheck = Math.min(
+      Math.max(this.sessionExpiresAt - Date.now(), 0),
+      maximumTimeout,
+    );
+    this.expiryTimeout = setTimeout(() => {
+      if (!this.hasValidSession()) return;
+      this.scheduleExpiryCheck();
+    }, delayUntilCheck);
   }
 
   private nameFromEmail(email: string): string {

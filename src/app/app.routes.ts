@@ -146,6 +146,22 @@ export const routes: Routes = [
     },
   },
   {
+    path: 'privacy',
+    loadComponent: () =>
+      import('./pages/route-placeholder/route-placeholder.page').then(
+        (m) => m.RoutePlaceholderPage,
+      ),
+    data: {
+      eyebrow: 'Development prototype',
+      title: 'Prototype privacy statement',
+      description:
+        'SmartMoney! Easy currently uses mock authentication for development testing. Do not enter real passwords, bank credentials or sensitive financial information.',
+      publicPage: true,
+      nextLink: '/auth/register',
+      nextLabel: 'Back to create account',
+    },
+  },
+  {
     path: '',
     redirectTo: 'auth/login',
     pathMatch: 'full',

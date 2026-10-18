@@ -6,7 +6,7 @@ export const authGuard: CanActivateFn = (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  return auth.isAuthenticated()
+  return auth.hasValidSession()
     ? true
     : router.createUrlTree(['/auth/login'], { queryParams: { returnUrl: state.url } });
 };
@@ -14,5 +14,5 @@ export const authGuard: CanActivateFn = (_route, state) => {
 export const guestGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
-  return auth.isAuthenticated() ? router.createUrlTree(['/app/dashboard']) : true;
+  return auth.hasValidSession() ? router.createUrlTree(['/app/dashboard']) : true;
 };

@@ -186,6 +186,18 @@
   text-align: center;
 }
 
+.privacy-consent {
+  margin: 0;
+  color: var(--sm-color-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.privacy-consent a {
+  color: var(--sm-color-teal-dark);
+  font-weight: 700;
+}
+
 @media (min-width: 64rem) {
   .auth-layout {
     grid-template-columns: minmax(20rem, 0.8fr) minmax(30rem, 1.2fr);

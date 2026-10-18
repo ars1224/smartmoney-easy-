@@ -9,6 +9,10 @@
       <p class="auth-intro">Start with your basic details. You can connect accounts later.</p>
 
       <form class="auth-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        @if (serverError()) {
+          <div class="form-alert" role="alert">{{ serverError() }}</div>
+        }
+
         <div class="field">
           <label for="register-name">Full name</label>
           <input id="register-name" type="text" formControlName="name" autocomplete="name" placeholder="Your name"
@@ -53,13 +57,10 @@
           }
         </div>
 
-        <label class="checkbox-field">
-          <input type="checkbox" formControlName="privacyAccepted" />
-          <span>I agree to the privacy statement and understand that this prototype provides educational guidance.</span>
-        </label>
-        @if (form.controls.privacyAccepted.touched && form.controls.privacyAccepted.invalid) {
-          <p class="field-error">Accept the privacy statement to continue.</p>
-        }
+        <p class="privacy-consent">
+          This account is for development and testing only. Read the
+          <a routerLink="/privacy">prototype privacy statement</a> before continuing.
+        </p>
 
         <button class="submit-button" type="submit" [disabled]="loading()" [attr.aria-busy]="loading()">
           {{ loading() ? 'Creating account…' : 'Create account' }}

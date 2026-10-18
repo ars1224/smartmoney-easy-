@@ -1,8 +1,9 @@
-import { Component, HostListener } from '@angular/core';
+import { Component, HostListener, inject } from '@angular/core';
 import { IonIcon } from '@ionic/angular';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { addIcons } from 'ionicons';
-import { bookOutline, homeOutline, personOutline } from 'ionicons/icons';
+import { bookOutline, homeOutline, logOutOutline, personOutline } from 'ionicons/icons';
+import { AuthService } from '../core/auth/auth.service';
 
 interface NavigationItem {
   label: string;
@@ -19,6 +20,9 @@ interface NavigationItem {
   imports: [IonIcon, RouterLink, RouterLinkActive, RouterOutlet],
 })
 export class AppShellComponent {
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+
   thinkerOpen = false;
 
   readonly navigation: NavigationItem[] = [
@@ -30,7 +34,12 @@ export class AppShellComponent {
   ];
 
   constructor() {
-    addIcons({ bookOutline, homeOutline, personOutline });
+    addIcons({ bookOutline, homeOutline, logOutOutline, personOutline });
+  }
+
+  logout(): void {
+    this.auth.logout();
+    void this.router.navigateByUrl('/auth/login');
   }
 
   openThinker(): void {

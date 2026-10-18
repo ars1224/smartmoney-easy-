@@ -24,6 +24,7 @@ export class RegisterPage {
   private readonly router = inject(Router);
 
   readonly loading = signal(false);
+  readonly serverError = signal('');
   readonly showPassword = signal(false);
   readonly form = this.fb.nonNullable.group(
     {
@@ -31,12 +32,12 @@ export class RegisterPage {
       email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required, Validators.minLength(8)]],
       confirmPassword: ['', Validators.required],
-      privacyAccepted: [false, Validators.requiredTrue],
     },
     { validators: matchingPasswords },
   );
 
   submit(): void {
+    this.serverError.set('');
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -47,6 +48,9 @@ export class RegisterPage {
     this.auth
       .register(name, email, password)
       .pipe(finalize(() => this.loading.set(false)))
-      .subscribe(() => void this.router.navigateByUrl('/app/dashboard'));
+      .subscribe({
+        next: () => void this.router.navigateByUrl('/app/dashboard'),
+        error: (error: Error) => this.serverError.set(error.message),
+      });
   }
 }
