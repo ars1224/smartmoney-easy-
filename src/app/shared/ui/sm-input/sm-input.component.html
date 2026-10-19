@@ -1,0 +1,15 @@
+<div class="sm-field" [class.sm-field--invalid]="error">
+  <label [for]="id">{{ label }}</label>
+  <input
+    [attr.aria-describedby]="error ? id + '-error' : null"
+    [attr.aria-invalid]="error ? true : null"
+    [disabled]="disabled"
+    [id]="id"
+    [placeholder]="placeholder"
+    [type]="type"
+    [value]="value"
+  />
+  @if (error) {
+    <p class="sm-field__error" [id]="id + '-error'">{{ error }}</p>
+  }
+</div>

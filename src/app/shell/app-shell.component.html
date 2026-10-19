@@ -1,0 +1,91 @@
+<div class="app-shell">
+  <aside class="sidebar" aria-label="Primary navigation">
+    <a class="sidebar__brand" routerLink="/app/dashboard" aria-label="SmartMoney! Easy dashboard">
+      <img src="assets/branding/smartmoney-easy-horizontal-logo-dark.png" alt="SmartMoney! Easy" />
+    </a>
+    <p class="sidebar__section">Financial fitness</p>
+    <nav class="sidebar__nav">
+      @for (item of navigation; track item.route) {
+        <a [routerLink]="item.route" routerLinkActive="is-active">
+          @if (item.iconName) {
+            <ion-icon class="nav-icon" [name]="item.iconName" aria-hidden="true"></ion-icon>
+          } @else {
+            <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
+          }
+          <span>{{ item.label }}</span>
+        </a>
+      }
+      <a routerLink="/app/reports" routerLinkActive="is-active">
+        <span aria-hidden="true">▥</span>
+        <span>Reports</span>
+      </a>
+    </nav>
+    <div class="sidebar__account-actions">
+      <a class="sidebar__profile" routerLink="/app/profile" routerLinkActive="is-active">
+        <span class="profile-icon" aria-hidden="true">
+          <ion-icon name="person-outline"></ion-icon>
+        </span>
+        <span>Profile</span>
+      </a>
+      <button class="sidebar__logout" type="button" (click)="logout()">
+        <ion-icon name="log-out-outline" aria-hidden="true"></ion-icon>
+        <span>Log out</span>
+      </button>
+    </div>
+    <p class="sidebar__disclaimer">Educational guidance only</p>
+  </aside>
+
+  <div class="app-shell__body">
+    <header class="app-header">
+      <a class="app-header__brand" routerLink="/app/dashboard" aria-label="SmartMoney! Easy dashboard">
+        <img src="assets/branding/smartmoney-easy-horizontal-logo.png" alt="SmartMoney! Easy" />
+      </a>
+      <div class="app-header__actions">
+        <a class="app-header__profile" routerLink="/app/profile" aria-label="Open profile">
+          <span aria-hidden="true"><ion-icon name="person-outline"></ion-icon></span>
+        </a>
+        <button class="app-header__logout" type="button" (click)="logout()" aria-label="Log out">
+          <ion-icon name="log-out-outline" aria-hidden="true"></ion-icon>
+        </button>
+      </div>
+    </header>
+
+    <main class="app-shell__content">
+      <router-outlet></router-outlet>
+    </main>
+
+    <button class="thinker-fab" type="button" (click)="openThinker()" aria-label="Open Thinker AI">
+      AI
+    </button>
+
+    <nav class="bottom-nav" aria-label="Mobile primary navigation">
+      @for (item of navigation; track item.route) {
+        <a [routerLink]="item.route" routerLinkActive="is-active">
+          @if (item.iconName) {
+            <ion-icon class="bottom-nav__icon" [name]="item.iconName" aria-hidden="true"></ion-icon>
+          } @else {
+            <span class="bottom-nav__icon" aria-hidden="true">{{ item.icon }}</span>
+          }
+          <span>{{ item.label }}</span>
+        </a>
+      }
+    </nav>
+  </div>
+</div>
+
+@if (thinkerOpen) {
+  <div class="thinker-backdrop" (click)="closeThinker()" aria-hidden="true"></div>
+  <aside class="thinker-panel" role="dialog" aria-modal="true" aria-labelledby="thinker-title">
+    <div class="thinker-panel__header">
+      <div>
+        <p>Educational coach</p>
+        <h2 id="thinker-title">Thinker AI</h2>
+      </div>
+      <button type="button" (click)="closeThinker()" aria-label="Close Thinker AI">×</button>
+    </div>
+    <div class="thinker-panel__message">
+      Thinker is connected to the app shell. The complete guided conversation will be implemented in Phase 5.
+    </div>
+    <p class="thinker-panel__disclaimer">Educational guidance only — not financial advice.</p>
+  </aside>
+}
