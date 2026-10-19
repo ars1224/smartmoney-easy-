@@ -1,34 +1,30 @@
 import { Routes } from '@angular/router';
+import { authGuard, guestGuard } from './core/auth/auth.guard';
 
 export const routes: Routes = [
   {
     path: 'auth',
+    canActivate: [guestGuard],
     children: [
       {
         path: 'login',
+        loadComponent: () => import('./pages/auth/login/login.page').then((m) => m.LoginPage),
+      },
+      {
+        path: 'register',
+        loadComponent: () =>
+          import('./pages/auth/register/register.page').then((m) => m.RegisterPage),
+      },
+      {
+        path: 'forgot-password',
         loadComponent: () =>
           import('./pages/route-placeholder/route-placeholder.page').then(
             (m) => m.RoutePlaceholderPage,
           ),
         data: {
           eyebrow: 'Account access',
-          title: 'Log in',
-          description: 'Authentication page placeholder ready for Phase 2.',
-          publicPage: true,
-          nextLink: '/auth/register',
-          nextLabel: 'Create account',
-        },
-      },
-      {
-        path: 'register',
-        loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page').then(
-            (m) => m.RoutePlaceholderPage,
-          ),
-        data: {
-          eyebrow: 'Create an account',
-          title: 'Join SmartMoney! Easy',
-          description: 'Registration page placeholder ready for Phase 2.',
+          title: 'Reset password',
+          description: 'Password recovery will be connected when the backend endpoint is ready.',
           publicPage: true,
           nextLink: '/auth/login',
           nextLabel: 'Back to log in',
@@ -39,6 +35,7 @@ export const routes: Routes = [
   },
   {
     path: 'app',
+    canActivate: [authGuard],
     loadComponent: () =>
       import('./shell/app-shell.component').then((m) => m.AppShellComponent),
     children: [
@@ -132,6 +129,37 @@ export const routes: Routes = [
       },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
     ],
+  },
+  {
+    path: 'about',
+    loadComponent: () =>
+      import('./pages/route-placeholder/route-placeholder.page').then(
+        (m) => m.RoutePlaceholderPage,
+      ),
+    data: {
+      eyebrow: 'About the app',
+      title: 'SmartMoney! Easy',
+      description: 'A supportive financial-wellness app for tracking, planning and learning.',
+      publicPage: true,
+      nextLink: '/auth/login',
+      nextLabel: 'Back to log in',
+    },
+  },
+  {
+    path: 'privacy',
+    loadComponent: () =>
+      import('./pages/route-placeholder/route-placeholder.page').then(
+        (m) => m.RoutePlaceholderPage,
+      ),
+    data: {
+      eyebrow: 'Development prototype',
+      title: 'Prototype privacy statement',
+      description:
+        'SmartMoney! Easy currently uses mock authentication for development testing. Do not enter real passwords, bank credentials or sensitive financial information.',
+      publicPage: true,
+      nextLink: '/auth/register',
+      nextLabel: 'Back to create account',
+    },
   },
   {
     path: '',

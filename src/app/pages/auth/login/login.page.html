@@ -1,0 +1,58 @@
+<ion-content class="auth-content">
+  <main class="auth-layout">
+    <div class="auth-brand" aria-label="SmartMoney! Easy">
+      <img class="auth-logo" src="assets/branding/smartmoney-easy-horizontal-logo.png" alt="SmartMoney! Easy" />
+    </div>
+
+    <section class="auth-panel auth-card" aria-labelledby="login-title">
+      <h1 id="login-title">Welcome back</h1>
+      <p class="auth-intro">Take control of your money, one simple step at a time.</p>
+
+      <form class="auth-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        @if (serverError()) {
+          <div class="form-alert" role="alert">{{ serverError() }}</div>
+        }
+
+        <div class="field">
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" formControlName="email" autocomplete="email"
+            placeholder="name@example.com" [attr.aria-invalid]="form.controls.email.invalid && form.controls.email.touched" />
+          @if (form.controls.email.touched && form.controls.email.hasError('required')) {
+            <p class="field-error">Enter your email address.</p>
+          } @else if (form.controls.email.touched && form.controls.email.hasError('email')) {
+            <p class="field-error">Enter a valid email address.</p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="login-password">Password</label>
+          <div class="password-wrap">
+            <input id="login-password" [type]="showPassword() ? 'text' : 'password'" formControlName="password"
+              autocomplete="current-password" placeholder="At least 8 characters"
+              [attr.aria-invalid]="form.controls.password.invalid && form.controls.password.touched" />
+            <button class="password-toggle" type="button" (click)="showPassword.set(!showPassword())"
+              [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
+              {{ showPassword() ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+          @if (form.controls.password.touched && form.controls.password.invalid) {
+            <p class="field-error">Enter your password of at least 8 characters.</p>
+          }
+        </div>
+
+        <button class="submit-button" type="submit" [disabled]="loading()" [attr.aria-busy]="loading()">
+          {{ loading() ? 'Logging in…' : 'Log in' }}
+        </button>
+      </form>
+
+      <nav class="auth-links" aria-label="Account options">
+        <a routerLink="/auth/register">Create an account</a>
+        <a routerLink="/auth/forgot-password">Forgot password?</a>
+        <a routerLink="/about">About SmartMoney! Easy</a>
+      </nav>
+      <p class="privacy-note">
+        Development authentication only — do not use a real password or sensitive financial information.
+      </p>
+    </section>
+  </main>
+</ion-content>
