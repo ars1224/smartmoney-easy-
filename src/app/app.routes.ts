@@ -119,25 +119,11 @@ export const routes: Routes = [
       {
         path: 'profile',
         loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page').then(
-            (m) => m.RoutePlaceholderPage,
-          ),
-        data: {
-          eyebrow: 'Your account',
-          title: 'Profile & assets',
-          description: 'Personal details, cash assets and connected accounts will appear here.',
-        },
-      },
-      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
-
-      {
-        path: 'profile-settings',
-        loadComponent: () =>
           import('./pages/profile-settings/profile-settings.page').then(
             (m) => m.ProfileSettingsPage,
           ),
       },
-
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
     ],
   },
   {

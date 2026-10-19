@@ -105,3 +105,240 @@ ion-content {
     gap: var(--sm-space-4);
   }
 }
+
+
+.settings-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(15 35 60 / 35%);
+  animation: modal-fade-in 220ms ease-out;
+}
+
+.settings-modal {
+  width: min(100%, 540px);
+  padding: 28px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 16px 36px rgb(15 35 60 / 18%);
+  animation: modal-slide-in 220ms ease-out;
+}
+
+.settings-modal h2 {
+  margin: 0 0 8px;
+  color: #142a47;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.settings-modal__description {
+  margin: 0 0 28px;
+  color: #61738d;
+  font-size: 14px;
+}
+
+.settings-modal form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-modal label {
+  margin-top: 4px;
+  color: #142a47;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-modal input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 13px;
+  border: 1px solid #cbd8e7;
+  border-radius: 9px;
+  color: #142a47;
+  background: #fff;
+  font: inherit;
+}
+
+.settings-modal input:focus-visible,
+.settings-modal button:focus-visible {
+  outline: 3px solid rgb(13 148 136 / 25%);
+  outline-offset: 2px;
+}
+
+.settings-modal__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.settings-modal__actions button {
+  min-height: 46px;
+  padding: 10px 14px;
+  border: 1px solid #cbd8e7;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-modal__primary {
+  border-color: #0d9488 !important;
+  background: #0d9488;
+  color: #fff;
+}
+
+.settings-modal__secondary {
+  background: #fff;
+  color: #142a47;
+}
+
+.settings-modal__error {
+  margin: 4px 0 0;
+  color: #d94747;
+  font-size: 13px;
+}
+
+.settings-modal__message {
+  margin: 4px 0 0;
+  color: #0d8279;
+  font-size: 13px;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .settings-modal-backdrop {
+    padding: 16px;
+  }
+
+  .settings-modal {
+    padding: 22px;
+  }
+
+  .settings-modal__actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-modal-backdrop,
+  .settings-modal {
+    animation: none;
+  }
+}
+
+.privacy-modal__option {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid #cbd8e7;
+  border-radius: 9px;
+  background: #fff;
+  color: #142a47;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.privacy-modal__option + .privacy-modal__option {
+  margin-top: 12px;
+}
+
+.privacy-modal__option--danger {
+  border-color: #d94b4b;
+  background: #d94b4b;
+  color: #fff;
+}
+
+.privacy-modal__note {
+  margin: 18px 0 28px;
+  color: #61738d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.privacy-modal__close {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  border-radius: 9px;
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0 14px;
+  margin-top: 40px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.delete-account-modal {
+  width: min(100%, 524px);
+  min-height: 368px;
+  padding: 28px;
+  box-sizing: border-box;
+}
+
+.delete-account-modal__confirmation {
+  margin-top: 44px;
+}
+
+.delete-account-modal__confirmation label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.delete-account-modal__confirmation input {
+  width: 100%;
+  height: 46px;
+  padding: 0 13px;
+  box-sizing: border-box;
+  border: 1px solid #d2dceb;
+  border-radius: 10px;
+  background: #fff;
+  color: #172b49;
+  font: inherit;
+}
+
+.delete-account-modal .settings-modal__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 27px;
+  margin-top: 76px;
+}
+
+.settings-modal__primary--danger {
+  background: #dc4b4b;
+}
+
+.settings-modal__primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
