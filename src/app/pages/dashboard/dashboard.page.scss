@@ -19,7 +19,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--sm-color-teal);
 .safe-spend > p:not(.safe-spend__eyebrow) { font-size: .88rem; font-weight: 600; }
 .safe-spend small { display: block; margin-top: .4rem; color: var(--sm-color-on-dark-muted); font-size: .72rem; line-height: 1.35; }
 .safe-spend__progress, .safe-spend__days { display: none; }
-.quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; padding: .65rem; border-radius: var(--sm-radius-lg); background: var(--sm-color-surface); box-shadow: var(--sm-shadow-card); }
+.quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-self: start; gap: .5rem; padding: .65rem; border-radius: var(--sm-radius-lg); background: var(--sm-color-surface); box-shadow: var(--sm-shadow-card); }
 .quick-actions button, .quick-actions a, .dashboard__add { display: grid; place-items: center; min-height: 48px; padding: .5rem; border: 1px solid var(--sm-color-border); border-radius: var(--sm-radius-md); background: var(--sm-color-surface); color: var(--sm-color-text); font: inherit; font-size: .73rem; font-weight: 700; text-align: center; text-decoration: none; cursor: pointer; }
 .quick-actions__primary { border-color: var(--sm-color-teal) !important; background: var(--sm-color-teal-soft) !important; color: var(--sm-color-teal-dark) !important; }
 .quick-actions .quick-actions__thinker { display: none; }
@@ -67,7 +67,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--sm-color-teal);
   .dashboard__mobile-date { display: none; }
   .dashboard__desktop-subtitle { display: block; }
   .dashboard__heading .dashboard__add { display: grid; min-width: 11rem; min-height: 42px; background: var(--sm-color-teal); color: white; border: 0; }
-  .dashboard__grid { grid-template-columns: minmax(0, 1.5fr) minmax(16rem, 1fr); grid-template-areas: 'hero actions' 'hero metrics' 'chart budgets' 'recent recent' 'goal learning'; gap: 1rem; }
+  .dashboard__grid { grid-template-columns: minmax(0, 1.5fr) minmax(16rem, 1fr); grid-template-areas: 'hero actions' 'metrics metrics' 'chart budgets' 'recent recent' 'goal learning'; gap: 1rem; }
   .safe-spend { grid-area: hero; min-height: 12.6rem; padding: 1.5rem; }
   .safe-spend__progress { display: block; height: .5rem; margin-top: .3rem; border-radius: var(--sm-radius-pill); background: var(--sm-color-progress-track); }
   .safe-spend__progress span { display: block; width: 58%; height: 100%; border-radius: inherit; background: var(--sm-color-teal); }
