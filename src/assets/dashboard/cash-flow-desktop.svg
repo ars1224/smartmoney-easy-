@@ -1,0 +1,12 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="704" height="188" viewBox="0 0 704 188" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Chart / 30-day cash flow" clip-path="url(#clip0_0_16)">
+<path id="Vector" d="M0 150C60 116 92 135 145 93C204 47 250 102 312 62C374 22 419 78 476 42C538 3 590 57 704 18" stroke-width="4" stroke-linecap="round" stroke="#0B8F8C"/>
+<path id="Vector_2" d="M0 169C74 148 111 167 172 132C230 98 283 141 338 108C403 69 459 124 517 88C579 50 627 95 704 70" stroke-width="3" stroke-linecap="round" stroke="#D94E4E"/>
+<path id="Vector_3" d="M0 38H704M0 92H704M0 146H704" stroke="#E1E6E9"/>
+</g>
+<defs>
+<clipPath id="clip0_0_16">
+<rect width="704" height="188" fill="white"/>
+</clipPath>
+</defs>
+</svg>
