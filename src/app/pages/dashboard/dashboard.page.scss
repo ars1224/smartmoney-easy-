@@ -1,0 +1,89 @@
+:host { display: block; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--sm-color-teal); outline-offset: 3px; }
+.dashboard { max-width: 88rem; margin: 0 auto; padding: var(--sm-space-5); color: var(--sm-color-text); }
+.dashboard__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sm-space-4); margin-bottom: var(--sm-space-4); }
+.dashboard__heading h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 1.75rem); line-height: 1.3; }
+.dashboard__heading p { margin: .2rem 0 0; color: var(--sm-color-text-muted); font-size: .8rem; }
+.dashboard__desktop-subtitle, .dashboard__heading .dashboard__add { display: none; }
+.dashboard__status { margin: 0 0 var(--sm-space-4); color: var(--sm-color-text-muted); font-size: .75rem; line-height: 1.45; }
+.dashboard__status--warning, .dashboard__status--notice { padding: var(--sm-space-3); border-radius: var(--sm-radius-md); background: var(--sm-color-yellow-soft); color: var(--sm-color-text); }
+.dashboard__status--notice { background: var(--sm-color-teal-soft); }
+.dashboard__status button { margin-left: var(--sm-space-2); border: 0; background: none; color: var(--sm-color-teal-dark); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.dashboard__grid { display: grid; gap: var(--sm-space-4); }
+.dashboard__grid > * { min-width: 0; }
+.safe-spend { position: relative; min-height: 9.875rem; padding: var(--sm-space-5); overflow: hidden; border-radius: 1.25rem; background: var(--sm-color-navy); color: var(--sm-color-on-dark); box-shadow: var(--sm-shadow-card); }
+.safe-spend p, .safe-spend small { margin: 0; }
+.safe-spend__eyebrow { color: var(--sm-color-on-dark-subtle); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; }
+.safe-spend__eyebrow span { text-transform: none; }
+.safe-spend strong { display: block; margin: .2rem 0; font-size: clamp(2.4rem, 5vw, 2.75rem); line-height: 1.1; }
+.safe-spend > p:not(.safe-spend__eyebrow) { font-size: .88rem; font-weight: 600; }
+.safe-spend small { display: block; margin-top: .4rem; color: var(--sm-color-on-dark-muted); font-size: .72rem; line-height: 1.35; }
+.safe-spend__progress, .safe-spend__days { display: none; }
+.quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; padding: .65rem; border-radius: var(--sm-radius-lg); background: var(--sm-color-surface); box-shadow: var(--sm-shadow-card); }
+.quick-actions button, .quick-actions a, .dashboard__add { display: grid; place-items: center; min-height: 48px; padding: .5rem; border: 1px solid var(--sm-color-border); border-radius: var(--sm-radius-md); background: var(--sm-color-surface); color: var(--sm-color-text); font: inherit; font-size: .73rem; font-weight: 700; text-align: center; text-decoration: none; cursor: pointer; }
+.quick-actions__primary { border-color: var(--sm-color-teal) !important; background: var(--sm-color-teal-soft) !important; color: var(--sm-color-teal-dark) !important; }
+.quick-actions .quick-actions__thinker { display: none; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
+.metrics app-sm-card { min-width: 0; }
+.metrics ::ng-deep .sm-card { height: 100%; padding: .8rem; border: 0; }
+.metrics p { margin: 0; color: var(--sm-color-text-muted); font-size: .7rem; }
+.metrics strong { display: block; margin: .3rem 0; font-size: clamp(.93rem, 3.8vw, 1.35rem); white-space: nowrap; }
+.metrics span { color: var(--sm-color-green); font-size: .66rem; }
+.cash-flow ::ng-deep .sm-card, .budget-health ::ng-deep .sm-card, .recent ::ng-deep .sm-card { height: 100%; border: 0; }
+.card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sm-space-3); }
+.card-heading h2, .goal h2, .learning h2 { margin: 0; font-size: 1rem; line-height: 1.3; }
+.card-heading p { margin: .25rem 0 0; color: var(--sm-color-text-muted); font-size: .7rem; }
+.card-heading > span { color: var(--sm-color-text); font-size: .75rem; font-weight: 700; }
+.card-heading a, .card-link { color: var(--sm-color-teal-dark); font-size: .72rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.chart-legend { display: flex; justify-content: flex-end; gap: var(--sm-space-3); margin: .6rem 0; color: var(--sm-color-text-muted); font-size: .7rem; }
+.cash-flow__chart { display: block; width: 100%; margin-top: var(--sm-space-3); }
+.cash-flow__chart img { display: block; width: 100%; height: auto; }
+.budget-health__list { display: grid; gap: var(--sm-space-3); margin-top: var(--sm-space-5); }
+.budget-health__item > div:first-child { display: flex; justify-content: space-between; gap: .5rem; margin-bottom: .3rem; font-size: .7rem; }
+.budget-health__item > div:first-child span:last-child { color: var(--sm-color-text-muted); white-space: nowrap; }
+.budget-health__item ::ng-deep .sm-progress__label { display: none; }
+.recent ul { padding: 0; margin: var(--sm-space-3) 0 0; list-style: none; }
+.recent li { display: flex; align-items: center; gap: .65rem; min-height: 3.3rem; border-bottom: 1px solid var(--sm-color-border); font-size: .72rem; }
+.recent__icon { display: grid; place-items: center; flex: 0 0 1.9rem; height: 1.9rem; border-radius: 50%; background: var(--sm-color-teal-soft); color: var(--sm-color-teal-dark); font-weight: 800; }
+.recent__detail { display: grid; gap: .12rem; min-width: 0; flex: 1; }
+.recent__detail small { color: var(--sm-color-text-muted); overflow-wrap: anywhere; }
+.recent li > strong { white-space: nowrap; }
+.recent__positive { color: var(--sm-color-green); }
+.goal ::ng-deep .sm-card { display: grid; gap: .4rem; height: 100%; background: var(--sm-color-green-soft); border: 0; box-shadow: none; }
+.goal strong { color: var(--sm-color-green); font-size: 2rem; line-height: 1; }
+.goal p, .goal small { margin: 0; color: var(--sm-color-green); font-size: .72rem; }
+.goal ::ng-deep .sm-progress__label { display: none; }
+.goal a, .learning a { align-self: end; color: var(--sm-color-text); font-size: .72rem; font-weight: 700; text-decoration: none; }
+.learning ::ng-deep .sm-card { display: grid; gap: .7rem; height: 100%; background: var(--sm-color-yellow-soft); border: 0; box-shadow: none; }
+.learning p { margin: 0; color: var(--sm-color-coral); font-size: .66rem; font-weight: 800; text-transform: uppercase; }
+.learning small { color: var(--sm-color-text-muted); font-size: .7rem; }
+.dashboard__message { display: grid; gap: var(--sm-space-3); justify-items: start; }
+.dashboard__message h2, .dashboard__message p { margin: 0; }
+.dashboard__message button, .dashboard__message a { min-height: 44px; padding: .7rem 1rem; border: 0; border-radius: var(--sm-radius-md); background: var(--sm-color-teal); color: white; font: inherit; text-decoration: none; cursor: pointer; }
+.dashboard__skeleton { display: grid; gap: 1rem; }
+.dashboard__skeleton span { height: 6rem; border-radius: 1rem; background: var(--sm-color-border); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (min-width: 64rem) {
+  .dashboard { padding: 1.75rem 2rem 3rem; }
+  .dashboard__heading { margin-bottom: 1rem; }
+  .dashboard__mobile-date { display: none; }
+  .dashboard__desktop-subtitle { display: block; }
+  .dashboard__heading .dashboard__add { display: grid; min-width: 11rem; min-height: 42px; background: var(--sm-color-teal); color: white; border: 0; }
+  .dashboard__grid { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1.45fr) minmax(16rem, .85fr); grid-template-areas: 'hero actions actions' 'hero metrics metrics' 'chart chart budgets' 'recent recent side'; gap: 1rem; }
+  .safe-spend { grid-area: hero; min-height: 12.6rem; padding: 1.5rem; }
+  .safe-spend__progress { display: block; height: .5rem; margin-top: .3rem; border-radius: var(--sm-radius-pill); background: var(--sm-color-progress-track); }
+  .safe-spend__progress span { display: block; width: 58%; height: 100%; border-radius: inherit; background: var(--sm-color-teal); }
+  .safe-spend__days { display: block; margin-top: .65rem; color: var(--sm-color-on-dark-subtle); font-size: .65rem; text-align: right; }
+  .quick-actions { grid-area: actions; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: center; padding: .9rem; }
+  .quick-actions .quick-actions__thinker { display: grid; background: var(--sm-color-navy); color: white; border: 0; }
+  .metrics { grid-area: metrics; gap: 1rem; }
+  .metrics ::ng-deep .sm-card { padding: 1rem; }
+  .cash-flow { grid-area: chart; }
+  .cash-flow ::ng-deep .sm-card { min-height: 18rem; }
+  .cash-flow__chart { margin-top: 1.5rem; }
+  .budget-health { grid-area: budgets; }
+  .recent { grid-area: recent; }
+  .dashboard__grid .goal { grid-area: side; width: calc(50% - .5rem); }
+  .dashboard__grid .learning { grid-area: side; width: calc(50% - .5rem); margin-left: calc(50% + .5rem); }
+}

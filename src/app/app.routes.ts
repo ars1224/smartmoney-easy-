@@ -42,9 +42,7 @@ export const routes: Routes = [
       {
         path: 'dashboard',
         loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page').then(
-            (m) => m.RoutePlaceholderPage,
-          ),
+          import('./pages/dashboard/dashboard.page').then((m) => m.DashboardPage),
         data: {
           eyebrow: 'Financial fitness',
           title: 'Dashboard',
