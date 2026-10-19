@@ -30,10 +30,10 @@
       <section class="safe-spend" aria-labelledby="safe-title">
         <p id="safe-title" class="safe-spend__eyebrow">Safe to spend <span>example</span></p>
         <strong>{{ data.safeToSpend | currency:'NZD':'symbol':'1.2-2' }}</strong>
-        <p>Available until {{ data.safeToSpendUntil }}</p>
+        <p>Available until {{ data.safeToSpendEndDate | date:'EEEE' }}</p>
         <small>Bills, budgets and savings are already set aside in this design example.</small>
-        <span class="safe-spend__days">{{ data.daysRemaining }} days remaining</span>
-        <div class="safe-spend__progress" [attr.aria-label]="data.daysRemaining + ' days remaining'"><span></span></div>
+        <span class="safe-spend__days">{{ daysRemaining(data.safeToSpendEndDate) }} days remaining</span>
+        <div class="safe-spend__progress" [attr.aria-label]="daysRemaining(data.safeToSpendEndDate) + ' days remaining'"><span></span></div>
       </section>
 
       <section class="quick-actions" aria-label="Quick actions">
@@ -61,7 +61,7 @@
       </app-sm-card>
 
       <app-sm-card class="budget-health" labelledBy="budget-title">
-        <div class="card-heading"><div><h2 id="budget-title">Budget health</h2><p>3 of 4 categories are on track in this example</p></div></div>
+        <div class="card-heading"><div><h2 id="budget-title">Budget health</h2><p>{{ onTrackCount(data.budgets) }} of {{ data.budgets.length }} categories are on track in this example (under 90% used)</p></div></div>
         <div class="budget-health__list">
           @for (budget of data.budgets; track budget.name) {
             <div class="budget-health__item"><div><span>{{ budget.name }}</span><span>{{ budget.spent | currency:'NZD':'symbol':'1.0-0' }} / {{ budget.limit | currency:'NZD':'symbol':'1.0-0' }}</span></div><app-sm-progress [label]="budget.name + ' budget used'" [value]="progress(budget.spent, budget.limit)" [tone]="budget.tone" /></div>
@@ -73,7 +73,7 @@
       <app-sm-card class="recent" labelledBy="recent-title">
         <div class="card-heading"><h2 id="recent-title">Recent activity</h2><a routerLink="/app/activity">View all</a></div>
         <ul>
-          @for (transaction of data.transactions; track transaction.name) {
+          @for (transaction of data.transactions; track transaction.id) {
             <li><span class="recent__icon" aria-hidden="true">{{ transaction.name[0] }}</span><span class="recent__detail"><strong>{{ transaction.name }}</strong><small>{{ transaction.category }} · {{ transaction.date }} · {{ transaction.source === 'mock-bank' ? 'Mock Bank example' : 'Manual example' }}</small></span><strong [class.recent__positive]="transaction.amount > 0">{{ transaction.amount > 0 ? '+' : '' }}{{ transaction.amount | currency:'NZD':'symbol':'1.2-2' }}</strong></li>
           }
         </ul>

@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { SmCardComponent } from '../../shared/ui/sm-card/sm-card.component';
 import { SmProgressComponent } from '../../shared/ui/sm-progress/sm-progress.component';
-import { DashboardDataService, DashboardSnapshot } from './dashboard-data.service';
+import { DashboardBudget, DashboardDataService, DashboardSnapshot } from './dashboard-data.service';
 
 type DashboardState = 'loading' | 'ready' | 'empty' | 'error' | 'stale';
 
@@ -50,6 +50,16 @@ export class DashboardPage implements OnInit {
   }
   progress(value: number, maximum: number): number {
     return maximum > 0 ? Math.min(100, Math.round((value / maximum) * 100)) : 0;
+  }
+  daysRemaining(endDate: Date): number {
+    const today = new Date();
+    const start = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    const end = Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+    return Math.max(0, Math.round((end - start) / 86_400_000));
+  }
+  onTrackCount(budgets: DashboardBudget[]): number {
+    // The demo treats a category as needing attention once 90% of its limit is used.
+    return budgets.filter((budget) => budget.limit > 0 && budget.spent / budget.limit < 0.9).length;
   }
   showPending(action: string): void {
     this.notice.set(`${action} will be available when the Activity and Goals features are implemented.`);
