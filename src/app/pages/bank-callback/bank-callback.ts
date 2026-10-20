@@ -105,7 +105,7 @@ interface BankCallbackResponse {
     }
   `],
 })
-export class BankCallback implements OnInit {
+export class BankCallbackPage implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
 

@@ -7,7 +7,7 @@ export const routes: Routes = [
     path: 'bank/callback',
     loadComponent: () =>
       import('./pages/bank-callback/bank-callback')
-        .then((m) => m.BankCallback),
+        .then((m) => m.BankCallbackPage),
   },
 
   // Authentication routes - Dhona
@@ -77,7 +77,7 @@ export const routes: Routes = [
         path: 'activity/add',
         loadComponent: () =>
           import('./pages/add-transaction/add-transaction').then(
-            (m) => m.AddTransaction
+            (m) => m.AddTransactionPage
           ),
       },
 
@@ -86,7 +86,7 @@ export const routes: Routes = [
         path: 'activity/edit/:id',
         loadComponent: () =>
         import('./pages/add-transaction/add-transaction').then(
-          (m) => m.AddTransaction
+          (m) => m.AddTransactionPage
         ),
       },
 
@@ -95,14 +95,14 @@ export const routes: Routes = [
         path: 'activity',
         loadComponent: () =>
         import('./pages/activity/activity')
-          .then((m) => m.Activity),
+          .then((m) => m.ActivityPage),
       },
 
       {
         path: 'budgets',
         loadComponent: () =>
         import('./pages/budgets/budgets')
-          .then((m) => m.Budgets),
+          .then((m) => m.BudgetsPage),
       },
 
       {

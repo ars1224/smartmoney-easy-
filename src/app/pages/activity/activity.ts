@@ -25,7 +25,7 @@ interface Transaction {
   templateUrl: './activity.html',
   styleUrl: './activity.scss',
 })
-export class Activity implements OnInit {
+export class ActivityPage implements OnInit {
 
   private readonly manualTransactionsService =
     inject(ManualTransactionsService);

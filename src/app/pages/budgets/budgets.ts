@@ -18,7 +18,7 @@ export interface Budget {
   templateUrl: './budgets.html',
   styleUrl: './budgets.scss',
 })
-export class Budgets {
+export class BudgetsPage {
 
   // Temporary budgets for frontend development.
   // These will eventually come from the Flask API.
