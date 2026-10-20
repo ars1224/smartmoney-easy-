@@ -142,6 +142,13 @@ export const routes: Routes = [
         },
       },
       {
+        path: 'bank/connect',
+        loadComponent: () =>
+          import('./pages/bank-callback/bank-callback')
+            .then((m) => m.BankCallbackPage),
+      },
+
+      {
         path: 'profile',
         loadComponent: () =>
           import('./pages/route-placeholder/route-placeholder.page')
@@ -151,6 +158,8 @@ export const routes: Routes = [
           title: 'Profile & assets',
           description:
             'Personal details, cash assets and connected accounts will appear here.',
+          nextLink: '/app/bank/connect',
+          nextLabel: 'Connect Mock Bank',
         },
       },
       {
