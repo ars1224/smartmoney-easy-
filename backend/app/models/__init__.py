@@ -291,3 +291,7 @@ class BankOAuthAttempt(db.Model):
         default=utc_now,
         nullable=False
     )
+from app.models.savings_goal import (
+    SavingsGoal,
+    SavingsGoalContribution,
+)

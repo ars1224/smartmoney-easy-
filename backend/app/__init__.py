@@ -11,10 +11,19 @@ from app.routes import (
     bank_oauth_bp,
 )
 
+from app.routes import (
+    health_bp,
+    bank_accounts_bp,
+    auth_bp,
+    bank_oauth_bp,
+    savings_goals_bp,
+)
+
 
 def create_app():
     app = Flask(__name__)
 
+    app.register_blueprint(savings_goals_bp)
     app.config.from_object(Config)
     app.register_blueprint(auth_bp)
     app.register_blueprint(bank_oauth_bp)
