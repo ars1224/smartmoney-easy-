@@ -105,17 +105,12 @@ export const routes: Routes = [
           .then((m) => m.BudgetsPage),
       },
 
+      // Savings Goals — Aries
       {
         path: 'goals',
         loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page')
-            .then((m) => m.RoutePlaceholderPage),
-        data: {
-          eyebrow: 'Build momentum',
-          title: 'Savings goals',
-          description:
-            'Savings progress and milestones will appear here.',
-        },
+          import('./pages/savings-goals/savings-goals')
+            .then((m) => m.SavingsGoalsPage),
       },
       {
         path: 'reports',

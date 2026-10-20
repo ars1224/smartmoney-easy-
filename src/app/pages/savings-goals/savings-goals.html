@@ -1,0 +1,497 @@
+
+<main class="goals-page">
+
+  <!-- Page header -->
+  <header class="page-header">
+    <div class="page-heading">
+      <p class="page-eyebrow">Plan for your future</p>
+      <h1>Savings Goals</h1>
+      <p class="page-description">
+        Set savings targets, track your progress, and celebrate your achievements.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      class="btn btn-primary create-goal-btn"
+      (click)="openCreateGoal()"
+    >
+      <span aria-hidden="true">+</span>
+      Create Goal
+    </button>
+  </header>
+
+  <!-- Savings summary -->
+  <section class="summary-grid" aria-label="Savings summary">
+
+    <article class="summary-card">
+      <span class="summary-label">Total Saved</span>
+      <strong class="summary-value">
+        {{ formatCurrency(totalSaved()) }}
+      </strong>
+      <span class="summary-caption">
+        Across all savings goals
+      </span>
+    </article>
+
+    <article class="summary-card">
+      <span class="summary-label">Total Target</span>
+      <strong class="summary-value">
+        {{ formatCurrency(totalTarget()) }}
+      </strong>
+      <span class="summary-caption">
+        Your combined savings targets
+      </span>
+    </article>
+
+    <article class="summary-card">
+      <span class="summary-label">Goals Completed</span>
+      <strong class="summary-value">
+        {{ completedGoals() }} / {{ goals().length }}
+      </strong>
+      <span class="summary-caption">
+        Goals you've achieved
+      </span>
+    </article>
+
+    <article class="summary-card progress-summary">
+      <span class="summary-label">Overall Progress</span>
+      <strong class="summary-value">
+        {{ overallProgress() }}%
+      </strong>
+
+      <div
+        class="progress-track"
+        role="progressbar"
+        aria-label="Overall savings progress"
+        [attr.aria-valuenow]="overallProgress()"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      >
+        <div
+          class="progress-fill"
+          [style.width.%]="overallProgress()"
+        ></div>
+      </div>
+    </article>
+
+  </section>
+
+  <!-- Goals section -->
+  <section class="goals-section" aria-labelledby="goals-heading">
+
+    <div class="section-heading">
+      <div>
+        <h2 id="goals-heading">My Savings Goals</h2>
+        <p>Manage your goals and savings progress.</p>
+      </div>
+
+      <span class="goal-count">
+        {{ goals().length }}
+        {{ goals().length === 1 ? 'Goal' : 'Goals' }}
+      </span>
+    </div>
+
+    @if (goals().length === 0) {
+
+      <!-- Empty state -->
+      <div class="empty-state">
+        <div class="empty-icon" aria-hidden="true">
+          <span>◎</span>
+        </div>
+
+        <h3>No savings goals yet</h3>
+
+        <p>
+          Start with something meaningful.
+          Create your first savings goal and begin tracking your progress.
+        </p>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="openCreateGoal()"
+        >
+          + Create Your First Goal
+        </button>
+      </div>
+
+    } @else {
+
+      <!-- Savings goals cards -->
+      <div class="goals-grid">
+
+        @for (goal of goals(); track goal.id) {
+
+          <article class="goal-card">
+
+            <div class="goal-card-header">
+              <div class="goal-title-group">
+                <h3>{{ goal.name }}</h3>
+
+                <span
+                  class="status-badge"
+                  [class.is-complete]="goalStatus(goal) === 'Completed'"
+                  [class.is-overdue]="goalStatus(goal) === 'Overdue'"
+                >
+                  {{ goalStatus(goal) }}
+                </span>
+              </div>
+
+              <div class="goal-card-actions">
+                <button
+                  type="button"
+                  class="btn-icon"
+                  [attr.aria-label]="'Edit ' + goal.name"
+                  (click)="openEditGoal(goal)"
+                >
+                  Edit
+                </button>
+
+                <button
+                  type="button"
+                  class="btn-icon danger"
+                  [attr.aria-label]="'Delete ' + goal.name"
+                  (click)="requestDelete(goal)"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+
+            <div class="goal-amounts">
+              <div>
+                <span class="amount-label">Saved</span>
+                <strong class="saved-amount">
+                  {{ formatCurrency(goal.savedAmount) }}
+                </strong>
+              </div>
+
+              <div class="target-amount">
+                <span class="amount-label">Target</span>
+                <strong>
+                  {{ formatCurrency(goal.targetAmount) }}
+                </strong>
+              </div>
+            </div>
+
+            <div class="goal-progress">
+              <div class="progress-labels">
+                <span>Progress</span>
+                <strong>{{ progressPercent(goal) }}%</strong>
+              </div>
+
+              <div
+                class="progress-track"
+                role="progressbar"
+                [attr.aria-label]="'Progress for ' + goal.name"
+                [attr.aria-valuenow]="progressPercent(goal)"
+                aria-valuemin="0"
+                aria-valuemax="100"
+              >
+                <div
+                  class="progress-fill"
+                  [class.completed]="progressPercent(goal) === 100"
+                  [style.width.%]="progressPercent(goal)"
+                ></div>
+              </div>
+            </div>
+
+            <div class="goal-details">
+              <div class="detail-row">
+                <span>Remaining</span>
+                <strong>
+                  {{ formatCurrency(remainingAmount(goal)) }}
+                </strong>
+              </div>
+
+              <div class="detail-row">
+                <span>Target Date</span>
+                <strong>{{ formatDate(goal.targetDate) }}</strong>
+              </div>
+            </div>
+
+            <div class="goal-card-footer">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="openContribution(goal)"
+              >
+                + Add Contribution
+              </button>
+            </div>
+
+          </article>
+
+        }
+
+      </div>
+
+    }
+
+  </section>
+
+  <!-- Create/Edit goal modal -->
+  @if (showGoalForm) {
+
+    <div class="modal-backdrop">
+      <div
+        class="modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="goal-form-heading"
+      >
+
+        <div class="modal-header">
+          <div>
+            <h2 id="goal-form-heading">
+              {{ isEditingGoal ? 'Edit Savings Goal' : 'Create Savings Goal' }}
+            </h2>
+            <p>
+              {{ isEditingGoal
+                ? 'Update your savings goal details.'
+                : 'Set a new savings target.' }}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            class="modal-close"
+            aria-label="Close goal form"
+            (click)="closeGoalForm()"
+          >
+            ×
+          </button>
+        </div>
+
+        <form (ngSubmit)="saveGoal()" novalidate>
+
+          <div class="modal-body">
+
+            <div class="form-field">
+              <label for="goal-name">Goal Name</label>
+
+              <input
+                id="goal-name"
+                name="goalName"
+                type="text"
+                maxlength="80"
+                placeholder="e.g. Emergency Fund"
+                [(ngModel)]="goalForm.name"
+                required
+              />
+            </div>
+
+            <div class="form-field">
+              <label for="goal-target">Target Amount (NZD)</label>
+
+              <input
+                id="goal-target"
+                name="goalTarget"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="0.00"
+                [(ngModel)]="goalForm.targetAmount"
+                required
+              />
+            </div>
+
+            <div class="form-field">
+              <label for="goal-saved">Current Savings (NZD)</label>
+
+              <input
+                id="goal-saved"
+                name="goalSaved"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                [(ngModel)]="goalForm.savedAmount"
+                required
+              />
+
+              <small>
+                Enter the amount already saved towards this goal.
+              </small>
+            </div>
+
+            <div class="form-field">
+              <label for="goal-date">Target Date</label>
+
+              <input
+                id="goal-date"
+                name="goalDate"
+                type="date"
+                [(ngModel)]="goalForm.targetDate"
+                required
+              />
+            </div>
+
+            @if (goalFormError) {
+              <p class="form-error" role="alert">
+                {{ goalFormError }}
+              </p>
+            }
+
+          </div>
+
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-outline"
+              (click)="closeGoalForm()"
+            >
+              Cancel
+            </button>
+
+            <button type="submit" class="btn btn-primary">
+              {{ isEditingGoal ? 'Save Changes' : 'Create Goal' }}
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+
+  }
+
+  <!-- Add contribution modal -->
+  @if (showContributionForm && contributionGoal) {
+
+    <div class="modal-backdrop">
+      <div
+        class="modal-panel modal-small"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="contribution-heading"
+      >
+
+        <div class="modal-header">
+          <div>
+            <h2 id="contribution-heading">Add Contribution</h2>
+            <p>{{ contributionGoal.name }}</p>
+          </div>
+
+          <button
+            type="button"
+            class="modal-close"
+            aria-label="Close contribution form"
+            (click)="closeContribution()"
+          >
+            ×
+          </button>
+        </div>
+
+        <form (ngSubmit)="addContribution()" novalidate>
+          <div class="modal-body">
+
+            <p class="contribution-info">
+              Currently Saved:
+              <strong>
+                {{ formatCurrency(contributionGoal.savedAmount) }}
+              </strong>
+            </p>
+
+            <div class="form-field">
+              <label for="contribution-amount">
+                Contribution Amount (NZD)
+              </label>
+
+              <input
+                id="contribution-amount"
+                name="contributionAmount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="0.00"
+                [(ngModel)]="contributionAmount"
+                required
+              />
+            </div>
+
+            <p class="form-help">
+              This updates your goal progress only.
+              It does not transfer money from a bank or cash wallet.
+            </p>
+
+            @if (contributionError) {
+              <p class="form-error" role="alert">
+                {{ contributionError }}
+              </p>
+            }
+
+          </div>
+
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-outline"
+              (click)="closeContribution()"
+            >
+              Cancel
+            </button>
+
+            <button type="submit" class="btn btn-primary">
+              Add Contribution
+            </button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+  }
+
+  <!-- Delete confirmation modal -->
+  @if (goalToDelete) {
+
+    <div class="modal-backdrop">
+      <div
+        class="modal-panel modal-small"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-heading"
+        aria-describedby="delete-description"
+      >
+
+        <div class="modal-header">
+          <h2 id="delete-heading">Delete Savings Goal?</h2>
+        </div>
+
+        <div class="modal-body">
+          <p id="delete-description">
+            Are you sure you want to delete
+            <strong>{{ goalToDelete.name }}</strong>?
+          </p>
+
+          <p class="delete-warning">
+            This action will remove the goal and its tracked progress.
+          </p>
+        </div>
+
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-outline"
+            (click)="cancelDelete()"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            class="btn btn-danger"
+            (click)="deleteGoal()"
+          >
+            Delete Goal
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  }
+
+</main>
