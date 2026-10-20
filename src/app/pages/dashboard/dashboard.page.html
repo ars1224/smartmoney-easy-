@@ -1,0 +1,87 @@
+<div class="dashboard">
+  <header class="dashboard__heading">
+    <div>
+      <h1>Kia ora, {{ firstName() }}</h1>
+      <p class="dashboard__desktop-subtitle">Here's your financial fitness overview</p>
+      <p class="dashboard__mobile-date">{{ today | date: 'EEEE, d MMMM' }}</p>
+    </div>
+    <button class="dashboard__add" type="button" (click)="showPending('Adding a transaction')">+ Add transaction</button>
+  </header>
+
+  @if (state() === 'loading') {
+    <div class="dashboard__skeleton" role="status" aria-live="polite">
+      <span class="dashboard__skeleton-hero"></span><span></span><span></span><span></span>
+      <p>Loading your dashboard…</p>
+    </div>
+  } @else if (state() === 'error') {
+    <app-sm-card><div class="dashboard__message" role="alert"><h2>We couldn't load your overview</h2><p>Your data has not been changed. Please try again.</p><button type="button" (click)="retry()">Try again</button></div></app-sm-card>
+  } @else if (state() === 'empty') {
+    <app-sm-card><div class="dashboard__message"><h2>Your dashboard starts here</h2><p>When you add transactions or connect an account, your financial overview will appear here.</p><a routerLink="/app/activity">View Activity</a></div></app-sm-card>
+  } @else if (snapshot(); as data) {
+    @if (state() === 'stale') {
+      <div class="dashboard__status dashboard__status--warning" role="status">You're viewing previously loaded example data. It may be out of date. <button type="button" (click)="retry()">Try again</button></div>
+    }
+    <p class="dashboard__status" role="status">{{ data.lastUpdated }}. Amounts below are illustrative, not live balances or financial advice.</p>
+    @if (notice()) {
+      <div class="dashboard__status dashboard__status--notice" role="status">{{ notice() }} <button type="button" (click)="notice.set('')" aria-label="Dismiss message">×</button></div>
+    }
+
+    <div class="dashboard__grid">
+      <section class="safe-spend" aria-labelledby="safe-title">
+        <p id="safe-title" class="safe-spend__eyebrow">Safe to spend <span>example</span></p>
+        <strong>{{ data.safeToSpend | currency:'NZD':'symbol':'1.2-2' }}</strong>
+        <p>Available until {{ data.safeToSpendEndDate | date:'EEEE' }}</p>
+        <small>Bills, budgets and savings are already set aside in this design example.</small>
+        <span class="safe-spend__days">{{ daysRemaining(data.safeToSpendEndDate) }} days remaining</span>
+        <div class="safe-spend__progress" [attr.aria-label]="daysRemaining(data.safeToSpendEndDate) + ' days remaining'"><span></span></div>
+      </section>
+
+      <section class="quick-actions" aria-label="Quick actions">
+        <button type="button" class="quick-actions__primary" (click)="showPending('Adding income')">+ Add income</button>
+        <button type="button" (click)="showPending('Recording an expense')">− Add expense</button>
+        <a routerLink="/app/goals">◎ Set a goal</a>
+        <button type="button" class="quick-actions__thinker" (click)="openThinker()">✦ Ask Thinker</button>
+      </section>
+
+      <section class="metrics" aria-label="Monthly financial summary">
+        @for (metric of data.metrics; track metric.label) {
+          <app-sm-card>
+            <p class="metrics__label">{{ metric.label }}</p>
+            <strong>{{ metric.amount | currency:'NZD':'symbol':'1.0-0' }}</strong>
+            <span>{{ metric.change }}</span>
+          </app-sm-card>
+        }
+      </section>
+
+      <app-sm-card class="cash-flow" labelledBy="cash-flow-title">
+        <div class="card-heading"><div><h2 id="cash-flow-title">Cash flow</h2><p>Income and expenses over the last 30 days</p></div><span>30 days</span></div>
+        <p class="chart-legend"><span class="chart-legend__income">● Income</span><span class="chart-legend__expenses">● Expenses</span></p>
+        <picture class="cash-flow__chart"><source media="(min-width: 64rem)" srcset="assets/dashboard/cash-flow-desktop.svg" /><img src="assets/dashboard/cash-flow-mobile.svg" alt="Illustrative cash-flow lines: income remains above expenses across the 30-day period." /></picture>
+        <p class="sr-only">Example monthly income {{ data.metrics[0].amount | currency:'NZD' }}, expenses {{ data.metrics[1].amount | currency:'NZD' }}.</p>
+      </app-sm-card>
+
+      <app-sm-card class="budget-health" labelledBy="budget-title">
+        <div class="card-heading"><div><h2 id="budget-title">Budget health</h2><p>{{ onTrackCount(data.budgets) }} of {{ data.budgets.length }} categories are on track in this example (under 90% used)</p></div></div>
+        <div class="budget-health__list">
+          @for (budget of data.budgets; track budget.name) {
+            <div class="budget-health__item"><div><span>{{ budget.name }}</span><span>{{ budget.spent | currency:'NZD':'symbol':'1.0-0' }} / {{ budget.limit | currency:'NZD':'symbol':'1.0-0' }}</span></div><app-sm-progress [label]="budget.name + ' budget used'" [value]="progress(budget.spent, budget.limit)" [tone]="budget.tone" /></div>
+          }
+        </div>
+        <a routerLink="/app/budgets" class="card-link">View budgets →</a>
+      </app-sm-card>
+
+      <app-sm-card class="recent" labelledBy="recent-title">
+        <div class="card-heading"><h2 id="recent-title">Recent activity</h2><a routerLink="/app/activity">View all</a></div>
+        <ul>
+          @for (transaction of data.transactions; track transaction.id) {
+            <li><span class="recent__icon" aria-hidden="true">{{ transaction.name[0] }}</span><span class="recent__detail"><strong>{{ transaction.name }}</strong><small>{{ transaction.category }} · {{ transaction.date }} · {{ transaction.source === 'mock-bank' ? 'Mock Bank example' : 'Manual example' }}</small></span><strong [class.recent__positive]="transaction.amount > 0">{{ transaction.amount > 0 ? '+' : '' }}{{ transaction.amount | currency:'NZD':'symbol':'1.2-2' }}</strong></li>
+          }
+        </ul>
+      </app-sm-card>
+
+      <app-sm-card class="goal" labelledBy="goal-title"><h2 id="goal-title">{{ data.goal.name }}</h2><strong>{{ progress(data.goal.saved, data.goal.target) }}%</strong><p>{{ data.goal.saved | currency:'NZD':'symbol':'1.0-0' }} of {{ data.goal.target | currency:'NZD':'symbol':'1.0-0' }}</p><app-sm-progress [label]="data.goal.name + ' progress'" [value]="progress(data.goal.saved, data.goal.target)" tone="green" /><small>{{ data.goal.note }}</small><a routerLink="/app/goals">View goal →</a></app-sm-card>
+
+      <app-sm-card class="learning" labelledBy="learning-title"><p>{{ data.learning.duration }}</p><h2 id="learning-title">{{ data.learning.title }}</h2><small>{{ data.learning.description }}</small><a routerLink="/app/learn">Read article →</a></app-sm-card>
+    </div>
+  }
+</div>
