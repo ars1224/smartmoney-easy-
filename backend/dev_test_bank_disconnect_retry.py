@@ -84,74 +84,40 @@ try:
     )
 
 
-    # 3. Test ambiguous 401 and temporary 503 failures.
+
+    # 3. Temporary bank failure must preserve the credential.
     with patch(
         "app.routes.bank_accounts.MockBankAuthorizedClient"
     ) as bank_client_class:
-
         bank = bank_client_class.return_value
 
-        for attempt_number, status_code in enumerate(
-            (401, 503),
-            start=1
-        ):
-            bank.revoke_access.side_effect = MockBankError(
-                "Simulated bank revocation failure.",
-                status_code=status_code
+        bank.revoke_access.side_effect = MockBankError(
+            "Mock Bank temporarily unavailable.",
+            status_code=503,
+        )
+
+        response = client.post(
+            disconnect_url,
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        assert response.status_code == 502, response.get_json()
+        assert response.get_json()["status"] == "DISCONNECTING"
+        assert response.get_json()["action"] == "retry_disconnect"
+
+        with app.app_context():
+            connection = db.session.get(
+                BankConnection, connection_id
             )
 
-            response = client.post(
-                disconnect_url,
-                headers={"X-CSRF-Token": csrf_token},
-            )
+            assert connection.status == "DISCONNECTING"
+            assert decrypt_secret(
+                connection.access_token_encrypted
+            ) == test_token
 
-            print(
-                f"Revocation HTTP {status_code}:",
-                response.status_code
-            )
+        print("Temporary failure preserves credential: OK")
 
-            assert response.status_code == 502, (
-                response.get_json()
-            )
-
-            result = response.get_json()
-
-            assert result["status"] == "DISCONNECTING"
-            assert result["action"] == "retry_disconnect"
-
-            assert (
-                bank.revoke_access.call_count
-                == attempt_number
-            )
-
-            bank.revoke_access.assert_called_with(test_token)
-
-            # No failed revocation may discard the token.
-            with app.app_context():
-                connection = db.session.get(
-                    BankConnection,
-                    connection_id,
-                )
-
-                assert connection.status == "DISCONNECTING"
-
-                assert (
-                    connection.access_token_encrypted
-                    is not None
-                )
-
-                assert decrypt_secret(
-                    connection.access_token_encrypted
-                ) == test_token
-
-            print(
-                f"HTTP {status_code} credential preserved: OK"
-            )
-            print(
-                f"HTTP {status_code} retry allowed: OK"
-            )
-
-        # 4. Simulate successful bank revocation.
+        # 4. A retry should finish the disconnection.
         bank.revoke_access.side_effect = None
         bank.revoke_access.return_value = {
             "status": "revoked"
@@ -162,49 +128,163 @@ try:
             headers={"X-CSRF-Token": csrf_token},
         )
 
-        print("Successful retry:", response.status_code)
+        assert response.status_code == 200, response.get_json()
+        assert response.get_json()["status"] == "DISCONNECTED"
 
-        assert response.status_code == 200, (
-            response.get_json()
-        )
-
-        assert (
-            response.get_json()["status"]
-            == "DISCONNECTED"
-        )
-
-        assert bank.revoke_access.call_count == 3
-
-        bank.revoke_access.assert_called_with(test_token)
-
-        print("Bank revocation retry: OK")
-
-        # 5. Verify the final database state.
         with app.app_context():
             connection = db.session.get(
-                BankConnection,
-                connection_id,
+                BankConnection, connection_id
             )
 
             assert connection.status == "DISCONNECTED"
             assert connection.access_token_encrypted is None
             assert connection.access_token_expires_at is None
 
-            # Pre-existing financial records remain unchanged.
-            assert (
-                BankAccount.query.count()
-                == original_accounts
-            )
-            assert (
-                Transaction.query.count()
-                == original_transactions
+        print("Successful disconnection retry: OK")
+
+        # 5. Rejected credentials with missing expiry
+        # should still allow local disconnection.
+        rejected_token = f"rejected-token-{uuid4().hex}"
+
+        with app.app_context():
+            rejected_connection = BankConnection(
+                user_id=user_id,
+                provider="MOCK_BANK",
+                external_customer_id=str(uuid4()),
+                status="CONNECTED",
+                access_token_encrypted=encrypt_secret(
+                    rejected_token
+                ),
+                access_token_expires_at=None,
             )
 
-        print("Encrypted credential cleared: OK")
-        print("Final connection status: DISCONNECTED")
+            db.session.add(rejected_connection)
+            db.session.commit()
+            rejected_id = rejected_connection.id
+
+        bank.revoke_access.side_effect = MockBankError(
+            "Bank credential rejected.",
+            status_code=401,
+        )
+
+        response = client.post(
+            f"/api/bank/connections/{rejected_id}/disconnect",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        assert response.status_code == 200, response.get_json()
+        assert response.get_json()["status"] == "DISCONNECTED"
+
+        bank.revoke_access.assert_called_with(rejected_token)
+
+        with app.app_context():
+            rejected_connection = db.session.get(
+                BankConnection, rejected_id
+            )
+
+            assert rejected_connection.status == "DISCONNECTED"
+            assert rejected_connection.access_token_encrypted is None
+            assert rejected_connection.access_token_expires_at is None
+
+            assert BankAccount.query.count() == original_accounts
+            assert Transaction.query.count() == original_transactions
+
+        print("Rejected token recovery: OK")
+        print("Missing expiry recovery: OK")
         print("Existing financial data preserved: OK")
 
+
+        # 6. Database failure after remote revocation.
+        # Begin in DISCONNECTING to isolate the final commit.
+        recovery_token = f"recovery-token-{uuid4().hex}"
+
+        with app.app_context():
+            recovery_connection = BankConnection(
+                user_id=user_id,
+                provider="MOCK_BANK",
+                external_customer_id=str(uuid4()),
+                status="DISCONNECTING",
+                access_token_encrypted=encrypt_secret(
+                    recovery_token
+                ),
+                access_token_expires_at=(
+                    datetime.now(timezone.utc)
+                    + timedelta(days=1)
+                ),
+            )
+
+            db.session.add(recovery_connection)
+            db.session.commit()
+            recovery_id = recovery_connection.id
+
+        recovery_url = (
+            f"/api/bank/connections/{recovery_id}/disconnect"
+        )
+
+        bank.revoke_access.side_effect = None
+        bank.revoke_access.return_value = {
+            "status": "revoked"
+        }
+
+        # Mock only the final database commit failure.
+        with patch.object(
+            db.session,
+            "commit",
+            side_effect=RuntimeError(
+                "Simulated database commit failure"
+            ),
+        ):
+            response = client.post(
+                recovery_url,
+                headers={"X-CSRF-Token": csrf_token},
+            )
+
+        assert response.status_code == 500, response.get_json()
+        assert response.get_json()["action"] == "retry_disconnect"
+        bank.revoke_access.assert_called_with(recovery_token)
+
+        with app.app_context():
+            recovery = db.session.get(
+                BankConnection, recovery_id
+            )
+
+            assert recovery.status == "DISCONNECTING"
+            assert recovery.access_token_encrypted is not None
+
+        print("Database commit failure recovery state: OK")
+
+        # Mock Bank now rejects the already-revoked token.
+        bank.revoke_access.side_effect = MockBankError(
+            "Credential already revoked.",
+            status_code=401,
+        )
+
+        response = client.post(
+            recovery_url,
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        assert response.status_code == 200, response.get_json()
+        assert response.get_json()["status"] == "DISCONNECTED"
+
+        with app.app_context():
+            recovery = db.session.get(
+                BankConnection, recovery_id
+            )
+
+            assert recovery.status == "DISCONNECTED"
+            assert recovery.access_token_encrypted is None
+            assert recovery.access_token_expires_at is None
+
+            assert BankAccount.query.count() == original_accounts
+            assert Transaction.query.count() == original_transactions
+
+        print("Retry after database failure: OK")
+        print("Final database recovery: OK")
+
+
     print("\nALL BANK DISCONNECT RETRY TESTS PASSED!")
+
 
 
 finally:

@@ -1,13 +1,15 @@
-
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+
+from flask import current_app
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.extensions import db
 from app.models import BankConnection, BankAccount, Transaction
-from app.services.mock_bank_authorized import MockBankAuthorizedClient
 from app.services.bank_crypto import decrypt_secret
+from app.services.mock_bank import MockBankError
+from app.services.mock_bank_authorized import MockBankAuthorizedClient
 
-# Keep your other existing imports.
 class BankReauthorizationRequired(Exception):
     """Bank connection requires reauthorisation."""
     pass
@@ -16,6 +18,7 @@ def parse_bank_date(value):
     return datetime.fromisoformat(
         value.replace("Z", "+00:00")
     )
+
 
 def sync_bank_connection(connection_id):
     connection = db.session.get(
@@ -65,98 +68,166 @@ def sync_bank_connection(connection_id):
 
     accounts_synced = 0
     transactions_imported = 0
+    failed_account_ids = []
 
     try:
         for account in accounts:
-            balance_data = client.get_account_balance(
-                access_token,
-                account.external_account_id
-            )
+            imported_for_account = 0
 
-            transaction_data = client.get_account_transactions(
-                access_token,
-                account.external_account_id
-            )
-
-            if str(balance_data["account_id"]) != account.external_account_id:
-                raise ValueError("Bank account ID mismatch.")
-
-            if str(transaction_data["account_id"]) != account.external_account_id:
-                raise ValueError("Transaction account ID mismatch.")
-
-            account.balance = Decimal(str(balance_data["balance"]))
-            account.currency = balance_data.get(
-                "currency", account.currency
-            )
-            account.status = balance_data.get(
-                "status", account.status
-            )
-
-            existing_ids = {
-                row[0]
-                for row in db.session.query(
-                    Transaction.external_transaction_id
-                ).filter(
-                    Transaction.bank_account_id == account.id,
-                    Transaction.external_transaction_id.isnot(None)
-                ).all()
-            }
-
-            for item in transaction_data["transactions"]:
-                external_id = str(item["id"])
-
-                if external_id in existing_ids:
-                    continue
-
-                transaction = Transaction(
-                    user_id=connection.user_id,
-                    bank_account_id=account.id,
-                    external_transaction_id=external_id,
-                    source="BANK",
-                    description=item["description"],
-                    amount=Decimal(str(item["amount"])),
-                    balance_after=(
-                        Decimal(str(item["balance_after"]))
-                        if item.get("balance_after") is not None
-                        else None
-                    ),
-                    currency=account.currency,
-                    transaction_type=item["transaction_type"],
-                    transaction_date=parse_bank_date(
-                        item["transaction_date"]
+            try:
+                # Each account has its own savepoint.
+                # Failure rolls back only this account.
+                with db.session.begin_nested():
+                    balance_data = client.get_account_balance(
+                        access_token,
+                        account.external_account_id
                     )
-                )
 
-                db.session.add(transaction)
-                existing_ids.add(external_id)
-                transactions_imported += 1
+                    transaction_data = client.get_account_transactions(
+                        access_token,
+                        account.external_account_id
+                    )
+
+                    if (
+                        str(balance_data["account_id"])
+                        != account.external_account_id
+                    ):
+                        raise ValueError(
+                            "Bank account ID mismatch."
+                        )
+
+                    if (
+                        str(transaction_data["account_id"])
+                        != account.external_account_id
+                    ):
+                        raise ValueError(
+                            "Transaction account ID mismatch."
+                        )
+
+                    account.balance = Decimal(
+                        str(balance_data["balance"])
+                    )
+
+                    account.currency = balance_data.get(
+                        "currency",
+                        account.currency
+                    )
+
+                    account.status = balance_data.get(
+                        "status",
+                        account.status
+                    )
+
+                    existing_ids = {
+                        row[0]
+                        for row in db.session.query(
+                            Transaction.external_transaction_id
+                        ).filter(
+                            Transaction.bank_account_id == account.id,
+                            Transaction.external_transaction_id.isnot(None)
+                        ).all()
+                    }
+
+                    for item in transaction_data["transactions"]:
+                        external_id = str(item["id"])
+
+                        if external_id in existing_ids:
+                            continue
+
+                        transaction = Transaction(
+                            user_id=connection.user_id,
+                            bank_account_id=account.id,
+                            external_transaction_id=external_id,
+                            source="BANK",
+                            description=item["description"],
+                            amount=Decimal(str(item["amount"])),
+                            balance_after=(
+                                Decimal(str(item["balance_after"]))
+                                if item.get("balance_after") is not None
+                                else None
+                            ),
+                            currency=account.currency,
+                            transaction_type=item["transaction_type"],
+                            transaction_date=parse_bank_date(
+                                item["transaction_date"]
+                            )
+                        )
+
+                        db.session.add(transaction)
+                        existing_ids.add(external_id)
+                        imported_for_account += 1
+
+                    # Surface database errors inside this
+                    # account's savepoint.
+                    db.session.flush()
+
+            except MockBankError as error:
+                if error.status_code in (401, 403):
+                    raise BankReauthorizationRequired(
+                        "Bank authorisation is no longer valid."
+                    ) from error
+
+                failed_account_ids.append(account.id)
+
+                current_app.logger.warning(
+                    "Bank account sync failed for %s. "
+                    "Mock Bank status: %s",
+                    account.id,
+                    error.status_code
+                )
+                continue
+
+            except (
+                KeyError,
+                ValueError,
+                TypeError,
+                AttributeError,
+                InvalidOperation,
+                SQLAlchemyError,
+            ):
+                failed_account_ids.append(account.id)
+
+                current_app.logger.exception(
+                    "Unable to synchronise bank account %s.",
+                    account.id
+                )
+                continue
 
             accounts_synced += 1
+            transactions_imported += imported_for_account
 
-        sync_time = datetime.now(timezone.utc)
-        connection.last_synced_at = sync_time
+        if accounts_synced == 0:
+            raise MockBankError(
+                "All bank accounts failed to synchronise."
+            )
 
-        # Lock and recheck the connection immediately
-        # before committing imported bank transactions.
+        # Recheck connection status before final commit.
         db.session.refresh(
             connection,
             with_for_update=True
         )
 
         if connection.status != "CONNECTED":
-            db.session.rollback()
-
             raise BankReauthorizationRequired(
                 "Bank connection was disconnected during synchronisation."
             )
 
+        sync_time = datetime.now(timezone.utc)
+        connection.last_synced_at = sync_time
+
         db.session.commit()
 
         return {
-            "status": "success",
+            "status": (
+                "partial_success"
+                if failed_account_ids
+                else "success"
+            ),
             "accounts_synced": accounts_synced,
+            "accounts_failed": len(failed_account_ids),
+            "failed_account_ids": failed_account_ids,
             "transactions_imported": transactions_imported,
-            "last_synced_at": sync_time.isoformat()
+            "last_synced_at": sync_time.isoformat(),
         }
 
     except Exception:

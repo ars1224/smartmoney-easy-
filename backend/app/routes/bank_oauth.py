@@ -275,8 +275,17 @@ def confirm_bank_oauth():
             result["connection_id"]
         )
 
-        result["sync_status"] = "SUCCESS"
         result["sync"] = sync_result
+
+        if sync_result["status"] == "partial_success":
+            result["sync_status"] = "PARTIAL_SUCCESS"
+            result["message"] = (
+                "Bank connected successfully, but some accounts "
+                "could not be synchronised. Please retry the "
+                "failed accounts."
+            )
+        else:
+            result["sync_status"] = "SUCCESS"
 
         response = jsonify(result)
         response.headers["Cache-Control"] = "no-store"

@@ -10,8 +10,6 @@ from app.services.bank_sync import (
 from app.services.mock_bank import MockBankError
 from app.auth_security import get_authenticated_user_id, csrf_required
 
-from datetime import datetime, timezone
-
 from app.services.bank_crypto import (
     decrypt_secret,
     BankEncryptionError,
@@ -175,47 +173,54 @@ def disconnect_bank_connection(connection_id):
         connection.status = "DISCONNECTING"
         db.session.commit()
 
-    # Revoke the Mock Bank grant before deleting
-    # the locally encrypted credential.
+    # Attempt revocation whenever a credential exists.
+    # A missing or expired local expiry timestamp must not
+    # prevent the user from disconnecting.
     if connection.access_token_encrypted:
         try:
             token = decrypt_secret(
                 connection.access_token_encrypted
             )
 
-            expires_at = connection.access_token_expires_at
+        except BankEncryptionError:
+            current_app.logger.exception(
+                "Unable to decrypt bank connection credential."
+            )
 
-            if expires_at is None:
-                return jsonify({
-                    "error": "Bank token expiry is missing.",
-                    "action": "retry_disconnect"
-                }), 409
+            return jsonify({
+                "status": "DISCONNECTING",
+                "error": "Bank credential could not be read.",
+                "action": "contact_support"
+            }), 500
 
-            if expires_at.tzinfo is None:
-                expires_at = expires_at.replace(
-                    tzinfo=timezone.utc
+        try:
+            client = MockBankAuthorizedClient()
+            client.revoke_access(token)
+
+        except MockBankError as error:
+            if error.status_code in (401, 403):
+                # Credential has been rejected by Mock Bank.
+                # No further authorised requests can be made
+                # using this token, so complete local cleanup.
+                current_app.logger.info(
+                    "Bank credential rejected during revocation. "
+                    "Completing local disconnection."
                 )
 
-            if expires_at > datetime.now(timezone.utc):
-                client = MockBankAuthorizedClient()
+            else:
+                # Temporary or unconfirmed failures must
+                # preserve the credential for a future retry.
+                current_app.logger.warning(
+                    "Unable to confirm bank revocation. "
+                    "HTTP status: %s",
+                    error.status_code
+                )
 
-                try:
-                    client.revoke_access(token)
-
-                except MockBankError as error:
-                    current_app.logger.warning(
-                        "Mock Bank revocation could not be confirmed. Status: %s",
-                        error.status_code
-                    )
-
-                    return jsonify({
-                        "status": "DISCONNECTING",
-                        "error": "Unable to confirm bank access revocation.",
-                        "action": "retry_disconnect"
-                    }), 502
-
-                    # A rejected token cannot access the
-                    # authorised Mock Bank API.
+                return jsonify({
+                    "status": "DISCONNECTING",
+                    "error": "Unable to confirm bank access revocation.",
+                    "action": "retry_disconnect"
+                }), 502
 
         except BankEncryptionError:
             current_app.logger.exception(
@@ -249,7 +254,9 @@ def disconnect_bank_connection(connection_id):
         )
 
         return jsonify({
-            "error": "Unable to finalise bank disconnection."
+            "status": "DISCONNECTING",
+            "error": "Unable to finalise bank disconnection.",
+            "action": "retry_disconnect"
         }), 500
 
     response = jsonify({
