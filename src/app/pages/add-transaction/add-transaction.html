@@ -1,0 +1,252 @@
+
+<main class="add-transaction-page">
+
+  <!-- Page Header -->
+  <header class="page-header">
+    <div>
+        <h1>
+        {{ isEditMode ? 'Edit transaction' : 'Add transaction' }}
+        </h1>
+
+      <p>Manual entries update the selected cash wallet.</p>
+    </div>
+
+    <a routerLink="/app/activity" class="back-btn">
+      &larr; Back to activity
+    </a>
+  </header>
+
+  <div class="transaction-layout">
+
+    <!-- Transaction Form -->
+    <section class="form-card">
+
+
+    <form
+    class="transaction-form"
+    [formGroup]="transactionForm"
+    (ngSubmit)="saveTransaction()"
+    >
+
+
+        <!-- Transaction Type and Asset -->
+        <div class="form-row">
+
+          <div class="form-group">
+            <label>Type</label>
+
+            <div class="type-selector">
+
+              <label>
+                <input
+                  type="radio"
+                  name="transactionType"
+                  value="income"
+                  [checked]="transactionForm.controls.type.value === 'income'"
+                  (change)="setTransactionType('income')"
+                />
+                Income
+              </label>
+
+              <label>
+                <input
+                  type="radio"
+                  name="transactionType"
+                  value="expense"
+                  [checked]="transactionForm.controls.type.value === 'expense'"
+                  (change)="setTransactionType('expense')"
+                />
+                Expense
+              </label>
+
+            </div>
+          </div>
+
+
+        <div class="form-group">
+
+        <label for="account">Account / Asset</label>
+
+        <select
+            id="account"
+            formControlName="assetId"
+        >
+            @for (wallet of cashWallets; track wallet.id) {
+            <option [value]="wallet.id">
+                {{ wallet.name }}
+            </option>
+            }
+        </select>
+
+        <!-- Current Cash Wallet Balance -->
+        <div class="wallet-balance">
+            <span>Current cash balance</span>
+
+            <strong>
+            {{ selectedWalletBalance }}
+            </strong>
+        </div>
+
+        </div>
+
+
+        </div>
+
+        <!-- Amount and Category -->
+        <div class="form-row">
+
+          <div class="form-group">
+            <label for="amount">Amount</label>
+
+            <input
+              type="number"
+              id="amount"
+              formControlName="amount"
+              placeholder="0.00"
+              min="0.01"
+              step="0.01"
+            />
+
+            @if (
+              transactionForm.controls.amount.invalid &&
+              (transactionForm.controls.amount.touched ||
+               transactionForm.controls.amount.dirty)
+            ) {
+              <small class="field-error" role="alert">
+                Enter an amount greater than zero.
+              </small>
+            }
+          </div>
+
+          <div class="form-group">
+            <label for="category">Category</label>
+
+            <select
+              id="category"
+              formControlName="category"
+            >
+              <option value="" disabled>
+                Select category
+              </option>
+
+              @for (
+                category of availableCategories;
+                track category
+              ) {
+                <option [value]="category">
+                  {{ category }}
+                </option>
+              }
+            </select>
+
+            @if (
+              transactionForm.controls.category.invalid &&
+              transactionForm.controls.category.touched
+            ) {
+              <small class="field-error" role="alert">
+                Please select a category.
+              </small>
+            }
+          </div>
+
+        </div>
+
+        <!-- Date and Note -->
+        <div class="form-row">
+
+          <div class="form-group">
+            <label for="date">Date</label>
+
+            <input
+              type="date"
+              id="date"
+              formControlName="date"
+            />
+
+            @if (
+              transactionForm.controls.date.invalid &&
+              transactionForm.controls.date.touched
+            ) {
+              <small class="field-error" role="alert">
+                Please select a date.
+              </small>
+            }
+          </div>
+
+          <div class="form-group">
+            <label for="notes">Note</label>
+
+            <input
+              type="text"
+              id="notes"
+              formControlName="note"
+              maxlength="250"
+              placeholder="Optional description"
+            />
+          </div>
+
+        </div>
+
+        <!-- Information Notice -->
+        <div class="form-notice">
+          Category suggestions are automatic and can
+          always be changed by the user.
+        </div>
+
+        @if (saveError) {
+        <p class="field-error" role="alert">
+            {{ saveError }}
+        </p>
+        }
+
+
+        @if (loadError) {
+        <p class="field-error" role="alert">
+            {{ loadError }}
+        </p>
+        }
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+
+        <button
+        type="submit"
+        class="save-btn"
+        [disabled]="isSaving || !!loadError"
+        >
+        {{
+            isSaving
+            ? 'Saving...'
+            : isEditMode
+                ? 'Update transaction'
+                : 'Save transaction'
+        }}
+        </button>
+
+          <a
+            routerLink="/app/activity"
+            class="cancel-btn"
+          >
+            Cancel
+          </a>
+
+        </div>
+
+      </form>
+
+    </section>
+
+    <!-- Help Panel -->
+    <aside class="help-card">
+      <h3>Why choose an asset?</h3>
+
+      <p>
+        Cash spending reduces the selected cash
+        wallet. Imported bank transactions already
+        affect their bank balance.
+      </p>
+    </aside>
+
+  </div>
+
+</main>

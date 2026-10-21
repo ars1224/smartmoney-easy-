@@ -56,6 +56,11 @@ export class AppShellComponent {
     this.thinkerOpen = true;
   }
 
+  @HostListener('window:smartmoney:open-thinker')
+  openThinkerFromDashboard(): void {
+    this.openThinker();
+  }
+
   closeThinker(): void {
     this.thinkerOpen = false;
   }

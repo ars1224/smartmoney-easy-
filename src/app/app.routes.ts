@@ -43,9 +43,7 @@ export const routes: Routes = [
       {
         path: 'dashboard',
         loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page').then(
-            (m) => m.RoutePlaceholderPage,
-          ),
+          import('./pages/dashboard/dashboard.page').then((m) => m.DashboardPage),
         data: {
           eyebrow: 'Financial fitness',
           title: 'Dashboard',
@@ -54,32 +52,41 @@ export const routes: Routes = [
           nextLabel: 'View reports',
         },
       },
+
+      {
+        path: 'activity/add',
+        loadComponent: () =>
+          import('./pages/add-transaction/add-transaction').then(
+            (m) => m.AddTransaction
+          ),
+      },
+
+
+      {
+        path: 'activity/edit/:id',
+        loadComponent: () =>
+          import('./pages/add-transaction/add-transaction').then(
+            (m) => m.AddTransaction
+          ),
+      },
+
+
       {
         path: 'activity',
         loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page').then(
-            (m) => m.RoutePlaceholderPage,
+          import('./pages/activity/activity').then(
+            (m) => m.Activity,
           ),
-        data: {
-          eyebrow: 'Money activity',
-          title: 'Activity',
-          description: 'Manual and connected-bank transactions will appear here.',
-          nextLink: '/app/reports',
-          nextLabel: 'View reports',
-        },
       },
+
       {
         path: 'budgets',
         loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page').then(
-            (m) => m.RoutePlaceholderPage,
+          import('./pages/budgets/budgets').then(
+            (m) => m.Budgets
           ),
-        data: {
-          eyebrow: 'Plan spending',
-          title: 'Budgets',
-          description: 'Budget limits, progress and supportive alerts will appear here.',
-        },
       },
+
       {
         path: 'goals',
         loadComponent: () =>

@@ -1,0 +1,221 @@
+
+<main class="budgets-page">
+
+  <!-- Page Header -->
+  <header class="budgets-header">
+    <div>
+      <h1>Monthly budgets</h1>
+      <p>Set limits, stay on track.</p>
+    </div>
+
+    <span class="page-info">
+      About this page
+    </span>
+  </header>
+
+  <!-- Main Budget Layout -->
+  <div class="budgets-layout">
+
+    <!-- Budget Categories -->
+    <section
+      class="budget-list"
+      aria-label="Monthly budget categories"
+    >
+
+      @for (budget of budgets; track budget.id) {
+
+        <article class="budget-card">
+
+          <!-- Category and Spending -->
+          <div class="budget-card-header">
+            <h2>{{ budget.category }}</h2>
+
+            <span>
+              {{ formatCurrency(budget.spent) }}
+              of
+              {{ formatCurrency(budget.limit) }}
+            </span>
+          </div>
+
+          <!-- Budget Progress Bar -->
+          <div
+            class="budget-progress"
+            role="progressbar"
+            [attr.aria-label]="budget.category + ' budget used'"
+            [attr.aria-valuenow]="getProgressWidth(budget)"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+
+            <div
+              [class]="'budget-progress-fill progress-' +
+                getBudgetStatus(budget)"
+              [style.width.%]="getProgressWidth(budget)"
+            ></div>
+
+          </div>
+
+          <!-- Budget Details -->
+          <div class="budget-card-details">
+
+            <span>
+              {{ getPercentage(budget).toFixed(0) }}% used
+            </span>
+
+            @if (budget.spent > budget.limit) {
+
+              <span class="budget-over">
+                {{ formatCurrency(budget.spent - budget.limit) }}
+                over budget
+              </span>
+
+            } @else {
+
+              <span>
+                {{ formatCurrency(getRemainingAmount(budget)) }}
+                remaining
+              </span>
+
+            }
+
+          </div>
+
+        </article>
+
+      } @empty {
+
+        <!-- Empty State -->
+        <div class="budget-empty">
+          <h2>No budgets yet</h2>
+
+          <p>
+            Create your first monthly budget to
+            start tracking your spending.
+          </p>
+        </div>
+
+      }
+
+    </section>
+
+    <!-- Budget Side Panel -->
+    <aside class="budget-sidebar">
+
+      <div class="budget-alert">
+
+        @if (alertBudget) {
+
+          <h3>Budget alert</h3>
+
+          <p>{{ alertMessage }}</p>
+
+        } @else {
+
+          <h3>Budget status</h3>
+
+          <p>{{ alertMessage }}</p>
+
+        }
+
+      </div>
+
+      <!-- Create Budget Button -->
+      <button
+  type="button"
+  class="create-budget-btn"
+  (click)="openBudgetDialog()"
+>
+  + Create a budget
+</button>
+
+    </aside>
+
+  </div>
+
+</main>
+
+
+<!-- Create Budget Modal -->
+<dialog
+  #budgetDialog
+  class="budget-dialog"
+  aria-labelledby="budget-dialog-title"
+>
+  <div class="budget-dialog-header">
+    <div>
+      <h2 id="budget-dialog-title">Create a budget</h2>
+      <p>
+        Set a monthly spending limit for a category.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      class="budget-dialog-close"
+      aria-label="Close dialog"
+      (click)="closeBudgetDialog()"
+    >
+      &times;
+    </button>
+  </div>
+
+  <form
+    class="budget-dialog-form"
+    (submit)="$event.preventDefault()"
+  >
+    <!-- Category -->
+    <div class="budget-form-group">
+      <label for="budget-category">Category</label>
+
+      <select id="budget-category" name="category">
+        <option value="" disabled selected>
+          Select category
+        </option>
+        <option value="Groceries">Groceries</option>
+        <option value="Transport">Transport</option>
+        <option value="Entertainment">Entertainment</option>
+        <option value="Shopping">Shopping</option>
+        <option value="Bills">Bills</option>
+        <option value="Eating out">Eating out</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+
+    <!-- Monthly Limit -->
+    <div class="budget-form-group">
+      <label for="budget-limit">
+        Monthly limit (NZD)
+      </label>
+
+      <input
+        type="number"
+        id="budget-limit"
+        name="limit"
+        placeholder="0.00"
+        min="0.01"
+        step="0.01"
+        inputmode="decimal"
+      />
+    </div>
+
+    <!-- Actions -->
+    <div class="budget-dialog-actions">
+      <button
+        type="button"
+        class="budget-cancel-btn"
+        (click)="closeBudgetDialog()"
+      >
+        Cancel
+      </button>
+
+      <button
+        type="button"
+        class="budget-save-btn"
+        disabled
+      >
+        Save budget
+      </button>
+    </div>
+  </form>
+</dialog>
+
