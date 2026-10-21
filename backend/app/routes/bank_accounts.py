@@ -1,4 +1,3 @@
-
 from flask import Blueprint, jsonify, current_app
 
 from app.extensions import db
@@ -18,14 +17,130 @@ from app.services.mock_bank_authorized import (
     MockBankAuthorizedClient,
 )
 
-
-
+from datetime import datetime, timezone
 
 bank_accounts_bp = Blueprint(
     "bank_accounts",
     __name__,
     url_prefix="/api/bank"
 )
+
+
+@bank_accounts_bp.get("/connections/pending")
+def get_pending_bank_connections():
+    user_id = get_authenticated_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Authentication required."
+        }), 401
+
+    connections = (
+        BankConnection.query.filter_by(
+            user_id=user_id,
+            status="PENDING"
+        )
+        .order_by(BankConnection.created_at.desc())
+        .all()
+    )
+
+    pending = []
+
+    for connection in connections:
+        expiry = connection.access_token_expires_at
+
+        if expiry is not None and expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+
+        expired = (
+            expiry is None
+            or expiry <= datetime.now(timezone.utc)
+            or not connection.access_token_encrypted
+        )
+
+        status = "EXPIRED" if expired else "PENDING"
+        accounts = []
+
+        if not expired:
+            try:
+                token = decrypt_secret(
+                    connection.access_token_encrypted
+                )
+
+                bank = MockBankAuthorizedClient()
+                response = bank.get_authorized_accounts(token)
+
+                if (
+                    response.get("customer_id")
+                    != connection.external_customer_id
+                    or not isinstance(response.get("accounts"), list)
+                ):
+                    return jsonify({
+                        "error": "Invalid bank account response."
+                    }), 502
+
+                for item in response["accounts"]:
+                    if item.get("status") != "ACTIVE":
+                        continue
+
+                    accounts.append({
+                        "id": item["id"],
+                        "account_name": item["account_name"],
+                        "account_type": item["account_type"],
+                        "account_number_last4": (
+                            item.get("account_number") or ""
+                        )[-4:],
+                        "currency": item["currency"],
+                        "status": item["status"],
+                    })
+
+            except MockBankError as error:
+                if error.status_code in (401, 403):
+                    status = "EXPIRED"
+                else:
+                    current_app.logger.warning(
+                        "Unable to retrieve pending bank accounts. "
+                        "Status: %s",
+                        error.status_code
+                    )
+
+                    return jsonify({
+                        "error": "Unable to retrieve bank accounts."
+                    }), 502
+
+            except BankEncryptionError:
+                current_app.logger.exception(
+                    "Unable to decrypt pending bank credential."
+                )
+                return jsonify({
+                    "error": "Unable to read bank connection."
+                }), 500
+
+            except (KeyError, TypeError, AttributeError):
+                current_app.logger.exception(
+                    "Invalid pending bank account data."
+                )
+                return jsonify({
+                    "error": "Invalid bank account response."
+                }), 502
+
+        pending.append({
+            "connection_id": connection.id,
+            "status": status,
+            "expires_at": (
+                expiry.isoformat() if expiry else None
+            ),
+            "accounts": accounts,
+        })
+
+    response = jsonify({
+        "connections": pending,
+        "count": len(pending),
+    })
+
+    response.headers["Cache-Control"] = "no-store"
+
+    return response, 200
 
 
 @bank_accounts_bp.get("/accounts")
