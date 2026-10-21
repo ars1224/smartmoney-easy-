@@ -92,12 +92,25 @@
       </span>
     </div>
 
-    @if (goals().length === 0) {
+    @if (loading()) {
+      <p role="status">Loading your savings goals...</p>
+    } @else if (pageError()) {
+      <div class="empty-state">
+        <p role="alert">{{ pageError() }}</p>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="loadGoals()"
+        >
+          Try Again
+        </button>
+      </div>
+    } @else if (goals().length === 0) {
 
       <!-- Empty state -->
       <div class="empty-state">
         <div class="empty-icon" aria-hidden="true">
-          <span>◎</span>
+          <span>&#9678;</span>
         </div>
 
         <h3>No savings goals yet</h3>
@@ -260,7 +273,7 @@
             aria-label="Close goal form"
             (click)="closeGoalForm()"
           >
-            ×
+            &times;
           </button>
         </div>
 
@@ -340,13 +353,23 @@
             <button
               type="button"
               class="btn btn-outline"
+              [disabled]="savingGoal"
               (click)="closeGoalForm()"
             >
               Cancel
             </button>
 
-            <button type="submit" class="btn btn-primary">
-              {{ isEditingGoal ? 'Save Changes' : 'Create Goal' }}
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="savingGoal"
+              [attr.aria-busy]="savingGoal"
+            >
+              {{
+                savingGoal
+                  ? 'Saving...'
+                  : (isEditingGoal ? 'Save Changes' : 'Create Goal')
+              }}
             </button>
           </div>
 
@@ -380,7 +403,7 @@
             aria-label="Close contribution form"
             (click)="closeContribution()"
           >
-            ×
+            &times;
           </button>
         </div>
 
@@ -445,53 +468,57 @@
   }
 
   <!-- Delete confirmation modal -->
-  @if (goalToDelete) {
+@if (goalToDelete) {
+  <div class="modal-backdrop">
+    <div
+      class="modal-panel modal-small"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="delete-heading"
+      aria-describedby="delete-description"
+    >
+      <div class="modal-header">
+        <h2 id="delete-heading">Delete Savings Goal?</h2>
+      </div>
 
-    <div class="modal-backdrop">
-      <div
-        class="modal-panel modal-small"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="delete-heading"
-        aria-describedby="delete-description"
-      >
+      <div class="modal-body">
+        <p id="delete-description">
+          Are you sure you want to delete
+          <strong>{{ goalToDelete.name }}</strong>?
+        </p>
 
-        <div class="modal-header">
-          <h2 id="delete-heading">Delete Savings Goal?</h2>
-        </div>
+        <p class="delete-warning">
+          This action will remove the goal and its tracked progress.
+        </p>
 
-        <div class="modal-body">
-          <p id="delete-description">
-            Are you sure you want to delete
-            <strong>{{ goalToDelete.name }}</strong>?
+        @if (deleteError) {
+          <p class="form-error" role="alert">
+            {{ deleteError }}
           </p>
+        }
+      </div>
 
-          <p class="delete-warning">
-            This action will remove the goal and its tracked progress.
-          </p>
-        </div>
+      <div class="modal-footer">
+        <button
+          type="button"
+          class="btn btn-outline"
+          [disabled]="deletingGoal"
+          (click)="cancelDelete()"
+        >
+          Cancel
+        </button>
 
-        <div class="modal-footer">
-          <button
-            type="button"
-            class="btn btn-outline"
-            (click)="cancelDelete()"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            class="btn btn-danger"
-            (click)="deleteGoal()"
-          >
-            Delete Goal
-          </button>
-        </div>
-
+        <button
+          type="button"
+          class="btn btn-danger"
+          [disabled]="deletingGoal"
+          [attr.aria-busy]="deletingGoal"
+          (click)="deleteGoal()"
+        >
+          {{ deletingGoal ? 'Deleting...' : 'Delete Goal' }}
+        </button>
       </div>
     </div>
-
-  }
-
+  </div>
+}
 </main>

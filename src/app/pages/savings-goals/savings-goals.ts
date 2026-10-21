@@ -1,7 +1,10 @@
 
 import { CommonModule } from '@angular/common';
-import { Component, computed, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
+import { SavingsGoalsService } from '../../core/savings/savings-goals.service';
 
 export interface SavingsGoal {
   id: string;
@@ -25,8 +28,11 @@ interface SavingsGoalForm {
   templateUrl: './savings-goals.html',
   styleUrl: './savings-goals.scss',
 })
-export class SavingsGoals {
-  // Temporary in-memory data until Flask persistence is connected.
+export class SavingsGoalsPage implements OnInit {
+  private readonly savingsApi = inject(SavingsGoalsService);
+
+  readonly loading = signal(true);
+  readonly pageError = signal('');
   readonly goals = signal<SavingsGoal[]>([]);
 
   readonly totalTarget = computed(() =>
@@ -61,6 +67,7 @@ export class SavingsGoals {
   showGoalForm = false;
   editingGoalId: string | null = null;
   goalFormError = '';
+  savingGoal = false;
 
   goalForm: SavingsGoalForm = this.emptyGoalForm();
 
@@ -68,9 +75,34 @@ export class SavingsGoals {
   contributionGoal: SavingsGoal | null = null;
   contributionAmount: number | null = null;
   contributionError = '';
+  savingContribution = false;
 
   goalToDelete: SavingsGoal | null = null;
+  deletingGoal = false;
+  deleteError = '';
 
+  async ngOnInit(): Promise<void> {
+    await this.loadGoals();
+  }
+
+  async loadGoals(): Promise<void> {
+    this.loading.set(true);
+    this.pageError.set('');
+
+    try {
+      const goals = await firstValueFrom(
+        this.savingsApi.getGoals()
+      );
+
+      this.goals.set(goals);
+    } catch {
+      this.pageError.set(
+        'Unable to load savings goals. Check your connection and try again.'
+      );
+    } finally {
+      this.loading.set(false);
+    }
+  }
   private emptyGoalForm(): SavingsGoalForm {
     return {
       name: '',
@@ -121,24 +153,37 @@ export class SavingsGoals {
     this.goalFormError = '';
   }
 
-  saveGoal(): void {
+  async saveGoal(): Promise<void> {
+    if (this.savingGoal) return;
+
+    this.goalFormError = '';
+
     const name = this.goalForm.name.trim();
-    const targetAmount = Number(this.goalForm.targetAmount);
-    const savedAmount = Number(this.goalForm.savedAmount);
+    const targetAmount = this.goalForm.targetAmount;
+    const savedAmount = this.goalForm.savedAmount;
     const targetDate = this.goalForm.targetDate;
 
-    if (!name) {
-      this.goalFormError = 'Please enter a goal name.';
+    if (!name || name.length > 80) {
+      this.goalFormError =
+        'Goal name must contain 1–80 characters.';
       return;
     }
 
-    if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
+    if (
+      targetAmount === null ||
+      !Number.isFinite(targetAmount) ||
+      targetAmount <= 0
+    ) {
       this.goalFormError =
         'Target amount must be greater than zero.';
       return;
     }
 
-    if (!Number.isFinite(savedAmount) || savedAmount < 0) {
+    if (
+      savedAmount === null ||
+      !Number.isFinite(savedAmount) ||
+      savedAmount < 0
+    ) {
       this.goalFormError =
         'Saved amount cannot be negative.';
       return;
@@ -148,45 +193,65 @@ export class SavingsGoals {
       !/^\d{4}-\d{2}-\d{2}$/.test(targetDate) ||
       Number.isNaN(new Date(`${targetDate}T00:00:00`).getTime())
     ) {
-      this.goalFormError = 'Please select a valid target date.';
+      this.goalFormError =
+        'Please select a valid target date.';
       return;
     }
 
-    if (this.editingGoalId) {
-      const editingId = this.editingGoalId;
+    const hasMoreThanTwoDecimals = (value: number): boolean =>
+      Math.abs(value - Number(value.toFixed(2))) > 1e-9;
 
-      this.goals.update((currentGoals) =>
-        currentGoals.map((goal) =>
-          goal.id === editingId
-            ? {
-                ...goal,
-                name,
-                targetAmount,
-                savedAmount,
-                targetDate,
-              }
-            : goal
-        )
-      );
-    } else {
-      const newGoal: SavingsGoal = {
-        id: crypto.randomUUID(),
-        name,
-        targetAmount,
-        savedAmount,
-        targetDate,
-        createdAt: this.getLocalDate(),
-      };
-
-      this.goals.update((currentGoals) => [
-        ...currentGoals,
-        newGoal,
-      ]);
+    if (
+      hasMoreThanTwoDecimals(targetAmount) ||
+      hasMoreThanTwoDecimals(savedAmount)
+    ) {
+      this.goalFormError =
+        'Amounts cannot have more than two decimal places.';
+      return;
     }
 
-    this.closeGoalForm();
-  }
+    const payload = {
+      name,
+      targetAmount,
+      savedAmount,
+      targetDate,
+    };
 
+    this.savingGoal = true;
+
+    try {
+      const savedGoal = await firstValueFrom(
+        this.editingGoalId
+          ? this.savingsApi.updateGoal(this.editingGoalId, payload)
+          : this.savingsApi.createGoal(payload)
+      );
+
+      if (this.editingGoalId) {
+        this.goals.update(current =>
+          current.map(goal =>
+            goal.id === savedGoal.id ? savedGoal : goal
+          )
+        );
+      } else {
+        this.goals.update(current => [
+          savedGoal,
+          ...current,
+        ]);
+      }
+
+      this.closeGoalForm();
+
+    } catch (error: unknown) {
+      this.goalFormError =
+        error instanceof HttpErrorResponse &&
+        typeof error.error?.error === 'string'
+          ? error.error.error
+          : 'Unable to save your savings goal. Please try again.';
+
+    } finally {
+      this.savingGoal = false;
+    }
+  }
   openContribution(goal: SavingsGoal): void {
     this.contributionGoal = goal;
     this.contributionAmount = null;
@@ -201,15 +266,17 @@ export class SavingsGoals {
     this.contributionError = '';
   }
 
-  addContribution(): void {
-    if (!this.contributionGoal) {
+  async addContribution(): Promise<void> {
+    if (!this.contributionGoal || this.savingContribution) {
       return;
     }
 
-    const amount = Number(this.contributionAmount);
+    this.contributionError = '';
+
+    const amount = this.contributionAmount;
 
     if (
-      this.contributionAmount === null ||
+      amount === null ||
       !Number.isFinite(amount) ||
       amount <= 0
     ) {
@@ -218,44 +285,87 @@ export class SavingsGoals {
       return;
     }
 
-    const goalId = this.contributionGoal.id;
-
-    this.goals.update((currentGoals) =>
-      currentGoals.map((goal) =>
-        goal.id === goalId
-          ? {
-              ...goal,
-              savedAmount:
-                Math.round((goal.savedAmount + amount) * 100) / 100,
-            }
-          : goal
-      )
-    );
-
-    this.closeContribution();
-  }
-
-  requestDelete(goal: SavingsGoal): void {
-    this.goalToDelete = goal;
-  }
-
-  cancelDelete(): void {
-    this.goalToDelete = null;
-  }
-
-  deleteGoal(): void {
-    if (!this.goalToDelete) {
+    if (
+      Math.abs(amount - Number(amount.toFixed(2))) > 1e-9
+    ) {
+      this.contributionError =
+        'Contribution cannot have more than two decimal places.';
       return;
     }
 
-    const goalId = this.goalToDelete.id;
+    const goalId = this.contributionGoal.id;
 
-    this.goals.update((currentGoals) =>
-      currentGoals.filter((goal) => goal.id !== goalId)
+    this.savingContribution = true;
+
+    try {
+      const updatedGoal = await firstValueFrom(
+        this.savingsApi.addContribution(goalId, amount)
+      );
+
+      this.goals.update(current =>
+        current.map(goal =>
+          goal.id === updatedGoal.id ? updatedGoal : goal
+        )
+      );
+
+      this.closeContribution();
+
+    } catch (error: unknown) {
+      this.contributionError =
+        error instanceof HttpErrorResponse &&
+        typeof error.error?.error === 'string'
+          ? error.error.error
+          : 'Unable to add contribution. Please try again.';
+
+    } finally {
+      this.savingContribution = false;
+    }
+  }
+
+requestDelete(goal: SavingsGoal): void {
+  if (this.deletingGoal) return;
+
+  this.goalToDelete = goal;
+  this.deleteError = '';
+}
+
+cancelDelete(): void {
+  if (this.deletingGoal) return;
+
+  this.goalToDelete = null;
+  this.deleteError = '';
+}
+
+async deleteGoal(): Promise<void> {
+  if (!this.goalToDelete || this.deletingGoal) {
+    return;
+  }
+
+  const goalId = this.goalToDelete.id;
+
+  this.deletingGoal = true;
+  this.deleteError = '';
+
+  try {
+    await firstValueFrom(
+      this.savingsApi.deleteGoal(goalId)
+    );
+
+    this.goals.update(current =>
+      current.filter(goal => goal.id !== goalId)
     );
 
     this.goalToDelete = null;
+  } catch (error: unknown) {
+    this.deleteError =
+      error instanceof HttpErrorResponse &&
+      typeof error.error?.error === 'string'
+        ? error.error.error
+        : 'Unable to delete this savings goal. Please try again.';
+  } finally {
+    this.deletingGoal = false;
   }
+}
 
   progressPercent(goal: SavingsGoal): number {
     if (goal.targetAmount <= 0) {
