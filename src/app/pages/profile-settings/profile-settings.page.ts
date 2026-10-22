@@ -1,5 +1,4 @@
-
-import { Component, inject } from '@angular/core';
+import { Component, ElementRef, HostListener, ViewChild, inject } from '@angular/core';
 import { IonContent } from '@ionic/angular';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -34,6 +33,95 @@ export class ProfileSettingsPage {
 
   activeModal: SettingsModal = null;
 
+  private modalTrigger: HTMLElement | null = null;
+  private modalElement: HTMLElement | null = null;
+
+  @ViewChild('settingsModal')
+  set settingsModal(ref: ElementRef<HTMLElement> | undefined) {
+    this.modalElement = ref?.nativeElement ?? null;
+
+    const modal = this.modalElement;
+
+    if (!modal) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      if (!modal.isConnected || !this.activeModal) {
+        return;
+      }
+
+      const firstFocusable = this.getFocusableElements(modal)[0];
+
+      (firstFocusable ?? modal).focus();
+    }) 
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  handleModalKeyboard(event: KeyboardEvent): void {
+    if (!this.activeModal || !this.modalElement) {
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.closeModal();
+      return;
+    }
+
+    if (event.key !== 'Tab') {
+      return;
+    }
+
+    const modal = this.modalElement;
+    const focusableElements = this.getFocusableElements(modal);
+
+    if (focusableElements.length === 0) {
+      event.preventDefault();
+      modal.focus();
+      return;
+    }
+
+    const first = focusableElements[0];
+    const last = focusableElements[focusableElements.length - 1];
+    const activeElement = document.activeElement;
+
+    if (!modal.contains(activeElement)) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+      return;
+    }
+
+    if (event.shiftKey && activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  private getFocusableElements(
+    modal: HTMLElement,
+  ): HTMLElement[] {
+    const selector = [
+      'a[href]',
+      'button:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(', ');
+
+    return Array.from(
+      modal.querySelectorAll<HTMLElement>(selector),
+    ).filter(
+      element =>
+        element.getClientRects().length > 0 &&
+        element.getAttribute('aria-hidden') !== 'true',
+    );
+  }
+
   // Personal details
   personalName = '';
   personalEmail = '';
@@ -52,6 +140,7 @@ export class ProfileSettingsPage {
 
   // Delete account
   deleteConfirmation = '';
+  deleteAccountMessage = '';
 
   // Settings cards
   readonly settings = [
@@ -90,7 +179,12 @@ export class ProfileSettingsPage {
   ];
 
   // Open the relevant settings modal
-  openSetting(action: string): void {
+  openSetting(action: string, event?: MouseEvent): void {
+    const trigger = event?.currentTarget;
+
+    this.modalTrigger =
+      trigger instanceof HTMLElement ? trigger : null;
+
     if (action === 'personal-details') {
       const user = this.auth.currentUser();
 
@@ -128,25 +222,39 @@ export class ProfileSettingsPage {
 
     if (action === 'delete-account') {
       this.deleteConfirmation = '';
+      this.deleteAccountMessage = '';
       this.activeModal = 'delete-account';
       return;
     }
 
+    this.modalTrigger = null;
     console.log('Selected setting:', action);
   }
 
   // Close the modal and reset temporary messages
   closeModal(): void {
+    const trigger = this.modalTrigger;
+
     this.activeModal = null;
+    this.modalTrigger = null;
+    this.modalElement = null;
 
     this.personalDetailsError = '';
     this.personalDetailsMessage = '';
 
+    this.currentPassword = '';
+    this.newPassword = '';
+    this.confirmPassword = '';
     this.passwordError = '';
     this.passwordMessage = '';
 
     this.privacyMessage = '';
     this.deleteConfirmation = '';
+
+    // Return keyboard focus to the button that opened the modal.
+    setTimeout(() => {
+      trigger?.focus();
+    });
   }
 
   // Validate personal details
@@ -235,11 +343,11 @@ export class ProfileSettingsPage {
 
     // Account deletion is not connected to the backend yet.
     // Do not delete the account or log the user out.
-    this.closeModal();
+    this.deleteAccountMessage = 'Account data backend is not connected. Account deletion is not available yet and your account has not been deleted.';
   }
 
-  // Return to the previous page
+  // Return to the Profile & Assets page
   goBack(): void {
-    window.history.back();
+    void this.router.navigateByUrl('/app/profile');
   }
 }

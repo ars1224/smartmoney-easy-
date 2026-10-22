@@ -126,6 +126,18 @@ export const routes: Routes = [
       {
         path: 'profile',
         loadComponent: () =>
+          import('./pages/route-placeholder/route-placeholder.page').then(
+            (m) => m.RoutePlaceholderPage,
+          ),
+        data: {
+          eyebrow: 'Your finances',
+          title: 'Profile & Assets',
+          description: 'Manage your profile and view your financial assets.',
+        },
+      },
+      {
+        path: 'profile/settings',
+        loadComponent: () =>
           import('./pages/profile-settings/profile-settings.page').then(
             (m) => m.ProfileSettingsPage,
           ),

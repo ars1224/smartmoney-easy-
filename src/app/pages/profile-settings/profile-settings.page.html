@@ -1,4 +1,3 @@
-
 <ion-content [fullscreen]="true">
   <main class="profile-settings">
     <!-- Page Header -->
@@ -32,7 +31,7 @@
             <button
               type="button"
               class="settings-card__open"
-              (click)="openSetting(item.action)"
+              (click)="openSetting(item.action, $event)"
             >
               Open <span aria-hidden="true">→</span>
             </button>
@@ -48,10 +47,12 @@
         (click)="closeModal()"
       >
         <section
+          #settingsModal
           class="settings-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="personal-details-title"
+          tabindex="-1"
           (click)="$event.stopPropagation()"
         >
           <h2 id="personal-details-title">
@@ -125,10 +126,12 @@
         (click)="closeModal()"
       >
         <section
+          #settingsModal
           class="settings-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="change-password-title"
+          tabindex="-1"
           (click)="$event.stopPropagation()"
         >
           <h2 id="change-password-title">
@@ -221,10 +224,12 @@
         (click)="closeModal()"
       >
         <section
+          #settingsModal
           class="settings-modal privacy-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="privacy-modal-title"
+          tabindex="-1"
           (click)="$event.stopPropagation()"
         >
           <h2 id="privacy-modal-title">
@@ -277,6 +282,7 @@
         (click)="closeModal()"
       >
         <section
+          #settingsModal
           class="settings-modal"
           role="dialog"
           aria-modal="true"
@@ -316,10 +322,12 @@
         (click)="closeModal()"
       >
         <section
+          #settingsModal
           class="settings-modal delete-account-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-account-title"
+          tabindex="-1"
           (click)="$event.stopPropagation()"
         >
           <h2 id="delete-account-title">
@@ -343,6 +351,12 @@
               [(ngModel)]="deleteConfirmation"
             />
           </div>
+          
+          @if (deleteAccountMessage) {
+            <p class="settings-modal__message" role="status">
+              {{ deleteAccountMessage}}
+            </p>
+          }
 
           <div class="settings-modal__actions">
             <button
