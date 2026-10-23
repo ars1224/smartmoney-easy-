@@ -21,7 +21,7 @@
       </a>
     </nav>
     <div class="sidebar__account-actions">
-      <a class="sidebar__profile" routerLink="/app/profile" routerLinkActive="is-active">
+      <a class="sidebar__profile" routerLink="/app/profile" [class.is-active]="isProfileSectionActive">
         <span class="profile-icon" aria-hidden="true">
           <ion-icon name="person-outline"></ion-icon>
         </span>

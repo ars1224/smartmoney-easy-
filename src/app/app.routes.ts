@@ -31,6 +31,7 @@ export const routes: Routes = [
         },
       },
       { path: '', redirectTo: 'login', pathMatch: 'full' },
+      
     ],
   },
   {
@@ -129,10 +130,19 @@ export const routes: Routes = [
             (m) => m.RoutePlaceholderPage,
           ),
         data: {
-          eyebrow: 'Your account',
-          title: 'Profile & assets',
-          description: 'Personal details, cash assets and connected accounts will appear here.',
+          eyebrow: 'Your finances',
+          title: 'Profile & Assets',
+          description: 'Manage your profile and view your financial assets.',
+          nextLink: '/app/profile/settings',
+          nextLabel: 'Open Profile Settings',
         },
+      },
+      {
+        path: 'profile/settings',
+        loadComponent: () =>
+          import('./pages/profile-settings/profile-settings.page').then(
+            (m) => m.ProfileSettingsPage,
+          ),
       },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
     ],
