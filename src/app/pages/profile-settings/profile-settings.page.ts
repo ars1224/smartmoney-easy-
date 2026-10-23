@@ -294,9 +294,9 @@ export class ProfileSettingsPage {
       return;
     }
 
-    if (this.newPassword.length < 8) {
+    if (this.newPassword.length < 12) {
       this.passwordError =
-        'Your new password must be at least 8 characters.';
+        'Your new password must be at least 12 characters.';
       this.passwordMessage = '';
       return;
     }

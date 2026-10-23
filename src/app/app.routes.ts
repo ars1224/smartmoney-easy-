@@ -133,6 +133,8 @@ export const routes: Routes = [
           eyebrow: 'Your finances',
           title: 'Profile & Assets',
           description: 'Manage your profile and view your financial assets.',
+          nextLink: '/app/profile/settings',
+          nextLabel: 'Open Profile Settings',
         },
       },
       {
