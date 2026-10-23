@@ -21,7 +21,7 @@ type TransactionType = 'income' | 'expense';
 
 
 
-export class AddTransaction implements OnInit {
+export class AddTransactionPage implements OnInit {
 
   private readonly fb = inject(FormBuilder);
 

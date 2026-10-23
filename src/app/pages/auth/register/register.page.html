@@ -35,16 +35,18 @@
           <label for="register-password">Password</label>
           <div class="password-wrap">
             <input id="register-password" [type]="showPassword() ? 'text' : 'password'" formControlName="password"
-              autocomplete="new-password" placeholder="At least 8 characters"
+              autocomplete="new-password" placeholder="12–128 characters"
               [attr.aria-invalid]="form.controls.password.invalid && form.controls.password.touched" />
             <button class="password-toggle" type="button" (click)="showPassword.set(!showPassword())"
               [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
               {{ showPassword() ? 'Hide' : 'Show' }}
             </button>
           </div>
-          @if (form.controls.password.touched && form.controls.password.invalid) {
-            <p class="field-error">Use at least 8 characters.</p>
-          }
+            @if (form.controls.password.touched && form.controls.password.invalid) {
+              <p class="field-error">
+                Password must contain between 12 and 128 characters.
+              </p>
+            }
         </div>
 
         <div class="field">
