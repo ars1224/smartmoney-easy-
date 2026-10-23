@@ -22,16 +22,6 @@ interface NavigationItem {
 export class AppShellComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  get isProfileSectionActive(): boolean {
-    const path = this.router.url.split(/[?#]/)[0];
-
-    return (
-      path === '/app/profile' ||
-      path.startsWith('/app/profile/') ||
-      path === '/app/profile-settings' ||
-      path.startsWith('/app/profile-settings/')
-    );
-  }
 
   thinkerOpen = false;
 
