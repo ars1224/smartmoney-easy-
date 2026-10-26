@@ -144,6 +144,13 @@ export const routes: Routes = [
       },
 
       {
+        path: 'profile/settings',
+        loadComponent: () =>
+          import('./pages/profile-settings/profile-settings.page').then(
+            (m) => m.ProfileSettingsPage,
+          ),
+      },
+      {
         path: 'profile',
         loadComponent: () =>
           import('./pages/route-placeholder/route-placeholder.page')
@@ -153,8 +160,12 @@ export const routes: Routes = [
           title: 'Profile & assets',
           description:
             'Personal details, cash assets and connected accounts will appear here.',
+
           nextLink: '/app/bank/connect',
           nextLabel: 'Connect Mock Bank',
+
+          secondaryLink: '/app/profile/settings',
+          secondaryLabel: 'Open Profile Settings',
         },
       },
       {
