@@ -12,6 +12,9 @@ interface PlaceholderData {
   publicPage?: boolean;
   nextLink?: string;
   nextLabel?: string;
+
+  secondaryLink?: string;
+  secondaryLabel?: string;
 }
 
 @Component({

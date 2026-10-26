@@ -28,6 +28,14 @@
         @if (data.nextLink) {
           <a class="placeholder__link" [routerLink]="data.nextLink">{{ data.nextLabel }}</a>
         }
+        @if (data.secondaryLink) {
+          <a
+            class="placeholder__link"
+            [routerLink]="data.secondaryLink"
+          >
+            {{ data.secondaryLabel }}
+          </a>
+        }
         @if (data.publicPage) {
           <a class="placeholder__link" routerLink="/app/dashboard">Preview app shell</a>
         }
