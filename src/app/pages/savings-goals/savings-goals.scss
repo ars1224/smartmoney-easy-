@@ -1,0 +1,555 @@
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.goals-page {
+  --ink: var(--sm-color-navy);
+  --muted: var(--sm-color-text-muted);
+  --teal: var(--sm-color-teal);
+  --deep: var(--sm-color-teal-dark);
+  --soft: var(--sm-color-teal-soft);
+  --line: var(--sm-color-border);
+  --card: var(--sm-color-surface);
+
+  min-width: 0;
+  max-width: 1440px;
+  margin: auto;
+  padding: 24px clamp(12px, 2.5vw, 32px) 100px;
+  color: var(--ink);
+}
+
+.page-header,
+.section-heading,
+.goal-card-header,
+.goal-amounts,
+.progress-labels,
+.detail-row,
+.modal-header,
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.page-header {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+
+.page-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-eyebrow {
+  margin: 0;
+  color: var(--deep);
+  font-size: .78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.page-heading h1 {
+  margin: 6px 0 8px;
+  font-size: clamp(1.6rem, 3vw, 2rem);
+}
+
+.page-description,
+.section-heading p,
+.summary-caption,
+.amount-label,
+.detail-row span,
+.modal-header p,
+.form-help,
+.contribution-info {
+  color: var(--muted);
+}
+
+.page-description {
+  max-width: 600px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.btn,
+.btn-icon,
+.modal-close {
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+  border-radius: var(--sm-radius-md);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: .87rem;
+  font-weight: 650;
+}
+
+.btn-primary {
+  background: var(--teal);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--deep);
+}
+
+.btn-secondary {
+  background: var(--soft);
+  color: var(--deep);
+}
+
+.btn-outline {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.btn-danger {
+  background: var(--sm-color-coral);
+  color: #fff;
+}
+
+.btn:focus-visible,
+.btn-icon:focus-visible,
+.modal-close:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.summary-card,
+.goal-card,
+.empty-state {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--sm-radius-lg);
+  background: var(--card);
+  box-shadow: var(--sm-shadow-card);
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 146px;
+}
+
+.summary-label,
+.amount-label {
+  font-size: .8rem;
+  color: var(--muted);
+}
+
+.summary-value {
+  font-size: clamp(1.3rem, 2vw, 1.8rem);
+  overflow-wrap: anywhere;
+}
+
+.summary-caption {
+  margin-top: auto;
+  font-size: .76rem;
+  line-height: 1.4;
+}
+
+.progress-summary {
+  background: var(--soft);
+}
+
+.progress-track {
+  height: 9px;
+  width: 100%;
+  background: var(--sm-color-progress-track);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--teal);
+  border-radius: inherit;
+  transition: width .2s;
+}
+
+.progress-fill.completed {
+  background: var(--sm-color-green);
+}
+
+.section-heading {
+  margin-bottom: 18px;
+}
+
+.section-heading h2 {
+  margin: 0 0 4px;
+  font-size: 1.2rem;
+}
+
+.section-heading p {
+  margin: 0;
+  font-size: .85rem;
+}
+
+.goal-count,
+.status-badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 99px;
+  background: var(--soft);
+  color: var(--deep);
+  font-size: .75rem;
+  font-weight: 700;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+}
+
+.empty-icon {
+  margin: auto;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--soft);
+  color: var(--teal);
+  font-size: 2rem;
+}
+
+.empty-state h3 {
+  margin: 14px 0 8px;
+}
+
+.empty-state p {
+  max-width: 390px;
+  margin: 0 auto 20px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.goals-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, 290px), 1fr)
+  );
+  gap: 16px;
+}
+
+.goal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.goal-card-header {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.goal-title-group {
+  min-width: 0;
+}
+
+.goal-title-group h3 {
+  margin: 0 0 9px;
+  font-size: 1.08rem;
+  overflow-wrap: anywhere;
+}
+
+.goal-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn-icon {
+  min-height: 36px;
+  padding: 6px 10px;
+  background: var(--soft);
+  color: var(--deep);
+  font-size: .77rem;
+}
+
+.btn-icon.danger,
+.status-badge.is-overdue {
+  background: var(--sm-color-coral-soft);
+  color: var(--sm-color-coral);
+}
+
+.status-badge.is-complete {
+  background: var(--sm-color-green-soft);
+  color: var(--sm-color-green);
+}
+
+.goal-amounts > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.goal-amounts strong,
+.detail-row strong {
+  overflow-wrap: anywhere;
+}
+
+.saved-amount {
+  color: var(--deep);
+}
+
+.target-amount,
+.detail-row strong {
+  text-align: right;
+}
+
+.goal-progress {
+  display: grid;
+  gap: 8px;
+}
+
+.progress-labels,
+.detail-row {
+  font-size: .8rem;
+}
+
+.progress-labels strong {
+  color: var(--deep);
+}
+
+.goal-details {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.goal-card-footer {
+  margin-top: auto;
+}
+
+.goal-card-footer .btn {
+  width: 100%;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: safe center;
+  overflow-y: auto;
+  padding: 12px;
+  background: var(--sm-color-overlay);
+}
+
+.modal-panel {
+  width: 100%;
+  max-width: 540px;
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  border-radius: var(--sm-radius-lg);
+  background: var(--card);
+  box-shadow: var(--sm-shadow-panel);
+}
+
+.modal-small {
+  max-width: 440px;
+}
+
+.modal-header,
+.modal-body,
+.modal-footer {
+  padding: 20px;
+}
+
+.modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+
+.modal-header h2 {
+  margin: 0 0 5px;
+  font-size: 1.15rem;
+}
+
+.modal-header p {
+  margin: 0;
+  font-size: .8rem;
+}
+
+.modal-close {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  background: var(--sm-color-background);
+  color: var(--ink);
+  font-size: 1.5rem;
+}
+
+.modal-body {
+  display: grid;
+  gap: 16px;
+}
+
+.modal-footer {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+}
+
+.form-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.form-field label {
+  font-size: .85rem;
+  font-weight: 650;
+}
+
+.form-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--sm-radius-sm);
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.form-field input:focus {
+  outline: 2px solid var(--teal);
+  outline-offset: 1px;
+}
+
+.form-field small,
+.form-help,
+.contribution-info {
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
+.form-field small {
+  color: var(--muted);
+}
+
+.form-error,
+.delete-warning {
+  color: var(--sm-color-coral);
+  font-size: .83rem;
+}
+
+.form-error {
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--sm-color-coral-soft);
+}
+
+@media (max-width: 1024px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .goals-page {
+    padding: 18px 12px 96px;
+  }
+
+  .page-header {
+    margin-bottom: 20px;
+  }
+
+  .create-goal-btn {
+    width: 100%;
+  }
+
+  .summary-grid {
+    gap: 12px;
+  }
+
+  .summary-card,
+  .goal-card {
+    padding: 16px;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 16px;
+  }
+
+  .modal-footer .btn {
+    flex: 1;
+  }
+
+  .goals-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 400px) {
+  .summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summary-card {
+    min-height: 105px;
+  }
+
+  .goal-card-header {
+    flex-direction: column;
+  }
+
+  .goal-card-actions {
+    width: 100%;
+  }
+
+  .goal-card-actions .btn-icon {
+    flex: 1;
+  }
+
+  .modal-footer {
+    flex-direction: column-reverse;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-fill {
+    transition: none;
+  }
+}
