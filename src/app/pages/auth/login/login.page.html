@@ -27,9 +27,14 @@
         <div class="field">
           <label for="login-password">Password</label>
           <div class="password-wrap">
-            <input id="login-password" [type]="showPassword() ? 'text' : 'password'" formControlName="password"
-              autocomplete="current-password" placeholder="At least 8 characters"
-              [attr.aria-invalid]="form.controls.password.invalid && form.controls.password.touched" />
+            <input
+              id="login-password"
+              [type]="showPassword() ? 'text' : 'password'"
+              formControlName="password"
+              autocomplete="current-password"
+              placeholder="Enter your password"
+              [attr.aria-invalid]="form.controls.password.invalid && form.controls.password.touched"
+            />
             <button class="password-toggle" type="button" (click)="showPassword.set(!showPassword())"
               [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
               {{ showPassword() ? 'Hide' : 'Show' }}

@@ -38,8 +38,14 @@ export class AppShellComponent {
   }
 
   logout(): void {
-    this.auth.logout();
-    void this.router.navigateByUrl('/auth/login');
+    this.auth.logout().subscribe({
+      next: () => {
+        void this.router.navigateByUrl('/auth/login');
+      },
+      error: (error: Error) => {
+        window.alert(error.message);
+      },
+    });
   }
 
   openThinker(): void {

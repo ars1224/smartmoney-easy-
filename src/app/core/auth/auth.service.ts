@@ -1,125 +1,241 @@
-import { Injectable, computed, signal } from '@angular/core';
-import { Observable, delay, of, throwError } from 'rxjs';
+
+import { Injectable, computed, inject, signal } from '@angular/core';
+import {
+  HttpClient,
+  HttpErrorResponse,
+} from '@angular/common/http';
+import {
+  Observable,
+  catchError,
+  map,
+  of,
+  switchMap,
+  tap,
+  throwError,
+} from 'rxjs';
 
 export interface SmartMoneyUser {
   name: string;
   email: string;
 }
 
-const SESSION_KEY = 'smartmoney.session';
-const SESSION_LENGTH_MS = 30 * 24 * 60 * 60 * 1000;
+import { environment } from '../../../environments/environment';
 
-interface StoredSession {
-  expiresAt: number;
-  user: SmartMoneyUser;
+interface BackendUser {
+  id: string;
+  email: string;
+}
+
+interface AuthResponse {
+  message: string;
+  user: BackendUser;
+  csrf_token: string;
+}
+
+interface SessionResponse {
+  user: BackendUser;
+}
+
+interface CsrfResponse {
+  csrf_token: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly currentUserSignal = signal<SmartMoneyUser | null>(null);
-  private sessionExpiresAt: number | null = null;
-  private expiryTimeout: ReturnType<typeof setTimeout> | null = null;
+  private readonly http = inject(HttpClient);
+
+private readonly apiBase = `${environment.apiUrl}/auth`;
+  private readonly currentUserSignal =
+    signal<SmartMoneyUser | null>(null);
+
+  private csrfToken: string | null = null;
 
   readonly currentUser = this.currentUserSignal.asReadonly();
-  readonly isAuthenticated = computed(() => this.currentUserSignal() !== null);
 
-  constructor() {
-    const session = this.readSession();
-    if (session) {
-      this.currentUserSignal.set(session.user);
-      this.sessionExpiresAt = session.expiresAt;
-      this.scheduleExpiryCheck();
-    }
-  }
+  readonly isAuthenticated = computed(
+    () => this.currentUserSignal() !== null
+  );
 
-  login(email: string, password: string): Observable<SmartMoneyUser> {
-    if (email.toLowerCase() === 'error@smartmoney.test') {
-      return throwError(() => new Error('We could not sign you in. Check your details and try again.'));
-    }
-
-    const user: SmartMoneyUser = {
-      name: this.nameFromEmail(email),
-      email: email.trim().toLowerCase(),
-    };
-    this.saveSession(user);
-    return of(user).pipe(delay(450));
-  }
-
-  register(name: string, email: string, _password: string): Observable<SmartMoneyUser> {
-    if (email.toLowerCase() === 'error@smartmoney.test') {
-      return throwError(
-        () => new Error('We could not create your account. Please check your details and try again.'),
-      );
-    }
-
-    const user: SmartMoneyUser = { name: name.trim(), email: email.trim().toLowerCase() };
-    this.saveSession(user);
-    return of(user).pipe(delay(450));
-  }
-
-  logout(): void {
-    if (this.expiryTimeout) {
-      clearTimeout(this.expiryTimeout);
-      this.expiryTimeout = null;
-    }
-    localStorage.removeItem(SESSION_KEY);
-    this.sessionExpiresAt = null;
-    this.currentUserSignal.set(null);
-  }
-
-  hasValidSession(): boolean {
-    if (!this.currentUserSignal() || !this.sessionExpiresAt || this.sessionExpiresAt <= Date.now()) {
-      this.logout();
-      return false;
-    }
-    return true;
-  }
-
-  private saveSession(user: SmartMoneyUser): void {
-    const session: StoredSession = {
-      user,
-      expiresAt: Date.now() + SESSION_LENGTH_MS,
-    };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    this.sessionExpiresAt = session.expiresAt;
-    this.currentUserSignal.set(user);
-    this.scheduleExpiryCheck();
-  }
-
-  private readSession(): StoredSession | null {
-    try {
-      const raw = localStorage.getItem(SESSION_KEY);
-      if (!raw) return null;
-      const session = JSON.parse(raw) as StoredSession;
-      if (!session.user || session.expiresAt <= Date.now()) {
-        localStorage.removeItem(SESSION_KEY);
-        return null;
-      }
-      return session;
-    } catch {
-      localStorage.removeItem(SESSION_KEY);
-      return null;
-    }
-  }
-
-  private scheduleExpiryCheck(): void {
-    if (this.expiryTimeout) clearTimeout(this.expiryTimeout);
-    if (!this.sessionExpiresAt) return;
-
-    const maximumTimeout = 2_147_483_647;
-    const delayUntilCheck = Math.min(
-      Math.max(this.sessionExpiresAt - Date.now(), 0),
-      maximumTimeout,
+  private fetchCsrfToken(): Observable<string> {
+    return this.http.get<CsrfResponse>(
+      `${this.apiBase}/csrf`,
+      { withCredentials: true }
+    ).pipe(
+      map(response => {
+        this.csrfToken = response.csrf_token;
+        return response.csrf_token;
+      })
     );
-    this.expiryTimeout = setTimeout(() => {
-      if (!this.hasValidSession()) return;
-      this.scheduleExpiryCheck();
-    }, delayUntilCheck);
+  }
+
+  getCsrfToken(): Observable<string> {
+    if (this.csrfToken) {
+      return of(this.csrfToken);
+    }
+
+    return this.fetchCsrfToken();
+  }
+
+  login(
+    email: string,
+    password: string
+  ): Observable<SmartMoneyUser> {
+    return this.fetchCsrfToken().pipe(
+      switchMap(token =>
+        this.http.post<AuthResponse>(
+          `${this.apiBase}/login`,
+          {
+            email: email.trim().toLowerCase(),
+            password,
+          },
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
+      ),
+      map(response => {
+        // Flask rotates the session and CSRF token on login.
+        this.csrfToken = response.csrf_token;
+
+        const user = this.mapUser(response.user);
+        this.currentUserSignal.set(user);
+
+        return user;
+      }),
+      catchError(error =>
+        throwError(() => this.toError(error))
+      )
+    );
+  }
+
+  register(
+    name: string,
+    email: string,
+    password: string
+  ): Observable<SmartMoneyUser> {
+    return this.fetchCsrfToken().pipe(
+      switchMap(token =>
+        this.http.post<AuthResponse>(
+          `${this.apiBase}/register`,
+          {
+            email: email.trim().toLowerCase(),
+            password,
+          },
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
+      ),
+      map(response => {
+        this.csrfToken = response.csrf_token;
+
+        const user = this.mapUser(response.user, name);
+        this.currentUserSignal.set(user);
+
+        return user;
+      }),
+      catchError(error =>
+        throwError(() => this.toError(error))
+      )
+    );
+  }
+
+  verifySession(): Observable<boolean> {
+    return this.http.get<SessionResponse>(
+      `${this.apiBase}/me`,
+      { withCredentials: true }
+    ).pipe(
+      tap(response => {
+        this.currentUserSignal.set(
+          this.mapUser(response.user)
+        );
+      }),
+      map(() => true),
+      catchError(() => {
+        this.clearLocalSession();
+        return of(false);
+      })
+    );
+  }
+
+  logout(): Observable<void> {
+    return this.getCsrfToken().pipe(
+      switchMap(token =>
+        this.http.post<void>(
+          `${this.apiBase}/logout`,
+          {},
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
+      ),
+      tap(() => this.clearLocalSession()),
+      map(() => undefined),
+      catchError(error =>
+        throwError(() => this.toError(error))
+      )
+    );
+  }
+
+  private clearLocalSession(): void {
+    this.currentUserSignal.set(null);
+    this.csrfToken = null;
+  }
+
+  private mapUser(
+    user: BackendUser,
+    name?: string
+  ): SmartMoneyUser {
+    return {
+      email: user.email,
+      name: name?.trim() || this.nameFromEmail(user.email),
+    };
   }
 
   private nameFromEmail(email: string): string {
-    const firstPart = email.split('@')[0]?.replace(/[._-]+/g, ' ').trim();
-    if (!firstPart) return 'SmartMoney user';
-    return firstPart.replace(/\b\w/g, (character) => character.toUpperCase());
+    const firstPart = email
+      .split('@')[0]
+      ?.replace(/[._-]+/g, ' ')
+      .trim();
+
+    if (!firstPart) {
+      return 'SmartMoney user';
+    }
+
+    return firstPart.replace(
+      /\b\w/g,
+      character => character.toUpperCase()
+    );
+  }
+
+  private toError(error: unknown): Error {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 0) {
+        return new Error(
+          'Unable to connect to SmartMoney. Check that the Flask server is running.'
+        );
+      }
+
+      const message = error.error?.error;
+
+      if (typeof message === 'string') {
+        return new Error(message);
+      }
+
+      return new Error(
+        'The request could not be completed. Please try again.'
+      );
+    }
+
+    return new Error('An unexpected error occurred.');
   }
 }
