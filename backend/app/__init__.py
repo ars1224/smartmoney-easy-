@@ -19,6 +19,10 @@ from app.routes import (
     savings_goals_bp,
 )
 
+from app.routes.cash_wallets import cash_wallets_bp
+
+from app.routes.cash_transactions import cash_transactions_bp
+
 
 def create_app():
     app = Flask(__name__)
@@ -27,6 +31,8 @@ def create_app():
     app.config.from_object(Config)
     app.register_blueprint(auth_bp)
     app.register_blueprint(bank_oauth_bp)
+    app.register_blueprint(cash_wallets_bp)
+    app.register_blueprint(cash_transactions_bp)
     CORS(
     app,
     resources={

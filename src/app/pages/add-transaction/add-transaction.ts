@@ -1,15 +1,32 @@
+
 import { Component, inject, OnInit } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   FormBuilder,
   ReactiveFormsModule,
-  Validators
+  Validators,
 } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { ManualTransactionsService } from '../../core/services/manual-transactions.service';
-import { CashWalletService } from '../../core/services/cash-wallet.service';
+import {
+  ActivatedRoute,
+  Router,
+  RouterLink,
+} from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 
+import {
+  CashWallet,
+  CashWalletService,
+} from '../../core/services/cash-wallet.service';
 
-type TransactionType = 'income' | 'expense';
+import {
+  CashTransactionsApiService,
+  CashTransactionType,
+} from '../../core/services/cash-transactions-api.service';
+
+import {
+  CashWalletApiService,
+} from '../../core/services/cash-wallet-api.service';
+
 
 @Component({
   selector: 'app-add-transaction',
@@ -18,31 +35,45 @@ type TransactionType = 'income' | 'expense';
   templateUrl: './add-transaction.html',
   styleUrl: './add-transaction.scss',
 })
-
-
-
 export class AddTransactionPage implements OnInit {
-
+  private readonly cashWalletApi =
+  inject(CashWalletApiService);
   private readonly fb = inject(FormBuilder);
-
   private readonly router = inject(Router);
+  private readonly activatedRoute = inject(ActivatedRoute);
 
-  private readonly manualTransactions =
-  inject(ManualTransactionsService);
+  private readonly cashWalletService =
+    inject(CashWalletService);
 
-  private readonly cashWalletService = inject(CashWalletService);
+  private readonly cashTransactionsApi =
+    inject(CashTransactionsApiService);
 
-  saveError = '';
-  isSaving = false;
-
-  // Default date: Today (local time)
   readonly today = this.getTodayDate();
 
-  // Cash wallets available for manual transactions
-  // Additional wallets will be loaded from the backend later.
-  readonly cashWallets = this.cashWalletService.getWallets();
+  cashWallets: CashWallet[] = [];
 
-  // Expense categories
+  noWallets = false;
+  isCreatingWallet = false;
+  walletCreateError = '';
+
+  readonly walletForm = this.fb.nonNullable.group({
+    name: ['', [
+      Validators.required,
+      Validators.maxLength(80),
+    ]],
+    openingBalance: [0, [
+      Validators.required,
+      Validators.min(0),
+    ]],
+  });
+
+  walletsLoading = true;
+  saveError = '';
+  loadError = '';
+  isSaving = false;
+
+  editId: string | null = null;
+
   readonly expenseCategories = [
     'Groceries',
     'Transport',
@@ -50,196 +81,355 @@ export class AddTransactionPage implements OnInit {
     'Shopping',
     'Bills',
     'Entertainment',
-    'Other'
+    'Other',
   ];
 
-  // Income categories
   readonly incomeCategories = [
     'Salary',
     'Business',
     'Gift',
-    'Other'
+    'Other',
   ];
 
-
-ngOnInit(): void {
-  const id = this.activatedRoute.snapshot.paramMap.get('id');
-
-  // No ID means we're creating a new transaction.
-  if (!id) {
-    return;
-  }
-
-  this.editId = id;
-
-  // Find the existing manual transaction.
-  const transaction = this.manualTransactions.getById(id);
-
-  if (!transaction) {
-    this.loadError = 'Transaction not found.';
-    this.transactionForm.disable();
-    return;
-  }
-
-  // Populate the form with existing values.
-  this.transactionForm.patchValue({
-    type: transaction.type,
-    assetId: transaction.assetId,
-    amount: transaction.amount,
-    category: transaction.category,
-    date: transaction.date,
-    note: transaction.note
-  });
-}
-
-
-  // Reactive Transaction Form
   readonly transactionForm = this.fb.nonNullable.group({
-    type: this.fb.nonNullable.control<TransactionType>(
+    type: this.fb.nonNullable.control<CashTransactionType>(
       'expense',
       Validators.required
     ),
 
-    assetId: ['nzd-cash', Validators.required],
+    assetId: this.fb.nonNullable.control(
+      '',
+      Validators.required
+    ),
 
-    amount: [
+    amount: this.fb.nonNullable.control(
       0,
       [
         Validators.required,
-        Validators.min(0.01)
+        Validators.min(0.01),
       ]
-    ],
+    ),
 
-    category: ['', Validators.required],
+    category: this.fb.nonNullable.control(
+      '',
+      [
+        Validators.required,
+        Validators.maxLength(80),
+      ]
+    ),
 
-    date: [this.today, Validators.required],
+    date: this.fb.nonNullable.control(
+      this.today,
+      Validators.required
+    ),
 
-    note: ['', Validators.maxLength(250)]
+    note: this.fb.nonNullable.control(
+      '',
+      Validators.maxLength(250)
+    ),
   });
 
-  // Categories change depending on transaction type
+  ngOnInit(): void {
+    void this.initializePage();
+  }
+
+  get isEditMode(): boolean {
+    return this.editId !== null;
+  }
+
   get availableCategories(): string[] {
     return this.transactionForm.controls.type.value === 'income'
       ? this.incomeCategories
       : this.expenseCategories;
   }
 
+  get selectedWalletBalance(): string {
+    if (this.walletsLoading) {
+      return 'Loading...';
+    }
 
-get selectedWalletBalance(): string {
+    const walletId =
+      this.transactionForm.controls.assetId.value;
 
-  // Get the wallet selected in the form.
-  const walletId =
-    this.transactionForm.controls.assetId.value;
+    const wallet =
+      this.cashWalletService.getWalletById(walletId);
 
-  // Find the wallet.
-  const wallet =
-    this.cashWalletService.getWalletById(walletId);
+    if (!wallet) {
+      return 'Unavailable';
+    }
 
-  if (!wallet) {
-    return 'Unavailable';
+    return new Intl.NumberFormat('en-NZ', {
+      style: 'currency',
+      currency: wallet.currency,
+      currencyDisplay: 'code',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(wallet.currentBalance);
   }
 
-  // Calculate its balance from saved transactions.
-  const balance =
-    this.cashWalletService.getBalance(wallet.id);
+  private async initializePage(): Promise<void> {
+    this.editId =
+      this.activatedRoute.snapshot.paramMap.get('id');
 
-  // Format using the wallet's own currency.
-  return new Intl.NumberFormat('en-NZ', {
-    style: 'currency',
-    currency: wallet.currency,
-    currencyDisplay: 'code',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(balance);
+    this.walletsLoading = true;
+    this.loadError = '';
 
-}
+    try {
+      this.cashWallets = await firstValueFrom(
+        this.cashWalletService.loadWallets()
+      );
 
+      if (this.cashWallets.length === 0) {
+        this.noWallets = true;
+        this.loadError =
+          'No cash wallets available. Create a cash wallet ' +
+          'before recording transactions.';
 
-  // Change transaction type and reset category
-  setTransactionType(type: TransactionType): void {
+        this.transactionForm.disable();
+        return;
+      }
+
+      if (this.editId) {
+        const transactions = await firstValueFrom(
+          this.cashTransactionsApi.getTransactions()
+        );
+
+        const transaction = transactions.find(
+          item => item.id === this.editId
+        );
+
+        if (!transaction) {
+          this.loadError = 'Cash transaction not found.';
+          this.transactionForm.disable();
+          return;
+        }
+
+        const walletAvailable = this.cashWallets.some(
+          wallet => wallet.id === transaction.assetId
+        );
+
+        if (!walletAvailable) {
+          this.loadError =
+            'This transaction belongs to an archived ' +
+            'or unavailable cash wallet.';
+
+          this.transactionForm.disable();
+          return;
+        }
+
+        this.transactionForm.setValue({
+          type: transaction.type,
+          assetId: transaction.assetId,
+          amount: transaction.amount,
+          category: transaction.category,
+          date: transaction.date,
+          note: transaction.note,
+        });
+
+      } else {
+        this.transactionForm.controls.assetId.setValue(
+          this.cashWallets[0].id
+        );
+      }
+
+    } catch (error) {
+      this.loadError = this.getErrorMessage(
+        error,
+        'Unable to load cash wallet data.'
+      );
+
+      this.transactionForm.disable();
+
+    } finally {
+      this.walletsLoading = false;
+    }
+  }
+
+  setTransactionType(type: CashTransactionType): void {
     if (this.transactionForm.controls.type.value === type) {
       return;
     }
 
     this.transactionForm.patchValue({
       type,
-      category: ''
+      category: '',
     });
   }
 
-  // Get today's date in YYYY-MM-DD format
+  async saveTransaction(): Promise<void> {
+    this.saveError = '';
+
+    if (
+      this.isSaving ||
+      this.walletsLoading ||
+      this.loadError
+    ) {
+      return;
+    }
+
+    if (this.transactionForm.invalid) {
+      this.transactionForm.markAllAsTouched();
+      return;
+    }
+
+    const formData =
+      this.transactionForm.getRawValue();
+
+    const wallet = this.cashWalletService.getWalletById(
+      formData.assetId
+    );
+
+    if (!wallet) {
+      this.saveError = 'Please select a valid cash wallet.';
+      return;
+    }
+
+    if (
+      !Number.isFinite(formData.amount) ||
+      formData.amount <= 0 ||
+      Math.abs(
+        formData.amount * 100 -
+        Math.round(formData.amount * 100)
+      ) > 1e-7
+    ) {
+      this.saveError =
+        'Enter a valid amount with up to two decimal places.';
+      return;
+    }
+
+    this.isSaving = true;
+
+    try {
+      if (this.editId) {
+        await firstValueFrom(
+          this.cashTransactionsApi.updateTransaction(
+            this.editId,
+            formData
+          )
+        );
+
+      } else {
+        await firstValueFrom(
+          this.cashTransactionsApi.createTransaction(
+            formData
+          )
+        );
+      }
+
+      // Return to the Activity page after Flask confirms
+      // that the transaction was saved successfully.
+      await this.router.navigateByUrl('/app/activity');
+
+    } catch (error) {
+      this.saveError = this.getErrorMessage(
+        error,
+        'Unable to save cash transaction.'
+      );
+
+    } finally {
+      this.isSaving = false;
+    }
+  }
+
+
+async createCashWallet(): Promise<void> {
+  this.walletCreateError = '';
+
+  if (this.isCreatingWallet || this.walletForm.invalid) {
+    this.walletForm.markAllAsTouched();
+    return;
+  }
+
+  const { name, openingBalance } =
+    this.walletForm.getRawValue();
+
+  if (
+    !name.trim() ||
+    !Number.isFinite(openingBalance) ||
+    openingBalance < 0 ||
+    openingBalance > 999999999999.99 ||
+    Math.abs(
+      openingBalance * 100 -
+      Math.round(openingBalance * 100)
+    ) > 1e-7
+  ) {
+    this.walletCreateError =
+      'Enter a valid wallet name and opening balance.';
+    return;
+  }
+
+  this.isCreatingWallet = true;
+
+  try {
+    const wallet = await firstValueFrom(
+      this.cashWalletApi.createWallet({
+        name: name.trim(),
+        currency: 'NZD',
+        openingBalance,
+      })
+    );
+
+    this.cashWallets = await firstValueFrom(
+      this.cashWalletService.loadWallets()
+    );
+
+    this.transactionForm.enable();
+
+    this.transactionForm.controls.assetId.setValue(
+      wallet.id
+    );
+
+    this.noWallets = false;
+    this.loadError = '';
+
+    this.walletForm.reset({
+      name: '',
+      openingBalance: 0,
+    });
+
+  } catch (error) {
+    this.walletCreateError = this.getErrorMessage(
+      error,
+      'Unable to create cash wallet.'
+    );
+
+  } finally {
+    this.isCreatingWallet = false;
+  }
+}
+
+
   private getTodayDate(): string {
     const now = new Date();
 
     const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(
+      now.getMonth() + 1
+    ).padStart(2, '0');
+
+    const day = String(
+      now.getDate()
+    ).padStart(2, '0');
 
     return `${year}-${month}-${day}`;
   }
 
+  private getErrorMessage(
+    error: unknown,
+    fallback: string
+  ): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 0) {
+        return 'Unable to connect to the Flask server.';
+      }
 
+      const message = error.error?.error;
 
-async saveTransaction(): Promise<void> {
-  this.saveError = '';
-
-  if (this.isSaving || this.loadError) {
-    return;
-  }
-
-  // Validate all fields.
-  if (this.transactionForm.invalid) {
-    this.transactionForm.markAllAsTouched();
-    return;
-  }
-
-  this.isSaving = true;
-
-  try {
-    const formData = this.transactionForm.getRawValue();
-
-    if (this.isEditMode && this.editId) {
-
-      // Update an existing Cash transaction.
-      this.manualTransactions.update(
-        this.editId,
-        formData
-      );
-
-    } else {
-
-      // Create a new Cash transaction.
-      this.manualTransactions.add(formData);
-
+      if (typeof message === 'string') {
+        return message;
+      }
     }
 
-    // Return to Activity history.
-    await this.router.navigateByUrl('/app/activity');
-
-  } catch (error) {
-
-    this.saveError =
-      error instanceof Error
-        ? error.message
-        : 'Unable to save transaction.';
-
-  } finally {
-    this.isSaving = false;
+    return fallback;
   }
 }
-
-
-
-private readonly activatedRoute = inject(ActivatedRoute);
-
-editId: string | null = null;
-loadError = '';
-
-get isEditMode(): boolean {
-  return this.editId !== null;
-}
-
-
-}
-
-
