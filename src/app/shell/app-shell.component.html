@@ -36,7 +36,7 @@
   </aside>
 
   <div class="app-shell__body">
-    <header class="app-header">
+    <header class="app-header" [class.app-header--behind-modal]="isSettingsModalOpen">
       <a class="app-header__brand" routerLink="/app/dashboard" aria-label="SmartMoney! Easy dashboard">
         <img src="assets/branding/smartmoney-easy-horizontal-logo.png" alt="SmartMoney! Easy" />
       </a>
@@ -54,11 +54,17 @@
       <router-outlet></router-outlet>
     </main>
 
-    <button class="thinker-fab" type="button" (click)="openThinker()" aria-label="Open Thinker AI">
+    <button
+       class="thinker-fab"
+       [class.thinker-fab--behind-modal]="isSettingsModalOpen"
+       type="button"
+       (click)="openThinker()"
+       aria-label="Open Thinker AI"
+    >
       AI
     </button>
 
-    <nav class="bottom-nav" aria-label="Mobile primary navigation">
+    <nav class="bottom-nav" [class.bottom-nav--behind-modal]="isSettingsModalOpen" aria-label="Mobile primary navigation">
       @for (item of navigation; track item.route) {
         <a [routerLink]="item.route" routerLinkActive="is-active">
           @if (item.iconName) {

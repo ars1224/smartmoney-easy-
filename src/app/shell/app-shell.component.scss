@@ -259,6 +259,13 @@
   cursor: pointer;
 }
 
+.app-header--behind-modal,
+.thinker-fab--behind-modal,
+.bottom-nav--behind-modal {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .thinker-backdrop {
   position: fixed;
   inset: 0;
