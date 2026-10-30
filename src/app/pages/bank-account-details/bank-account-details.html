@@ -1,0 +1,146 @@
+
+<main class="bank-details-page">
+
+  <header class="page-header">
+    <a routerLink="/app/profile" class="back-link">
+      ← Back to Profile & Assets
+    </a>
+
+    <h1>Bank Account Details</h1>
+    <p>
+      View your connected account information and transaction history.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <p class="status-message" role="status">
+      Loading bank account details...
+    </p>
+  }
+
+  @if (error()) {
+    <div class="error-message" role="alert">
+      <p>{{ error() }}</p>
+
+      <button
+        type="button"
+        class="retry-button"
+        [disabled]="loading()"
+        (click)="loadDetails()"
+      >
+        Try Again
+      </button>
+    </div>
+  }
+
+  @if (account(); as selected) {
+
+    <section class="account-summary">
+      <div class="account-heading">
+        <div>
+          <p class="eyebrow">Connected Mock Bank</p>
+          <h2>{{ selected.accountName }}</h2>
+          <p>
+            {{ selected.accountType }}
+            · Ending {{ selected.accountNumberLast4 }}
+          </p>
+        </div>
+
+        <span class="connection-status">
+          {{ selected.status }}
+        </span>
+      </div>
+
+      <div class="balance-section">
+        <span>Account balance</span>
+
+        <strong>
+          {{ selected.balance | currency:selected.currency }}
+        </strong>
+      </div>
+
+      <div class="account-metadata">
+        <div>
+          <span>Currency</span>
+          <strong>{{ selected.currency }}</strong>
+        </div>
+
+        <div>
+          <span>Last synchronised</span>
+
+          <strong>
+            @if (selected.lastSyncedAt) {
+              {{ selected.lastSyncedAt | date:'medium' }}
+            } @else {
+              Not yet synchronised
+            }
+          </strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="transactions-section">
+      <div class="section-heading">
+        <div>
+          <h2>Transaction History</h2>
+          <p>
+            Transactions imported from your connected bank account.
+          </p>
+        </div>
+
+        <span class="transaction-count">
+          {{ transactions().length }} transactions
+        </span>
+      </div>
+
+      @if (!loading() && !error()) {
+        <div class="transaction-list">
+
+          @for (transaction of transactions(); track transaction.id) {
+
+            <article class="transaction-card">
+              <div class="transaction-info">
+                <h3>{{ transaction.description }}</h3>
+
+                <p>
+                  {{ transaction.transactionDate | date:'mediumDate' }}
+                  · {{ transaction.transactionType }}
+                </p>
+              </div>
+
+              <div class="transaction-amount">
+                <strong
+                  [class.expense]="transaction.amount < 0"
+                  [class.income]="transaction.amount > 0"
+                >
+                  {{
+                    transaction.amount
+                      | currency:transaction.currency
+                  }}
+                </strong>
+
+                @if (transaction.balanceAfter !== null) {
+                  <small>
+                    Balance:
+                    {{
+                      transaction.balanceAfter
+                        | currency:transaction.currency
+                    }}
+                  </small>
+                }
+              </div>
+            </article>
+
+          } @empty {
+            <div class="empty-state">
+              <p>No transactions have been imported for this account yet.</p>
+            </div>
+          }
+
+        </div>
+      }
+    </section>
+
+  }
+
+</main>

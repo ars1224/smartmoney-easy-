@@ -144,6 +144,14 @@ export const routes: Routes = [
       },
 
       {
+        path: 'bank/accounts/:accountId',
+        loadComponent: () =>
+          import('./pages/bank-account-details/bank-account-details')
+            .then((m) => m.BankAccountDetailsPage),
+      },
+
+
+      {
         path: 'profile/settings',
         loadComponent: () =>
           import('./pages/profile-settings/profile-settings.page').then(
