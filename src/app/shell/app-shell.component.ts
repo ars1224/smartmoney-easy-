@@ -1,9 +1,10 @@
-import { Component, HostListener, inject } from '@angular/core';
+import { Component, HostListener, inject, OnInit } from '@angular/core';
 import { IonIcon } from '@ionic/angular';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { addIcons } from 'ionicons';
 import { bookOutline, homeOutline, logOutOutline, personOutline } from 'ionicons/icons';
 import { AuthService } from '../core/auth/auth.service';
+import { BankAutoSyncService } from '../core/bank/bank-auto-sync.service';
 
 interface NavigationItem {
   label: string;
@@ -19,9 +20,10 @@ interface NavigationItem {
   styleUrl: './app-shell.component.scss',
   imports: [IonIcon, RouterLink, RouterLinkActive, RouterOutlet],
 })
-export class AppShellComponent {
+export class AppShellComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly bankAutoSync = inject(BankAutoSyncService);
 
   thinkerOpen = false;
 
@@ -36,6 +38,15 @@ export class AppShellComponent {
   constructor() {
     addIcons({ bookOutline, homeOutline, logOutOutline, personOutline });
   }
+
+
+  ngOnInit(): void {
+    // Automatically synchronise connected banks
+    // when the authenticated application opens.
+    // Do not block the UI while synchronising.
+    void this.bankAutoSync.syncOnAppOpen();
+  }
+
 
   logout(): void {
     this.auth.logout().subscribe({
