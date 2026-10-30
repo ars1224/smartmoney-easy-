@@ -23,6 +23,10 @@ from app.routes.cash_wallets import cash_wallets_bp
 
 from app.routes.cash_transactions import cash_transactions_bp
 
+from app.routes.budgets import budgets_bp
+
+
+
 
 def create_app():
     app = Flask(__name__)
@@ -55,5 +59,6 @@ def create_app():
 
     app.register_blueprint(health_bp)
     app.register_blueprint(bank_accounts_bp)
+    app.register_blueprint(budgets_bp)
 
     return app
