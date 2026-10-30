@@ -16,6 +16,70 @@
     </a>
   </header>
 
+
+@if (noWallets && !isEditMode) {
+  <section class="form-card" aria-labelledby="wallet-create-heading">
+    <h2 id="wallet-create-heading">
+      Create your first Cash Wallet
+    </h2>
+
+    <p>
+      Before recording cash transactions, set up
+      a wallet to track your money.
+    </p>
+
+    <form
+      [formGroup]="walletForm"
+      (ngSubmit)="createCashWallet()"
+    >
+      <div class="form-row">
+        <div class="form-group">
+          <label for="wallet-name">Wallet Name</label>
+
+          <input
+            id="wallet-name"
+            type="text"
+            formControlName="name"
+            maxlength="80"
+            placeholder="e.g. Personal Cash"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="wallet-opening">
+            Opening Balance (NZD)
+          </label>
+
+          <input
+            id="wallet-opening"
+            type="number"
+            formControlName="openingBalance"
+            min="0"
+            step="0.01"
+          />
+        </div>
+      </div>
+
+      @if (walletCreateError) {
+        <p class="field-error" role="alert">
+          {{ walletCreateError }}
+        </p>
+      }
+
+      <button
+        type="submit"
+        class="save-btn"
+        [disabled]="isCreatingWallet"
+      >
+        {{ isCreatingWallet
+          ? 'Creating Wallet...'
+          : 'Create Cash Wallet' }}
+      </button>
+    </form>
+  </section>
+}
+
+
   <div class="transaction-layout">
 
     <!-- Transaction Form -->
@@ -212,7 +276,7 @@
         <button
         type="submit"
         class="save-btn"
-        [disabled]="isSaving || !!loadError"
+        [disabled]="isSaving || walletsLoading || !!loadError"
         >
         {{
             isSaving

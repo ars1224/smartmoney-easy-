@@ -1,80 +1,57 @@
 
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
+import { Observable, tap } from 'rxjs';
 
 import {
-  ManualTransactionsService
-} from './manual-transactions.service';
+  CashWalletApiService,
+  CashWalletRecord,
+} from './cash-wallet-api.service';
 
-export interface CashWallet {
-  id: string;
-  name: string;
-  currency: string;
-  openingBalance: number;
-}
+export type CashWallet = CashWalletRecord;
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class CashWalletService {
+  private readonly walletApi = inject(CashWalletApiService);
 
-  private readonly manualTransactions =
-    inject(ManualTransactionsService);
+  private readonly walletsState = signal<CashWallet[]>([]);
 
-  // Temporary Cash wallet for MVP development.
-  // Opening balances will eventually come from
-  // the user's saved wallets in the Flask backend.
-  private readonly wallets: CashWallet[] = [
-    {
-      id: 'nzd-cash',
-      name: 'NZD Cash',
-      currency: 'NZD',
-      openingBalance: 0
-    }
-  ];
+  readonly wallets = this.walletsState.asReadonly();
 
-  // Retrieve available Cash wallets
+  // Fetch the authenticated user's wallets from Flask.
+  loadWallets(): Observable<CashWallet[]> {
+    return this.walletApi.getWallets().pipe(
+      tap(wallets => {
+        this.walletsState.set(wallets);
+      })
+    );
+  }
+
+  // Retrieve wallets already loaded from PostgreSQL.
   getWallets(): CashWallet[] {
-    return [...this.wallets];
+    return this.walletsState();
   }
 
-  // Find a specific Cash wallet
   getWalletById(id: string): CashWallet | undefined {
-    return this.wallets.find(wallet => wallet.id === id);
+    return this.walletsState().find(
+      wallet => wallet.id === id
+    );
   }
 
-  // Calculate the wallet's balance from its transactions
+  // The backend calculates balances using PostgreSQL
+  // income and expense transactions.
   getBalance(walletId: string): number {
-
     const wallet = this.getWalletById(walletId);
 
     if (!wallet) {
       throw new Error('Cash wallet not found.');
     }
 
-    const transactions = this.manualTransactions
-      .getAll()
-      .filter(transaction => transaction.assetId === walletId);
+    return wallet.currentBalance;
+  }
 
-    // Work in cents to avoid floating-point errors
-    const openingCents = Math.round(
-      wallet.openingBalance * 100
-    );
-
-    const transactionCents = transactions.reduce(
-      (total, transaction) => {
-
-        const amountCents = Math.round(
-          transaction.amount * 100
-        );
-
-        return transaction.type === 'income'
-          ? total + amountCents
-          : total - amountCents;
-
-      },
-      0
-    );
-
-    return (openingCents + transactionCents) / 100;
+  clearWallets(): void {
+    this.walletsState.set([]);
   }
 }
