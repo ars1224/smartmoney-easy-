@@ -119,10 +119,21 @@
                 </div>
 
             } @else {
+              <div class="transaction-actions">
+                <button
+                  type="button"
+                  class="edit-transaction-btn"
+                  [attr.aria-label]="'Edit category for ' + transaction.description"
+                  (click)="openBankCategoryDialog(transaction, $event)"
+                >
+                  Edit category
+                </button>
 
                 <span class="read-only-label">
-                Read-only
+                  Bank details read-only
                 </span>
+              </div>
+
 
             }
             </td>
@@ -214,5 +225,79 @@
     </div>
   </div>
 }
+
+
+<dialog
+  #bankCategoryDialog
+  class="confirm-modal category-dialog"
+  aria-labelledby="bank-category-dialog-title"
+  (cancel)="onBankCategoryDialogCancel($event)"
+  (close)="onBankCategoryDialogClosed()"
+>
+  <h2 id="bank-category-dialog-title">
+    Edit bank transaction category
+  </h2>
+
+  @if (categoryTransaction) {
+    <p class="modal-text">
+      <strong>{{ categoryTransaction.description }}</strong>
+    </p>
+
+    <p class="modal-subtext">
+      Only the category can be changed.
+      The original bank transaction remains unchanged.
+    </p>
+  }
+
+  <form (ngSubmit)="saveBankCategory()">
+    <div class="category-field">
+      <label for="bank-category-select">
+        Transaction category
+      </label>
+
+      <select
+        id="bank-category-select"
+        name="bankCategory"
+        class="category-select"
+        [(ngModel)]="selectedBankCategory"
+        [disabled]="savingCategory"
+      >
+        <option value="">Uncategorised</option>
+
+        @for (category of bankCategories; track category) {
+          <option [value]="category">
+            {{ category }}
+          </option>
+        }
+      </select>
+    </div>
+
+    @if (categoryError) {
+      <p class="modal-error" role="alert">
+        {{ categoryError }}
+      </p>
+    }
+
+    <div class="modal-actions">
+      <button
+        type="button"
+        class="modal-cancel-btn"
+        [disabled]="savingCategory"
+        (click)="closeBankCategoryDialog()"
+      >
+        Cancel
+      </button>
+
+      <button
+        type="submit"
+        class="category-save-btn"
+        [disabled]="savingCategory"
+      >
+        {{ savingCategory ? 'Saving...' : 'Save category' }}
+      </button>
+    </div>
+  </form>
+</dialog>
+
 
 </main>

@@ -479,3 +479,143 @@
     overflow-wrap: anywhere;
   }
 }
+
+
+/* ==========================================
+   Bank Transaction Category Modal
+   ========================================== */
+
+.category-dialog {
+  box-sizing: border-box;
+  width: min(28rem, calc(100vw - 2rem));
+  max-width: 28rem;
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: 1.5rem;
+  overflow-y: auto;
+
+  background: #ffffff;
+  color: var(--sm-color-text);
+  border: 1px solid var(--sm-color-border);
+  border-radius: 1rem;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
+
+  &::backdrop {
+    background: rgba(15, 23, 42, 0.55);
+  }
+
+  h2 {
+    margin: 0 0 1rem;
+    color: var(--sm-color-navy);
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  .modal-text {
+    margin-bottom: 0.75rem;
+  }
+
+  .modal-subtext {
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    width: 100%;
+  }
+
+  .category-field {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.625rem;
+    width: 100%;
+  }
+
+  .category-field label {
+    color: var(--sm-color-navy);
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+
+  .category-select {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
+    padding: 0.75rem 1rem;
+
+    background: #ffffff;
+    color: var(--sm-color-text);
+    border: 1px solid var(--sm-color-border);
+    border-radius: 0.625rem;
+
+    font: inherit;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  .modal-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    width: 100%;
+  }
+
+  .modal-actions button {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+    border-radius: 0.625rem;
+
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .modal-cancel-btn {
+    background: #eef2f6;
+    color: var(--sm-color-navy);
+    border: 1px solid var(--sm-color-border);
+  }
+
+  .category-save-btn {
+    background: var(--sm-color-teal);
+    color: #ffffff;
+    border: 1px solid transparent;
+
+    &:hover:not(:disabled) {
+      background: var(--sm-color-teal-dark);
+    }
+  }
+
+  .modal-actions button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .category-select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--sm-color-teal);
+    outline-offset: 2px;
+  }
+}
+
+/* Responsive category modal */
+
+@media (max-width: 480px) {
+  .category-dialog {
+    padding: 1.25rem;
+  }
+
+  .category-dialog .modal-actions {
+    grid-template-columns: 1fr;
+  }
+}
