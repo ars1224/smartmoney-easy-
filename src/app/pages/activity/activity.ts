@@ -19,6 +19,8 @@ import {
   BankAccountsApiService,
 } from '../../core/bank/bank-accounts-api.service';
 
+import { FormsModule } from '@angular/forms';
+
 type TransactionSource = 'cash' | 'bank';
 type SourceFilter = 'all' | TransactionSource;
 
@@ -34,7 +36,7 @@ interface Transaction {
 @Component({
   selector: 'app-activity',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, FormsModule],
   templateUrl: './activity.html',
   styleUrl: './activity.scss',
 })
@@ -92,118 +94,118 @@ export class ActivityPage implements OnInit {
   }
 
 
-async loadManualTransactions(): Promise<void> {
-  if (this.isLoading) return;
+  async loadManualTransactions(): Promise<void> {
+    if (this.isLoading) return;
 
-  this.isLoading = true;
-  this.loadError = '';
+    this.isLoading = true;
+    this.loadError = '';
 
-  try {
-    const [cashResult, bankResult] = await Promise.allSettled([
-      firstValueFrom(
-        this.cashTransactionsApi.getTransactions()
-      ),
-      firstValueFrom(
-        this.bankAccountsApi.getAllTransactions()
-      ),
-    ]);
+    try {
+      const [cashResult, bankResult] = await Promise.allSettled([
+        firstValueFrom(
+          this.cashTransactionsApi.getTransactions()
+        ),
+        firstValueFrom(
+          this.bankAccountsApi.getAllTransactions()
+        ),
+      ]);
 
-    // Cash transactions
-    if (cashResult.status === 'fulfilled') {
-      this.manualTransactions = cashResult.value.map(
-        transaction => ({
-          id: transaction.id,
-          description:
-            transaction.note.trim() || transaction.category,
-          source: 'cash' as const,
-          category: transaction.category,
-          amount:
-            transaction.type === 'income'
-              ? transaction.amount
-              : -transaction.amount,
-          date: transaction.date,
-        })
-      );
-    } else {
-      this.manualTransactions = [];
-      this.loadError = 'Unable to load cash transactions.';
-    }
-
-    // Imported bank transactions
-    if (bankResult.status === 'fulfilled') {
-      this.bankTransactions = bankResult.value.map(
-        transaction => ({
-          id: transaction.id,
-          description: transaction.description,
-          source: 'bank' as const,
-          category:
-            transaction.category?.trim() || 'Uncategorised',
-          amount: transaction.amount,
-          date: transaction.transactionDate,
-        })
-      );
-    } else {
-      this.bankTransactions = [];
-      this.loadError = [
-        this.loadError,
-        'Unable to load bank transactions.',
-      ].filter(Boolean).join(' ');
-    }
-
-  } finally {
-    this.isLoading = false;
-    this.changeDetector.markForCheck();
-  }
-}
-
-
-
-get transactions(): Transaction[] {
-  return [
-    ...this.manualTransactions,
-    ...this.bankTransactions,
-  ].sort((a, b) => {
-    const aTime = Date.parse(a.date) || 0;
-    const bTime = Date.parse(b.date) || 0;
-
-    return bTime - aTime || a.id.localeCompare(b.id);
-  });
-}
-
-
-  get filteredTransactions(): Transaction[] {
-    if (this.selectedSource === 'all') {
-      return this.transactions;
-    } return this.transactions.filter(
-      transaction => transaction.source === this.selectedSource
-    );
-  }
-
-  changeSource(event: Event): void {
-    const value =
-      (event.target as HTMLSelectElement).value;
-
-    if (
-      value === 'all' ||
-      value === 'cash' ||
-      value === 'bank'
-    ) {
-      this.selectedSource = value;
-    }
-  }
-
-  formatAmount(amount: number): string {
-    const formatted = Math.abs(amount).toLocaleString(
-      'en-NZ',
-      {
-        style: 'currency',
-        currency: 'NZD',
-        currencyDisplay: 'narrowSymbol',
+      // Cash transactions
+      if (cashResult.status === 'fulfilled') {
+        this.manualTransactions = cashResult.value.map(
+          transaction => ({
+            id: transaction.id,
+            description:
+              transaction.note.trim() || transaction.category,
+            source: 'cash' as const,
+            category: transaction.category,
+            amount:
+              transaction.type === 'income'
+                ? transaction.amount
+                : -transaction.amount,
+            date: transaction.date,
+          })
+        );
+      } else {
+        this.manualTransactions = [];
+        this.loadError = 'Unable to load cash transactions.';
       }
-    );
 
-    return `${amount >= 0 ? '+' : '-'}${formatted}`;
+      // Imported bank transactions
+      if (bankResult.status === 'fulfilled') {
+        this.bankTransactions = bankResult.value.map(
+          transaction => ({
+            id: transaction.id,
+            description: transaction.description,
+            source: 'bank' as const,
+            category:
+              transaction.category?.trim() || 'Uncategorised',
+            amount: transaction.amount,
+            date: transaction.transactionDate,
+          })
+        );
+      } else {
+        this.bankTransactions = [];
+        this.loadError = [
+          this.loadError,
+          'Unable to load bank transactions.',
+        ].filter(Boolean).join(' ');
+      }
+
+    } finally {
+      this.isLoading = false;
+      this.changeDetector.markForCheck();
+    }
   }
+
+
+
+  get transactions(): Transaction[] {
+    return [
+      ...this.manualTransactions,
+      ...this.bankTransactions,
+    ].sort((a, b) => {
+      const aTime = Date.parse(a.date) || 0;
+      const bTime = Date.parse(b.date) || 0;
+
+      return bTime - aTime || a.id.localeCompare(b.id);
+    });
+  }
+
+
+    get filteredTransactions(): Transaction[] {
+      if (this.selectedSource === 'all') {
+        return this.transactions;
+      } return this.transactions.filter(
+        transaction => transaction.source === this.selectedSource
+      );
+    }
+
+    changeSource(event: Event): void {
+      const value =
+        (event.target as HTMLSelectElement).value;
+
+      if (
+        value === 'all' ||
+        value === 'cash' ||
+        value === 'bank'
+      ) {
+        this.selectedSource = value;
+      }
+    }
+
+    formatAmount(amount: number): string {
+      const formatted = Math.abs(amount).toLocaleString(
+        'en-NZ',
+        {
+          style: 'currency',
+          currency: 'NZD',
+          currencyDisplay: 'narrowSymbol',
+        }
+      );
+
+      return `${amount >= 0 ? '+' : '-'}${formatted}`;
+    }
 
   openDeleteModal(transaction: Transaction, event: Event): void {
     if (
@@ -275,6 +277,120 @@ get transactions(): Transaction[] {
       this.changeDetector.markForCheck();
     }
   }
+
+
+  openBankCategoryDialog(
+    transaction: Transaction,
+    event: Event
+  ): void {
+    if (
+      transaction.source !== 'bank' ||
+      this.savingCategory ||
+      this.transactionToDelete ||
+      this.categoryTransaction
+    ) {
+      return;
+    }
+
+    this.categoryTrigger =
+      event.currentTarget instanceof HTMLElement
+        ? event.currentTarget
+        : null;
+
+    this.categoryTransaction = transaction;
+
+    this.selectedBankCategory =
+      transaction.category === 'Uncategorised'
+        ? ''
+        : transaction.category;
+
+    this.categoryError = '';
+
+    this.bankCategoryDialog?.nativeElement.showModal();
+  }
+
+  closeBankCategoryDialog(): void {
+    if (this.savingCategory) return;
+
+    this.bankCategoryDialog?.nativeElement.close();
+  }
+
+  onBankCategoryDialogCancel(event: Event): void {
+    if (this.savingCategory) {
+      event.preventDefault();
+    }
+  }
+
+  onBankCategoryDialogClosed(): void {
+    if (this.savingCategory) return;
+
+    const trigger = this.categoryTrigger;
+
+    this.categoryTransaction = null;
+    this.selectedBankCategory = '';
+    this.categoryError = '';
+    this.categoryTrigger = null;
+
+    setTimeout(() => trigger?.focus(), 0);
+    this.changeDetector.markForCheck();
+  }
+
+  async saveBankCategory(): Promise<void> {
+    const transaction = this.categoryTransaction;
+
+    if (
+      !transaction ||
+      transaction.source !== 'bank' ||
+      this.savingCategory
+    ) {
+      return;
+    }
+
+    const category = this.selectedBankCategory || null;
+
+    if (
+      category !== null &&
+      !this.bankCategories.includes(category)
+    ) {
+      this.categoryError = 'Select a valid category.';
+      return;
+    }
+
+    this.savingCategory = true;
+    this.categoryError = '';
+
+    try {
+      const result = await firstValueFrom(
+        this.bankAccountsApi.updateTransactionCategory(
+          transaction.id,
+          category
+        )
+      );
+
+      this.bankTransactions = this.bankTransactions.map(
+        current =>
+          current.id === result.id
+            ? {
+                ...current,
+                category: result.category ?? 'Uncategorised',
+              }
+            : current
+      );
+
+      this.bankCategoryDialog?.nativeElement.close();
+
+    } catch (error: unknown) {
+      this.categoryError = this.getErrorMessage(
+        error,
+        'Unable to update bank transaction category.'
+      );
+
+    } finally {
+      this.savingCategory = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
 
   private getErrorMessage(
     error: unknown,
@@ -360,6 +476,29 @@ get transactions(): Transaction[] {
       firstButton.focus();
     }
   }
+
+
+  @ViewChild('bankCategoryDialog')
+  private bankCategoryDialog?: ElementRef<HTMLDialogElement>;
+
+  readonly bankCategories = [
+    'Groceries',
+    'Transport',
+    'Entertainment',
+    'Shopping',
+    'Bills',
+    'Eating out',
+    'Other',
+    'Income',
+  ];
+
+  categoryTransaction: Transaction | null = null;
+  selectedBankCategory = '';
+  categoryError = '';
+  savingCategory = false;
+
+  private categoryTrigger: HTMLElement | null = null;
+
 
 
 }
