@@ -1,10 +1,4 @@
-import {
-  Component,
-  ElementRef,
-  HostListener,
-  ViewChild,
-  inject,
-} from '@angular/core';
+import { Component, ElementRef, HostListener, ViewChild, ChangeDetectorRef, inject } from '@angular/core';
 import { IonContent } from '@ionic/angular';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -36,8 +30,13 @@ type SettingsModal =
 export class ProfileSettingsPage {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   activeModal: SettingsModal = null;
+
+  personalDetailsLoading = false;
+  passwordLoading = false;
+  logoutLoading = false;
 
   private modalTrigger: HTMLElement | null = null;
   private modalElement: HTMLElement | null = null;
@@ -254,6 +253,15 @@ export class ProfileSettingsPage {
 
   // Close the modal and reset temporary messages
   closeModal(): void {
+    // Prevent closing while an API request is in progress.
+    if (
+      this.personalDetailsLoading ||
+      this.passwordLoading ||
+      this.logoutLoading
+    ) {
+      return;
+    }
+
     const trigger = this.modalTrigger;
 
     this.activeModal = null;
@@ -284,16 +292,17 @@ export class ProfileSettingsPage {
   savePersonalDetails(): void {
     const name = this.personalName.trim();
     const email = this.personalEmail.trim();
-
-    if (!name) {
+    
+    if (!name || name.length < 2 || name.length > 100) {
       this.personalDetailsError =
-        'Please enter your full name.';
-      this.personalDetailsMessage = '';
+        'Name must be between 2 and 100 characters.';
+        this.personalDetailsMessage = '';
       return;
     }
-
+    
     if (
       !email ||
+      email.length > 255 ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     ) {
       this.personalDetailsError =
@@ -302,11 +311,35 @@ export class ProfileSettingsPage {
       return;
     }
 
-    // Saving will be implemented after integration.
+    if (this.personalDetailsLoading) {
+      return;
+    }
+
+    this.personalDetailsLoading = true;
     this.personalDetailsError = '';
-    this.personalDetailsMessage =
-      'Your details look valid. Saving will be available after integration.';
+    this.personalDetailsMessage = '';
+
+    this.auth.updateProfile(name, email).subscribe({
+      next: (user) => {
+        this.personalName = user.name;
+        this.personalEmail = user.email;     
+      
+        this.personalDetailsMessage =
+          'Your personal details have been updated successfully.';
+        
+        this.personalDetailsLoading = false;
+
+        this.cdr.detectChanges();
+      },
+      error: (error: Error) => {
+        this.personalDetailsError = error.message;
+        this.personalDetailsLoading = false;
+
+        this.cdr.detectChanges();
+      },
+    });
   }
+
 
   // Validate password fields
   updatePassword(): void {
@@ -317,9 +350,12 @@ export class ProfileSettingsPage {
       return;
     }
 
-    if (this.newPassword.length < 12) {
+    if (
+      this.newPassword.length < 12 ||
+      this.newPassword.length > 128
+    ) {
       this.passwordError =
-        'Your new password must be at least 12 characters.';
+        'Your new password must be between 12 and 128 characters.';
       this.passwordMessage = '';
       return;
     }
@@ -331,11 +367,46 @@ export class ProfileSettingsPage {
       return;
     }
 
-    // Actual password changes will be implemented later.
+    if (this.currentPassword === this.newPassword) {
+      this.passwordError =
+        'Your new password must be different from your current password.';
+      this.passwordMessage = '';
+      return;
+    }
+
+    if (this.passwordLoading) {
+      return;
+    }
+
+    this.passwordLoading = true;
     this.passwordError = '';
-    this.passwordMessage =
-      'Your password meets the requirements. Updating will be available after integration.';
+    this.passwordMessage = '';
+
+    this.auth.changePassword(
+      this.currentPassword,
+      this.newPassword
+    ).subscribe({
+      next: () => {
+        this.passwordMessage =
+          'Your password has been updated successfully.';
+          
+        this.currentPassword = '';
+        this.newPassword = '';
+        this.confirmPassword = '';
+
+        this.passwordLoading = false;
+        this.cdr.detectChanges();
+      },
+
+      error: (error: Error) => {
+        this.passwordError = error.message;
+        this.passwordLoading = false;
+
+        this.cdr.detectChanges();
+      },
+    });
   }
+
 
   // Show privacy-related status messages
   showPrivacyMessage(action: string): void {
@@ -353,13 +424,21 @@ export class ProfileSettingsPage {
 
   // Log out using Flask session-based authentication
   confirmLogout(): void {
+    if (this.logoutLoading) {
+      return;
+    }
+
+    this.logoutLoading = true;
+
     this.auth.logout().subscribe({
       next: () => {
+        this.logoutLoading = false;
         this.closeModal();
         void this.router.navigateByUrl('/auth/login');
       },
       error: (error: Error) => {
-        console.error('Logout failed:', error);
+        this.logoutLoading = false;
+        console.error('Logout failed:', error.message);
       },
     });
   }
