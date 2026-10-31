@@ -53,18 +53,22 @@ export class BudgetsApiService {
   private readonly apiUrl =
     `${environment.apiUrl}/budgets`;
 
-  getBudgets(): Observable<BudgetRecord[]> {
+    getBudgets(month?: string): Observable<BudgetRecord[]> {
     return this.http.get<BudgetListResponse>(
-      this.apiUrl,
-      { withCredentials: true }
+        this.apiUrl,
+        {
+        withCredentials: true,
+        params: month ? { month } : {},
+        }
     ).pipe(
-      map(response =>
+        map(response =>
         response.budgets.map(budget =>
-          this.mapBudget(budget)
+            this.mapBudget(budget)
         )
-      )
+        )
     );
-  }
+    }
+
 
   createBudget(
     payload: CreateBudgetPayload
