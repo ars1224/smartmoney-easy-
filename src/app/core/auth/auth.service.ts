@@ -1,4 +1,3 @@
-
 import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   HttpClient,
@@ -23,6 +22,7 @@ import { environment } from '../../../environments/environment';
 
 interface BackendUser {
   id: string;
+  name: string | null;
   email: string;
 }
 
@@ -34,6 +34,15 @@ interface AuthResponse {
 
 interface SessionResponse {
   user: BackendUser;
+}
+
+interface ProfileUpdateResponse {
+  message: string;
+  user: BackendUser;
+}
+
+interface ChangePasswordResponse {
+  message: string;
 }
 
 interface CsrfResponse {
@@ -121,6 +130,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
         this.http.post<AuthResponse>(
           `${this.apiBase}/register`,
           {
+            name: name.trim(),
             email: email.trim().toLowerCase(),
             password,
           },
@@ -135,7 +145,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
       map(response => {
         this.csrfToken = response.csrf_token;
 
-        const user = this.mapUser(response.user, name);
+        const user = this.mapUser(response.user);
         this.currentUserSignal.set(user);
 
         return user;
@@ -186,18 +196,75 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
     );
   }
 
+  
+  updateProfile(
+    name: string,
+    email: string
+  ): Observable<SmartMoneyUser> {
+    return this.getCsrfToken().pipe(
+      switchMap(token =>
+        this.http.put<ProfileUpdateResponse>(
+          `${this.apiBase}/profile`,
+          {
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+          },
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
+      ),
+      map(response => {
+        const user = this.mapUser(response.user);
+        this.currentUserSignal.set(user);
+        return user;
+      }),
+      catchError(error =>
+        throwError(() => this.toError(error))
+      )
+    );
+  }
+
+  changePassword(
+    currentPassword: string,
+    newPassword: string
+  ): Observable<void> {
+    return this.getCsrfToken().pipe(
+      switchMap(token =>
+        this.http.post<ChangePasswordResponse>(
+          `${this.apiBase}/change-password`,
+          {
+            currentPassword,
+            newPassword,
+          },
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
+      ),
+      map(() => undefined),
+      catchError(error =>
+        throwError(() => this.toError(error))
+      )
+    );
+  }
+
+
   private clearLocalSession(): void {
     this.currentUserSignal.set(null);
     this.csrfToken = null;
   }
 
-  private mapUser(
-    user: BackendUser,
-    name?: string
-  ): SmartMoneyUser {
+  private mapUser(user: BackendUser): SmartMoneyUser {
     return {
       email: user.email,
-      name: name?.trim() || this.nameFromEmail(user.email),
+      name: user.name?.trim() || this.nameFromEmail(user.email),
     };
   }
 

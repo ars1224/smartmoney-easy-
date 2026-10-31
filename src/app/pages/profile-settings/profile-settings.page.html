@@ -102,8 +102,9 @@
               <button
                 type="submit"
                 class="settings-modal__primary"
+                [disabled]="personalDetailsLoading"
               >
-                Save changes
+                {{ personalDetailsLoading ? 'saving...' : 'Save changes' }}
               </button>
 
               <button
@@ -168,7 +169,8 @@
               placeholder="At least 12 characters"
               [(ngModel)]="newPassword"
               required
-              minlength="8"
+              minlength="12"
+              maxlength="128"
             />
 
             <label for="confirm-password">
@@ -200,8 +202,9 @@
               <button
                 type="submit"
                 class="settings-modal__primary"
+                [disabled]="passwordLoading"
               >
-                Update password
+                {{ passwordLoading ? 'Updating...' : 'Update password' }}
               </button>
 
               <button
@@ -298,9 +301,10 @@
             <button
               type="button"
               class="settings-modal__primary"
+              [disabled]="logoutLoading"
               (click)="confirmLogout()"
             >
-              Log out
+              {{ logoutLoading ? 'Logging out...' : 'Log out' }}
             </button>
 
             <button
