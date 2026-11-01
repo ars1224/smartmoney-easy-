@@ -1,0 +1,714 @@
+
+<main class="assets-page">
+
+  <!-- Page Header -->
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Your money</p>
+      <h1>Profile & Assets</h1>
+      <p>
+        Manage your cash wallets and connected bank accounts.
+      </p>
+    </div>
+
+    <a
+      routerLink="/app/profile/settings"
+      class="button secondary"
+    >
+      Profile Settings
+    </a>
+  </header>
+
+  <!-- Asset Summary -->
+  <section class="summary-grid">
+
+    <article class="summary-card">
+      <span>Cash wallets (NZD)</span>
+      <strong>
+        {{ cashTotal() | currency:'NZD' }}
+      </strong>
+    </article>
+
+    <article class="summary-card">
+      <span>Bank balances (NZD)</span>
+      <strong>
+        {{ bankTotal() | currency:'NZD' }}
+      </strong>
+    </article>
+
+    <article class="summary-card featured">
+      <span>Combined NZD balance</span>
+      <strong>
+        {{ combinedTotal() | currency:'NZD' }}
+      </strong>
+    </article>
+
+  </section>
+
+  <p class="disclaimer">
+    Balances use the last available bank sync.
+    Non-NZD bank accounts are excluded from NZD totals.
+    This is not a full net-worth calculation.
+  </p>
+
+  <!-- Refresh Balances -->
+  <div class="actions">
+    <button
+      type="button"
+      class="button secondary"
+      (click)="loadAssets()"
+      [disabled]="loading()"
+    >
+      {{ loading() ? 'Refreshing...' : 'Refresh balances' }}
+    </button>
+  </div>
+
+  <!-- Cash Wallets Section -->
+  <section class="asset-section">
+
+    <div class="section-heading">
+      <div>
+        <h2>Cash Wallets</h2>
+        <span class="section-count">
+          {{ activeWallets().length }} active
+        </span>
+      </div>
+
+        <button
+        type="button"
+        class="button primary"
+        (click)="openCreateWalletModal()"
+        [disabled]="savingWallet()"
+        >
+        + Add Cash Wallet
+        </button>
+
+        @if (archiveWalletNotice()) {
+        <p class="success-notice" role="status">
+            {{ archiveWalletNotice() }}
+        </p>
+        }
+    </div>
+
+    <!-- Cash Wallet Loading/Error States -->
+    @if (walletError()) {
+      <p class="error" role="alert">
+        {{ walletError() }}
+      </p>
+    }
+
+    @if (loading()) {
+      <p>Loading cash wallets...</p>
+    } @else {
+
+      <!-- Active Cash Wallet List -->
+      <div class="asset-list">
+
+        @for (wallet of activeWallets(); track wallet.id) {
+
+        <article class="asset-card">
+            <div>
+                <h3>{{ wallet.name }}</h3>
+                <p>
+                Cash wallet · {{ wallet.currency }}
+                </p>
+            </div>
+
+            <div class="wallet-card-actions">
+                <strong>
+                    {{ wallet.currentBalance | currency:wallet.currency }}
+                </strong>
+
+                <button
+                    type="button"
+                    class="button secondary wallet-edit-button"
+                    [attr.aria-label]="'Edit ' + wallet.name"
+                    [disabled]="savingEditWallet() || archivingWallet()"
+                    (click)="openEditWalletModal(wallet)"
+                >
+                    Edit Wallet
+                </button>
+
+                <button
+                    type="button"
+                    class="button danger wallet-edit-button"
+                    [attr.aria-label]="'Archive ' + wallet.name"
+                    [disabled]="archivingWallet() || savingEditWallet()"
+                    (click)="openArchiveWalletModal(wallet)"
+                >
+                    Archive
+                </button>
+            </div>
+
+        </article>
+
+        } @empty {
+          @if (!walletError()) {
+            <p class="empty">
+              No cash wallets yet.
+            </p>
+          }
+        }
+
+      </div>
+    }
+
+@if (archivedWalletError()) {
+  <p class="error" role="alert">
+    {{ archivedWalletError() }}
+  </p>
+}
+
+<!-- Archived Cash Wallets -->
+@if (archivedWalletCount() > 0) {
+  <div class="archived-wallets-section">
+
+    <button
+      type="button"
+      class="button secondary archived-toggle"
+      [attr.aria-expanded]="showArchivedWallets()"
+      (click)="toggleArchivedWallets()"
+    >
+      {{
+        showArchivedWallets()
+          ? 'Hide Archived Wallets'
+          : 'Show Archived Wallets'
+      }}
+      ({{ archivedWalletCount() }})
+    </button>
+
+    @if (showArchivedWallets()) {
+      <div class="archived-wallet-list">
+
+        <p class="disclaimer">
+          Archived wallets are excluded from your active
+          Cash Wallet total. Their records are retained.
+        </p>
+
+        @for (wallet of archivedWallets(); track wallet.id) {
+          <article class="asset-card archived-wallet-card">
+
+            <div>
+              <h3>{{ wallet.name }}</h3>
+
+              <p>
+                Cash wallet · {{ wallet.currency }}
+              </p>
+
+              <span class="archived-label">
+                Archived
+              </span>
+            </div>
+
+            <div class="archived-wallet-balance">
+              <small>Last recorded balance</small>
+
+              <strong>
+                {{
+                  wallet.currentBalance
+                    | currency:wallet.currency
+                }}
+              </strong>
+            </div>
+
+          </article>
+        }
+
+      </div>
+    }
+
+  </div>
+}
+
+
+  </section>
+
+  <!-- Connected Bank Accounts Section -->
+  <section class="asset-section">
+
+    <div class="section-heading">
+      <h2>Connected Bank Accounts</h2>
+
+      <a
+        routerLink="/app/bank/connect"
+        class="button primary"
+      >
+        Connect Mock Bank
+      </a>
+    </div>
+
+    <!-- Bank Error -->
+    @if (bankError()) {
+      <p class="error" role="alert">
+        {{ bankError() }}
+      </p>
+    }
+
+    <!-- Disconnection Success -->
+    @if (disconnectNotice()) {
+      <p class="success-notice" role="status">
+        {{ disconnectNotice() }}
+      </p>
+    }
+
+    <!-- Disconnection Error -->
+    @if (disconnectError()) {
+      <p class="error" role="alert">
+        {{ disconnectError() }}
+      </p>
+    }
+
+    <!-- Bank Connection Management -->
+    @if (!loading() && bankConnections().length > 0) {
+      <div class="bank-connections">
+
+        @for (
+          connection of bankConnections();
+          track connection.connectionId
+        ) {
+          <div class="bank-connection-row">
+
+            <div class="bank-connection-details">
+              <strong>Mock Bank connection</strong>
+
+              <small>
+                Accounts:
+                {{ connection.accountNames.join(', ') }}
+              </small>
+
+              @if (
+                retryDisconnectId() === connection.connectionId
+              ) {
+                <small class="disconnect-pending">
+                  Disconnection incomplete — retry required
+                </small>
+              }
+            </div>
+
+            <button
+              type="button"
+              class="button danger"
+              [disabled]="disconnectingBank() !== null || loading()"
+              (click)="openDisconnectModal(
+                connection.connectionId,
+                connection.accountNames
+                )"
+            >
+              @if (
+                disconnectingBank() === connection.connectionId
+              ) {
+                Disconnecting...
+              } @else if (
+                retryDisconnectId() === connection.connectionId
+              ) {
+                Retry disconnection
+              } @else {
+                Disconnect Mock Bank
+              }
+            </button>
+
+          </div>
+        }
+
+      </div>
+    }
+
+    <!-- Connected Bank Account List -->
+    @if (loading()) {
+      <p>Loading bank accounts...</p>
+    } @else {
+
+      <div class="asset-list">
+
+        @for (account of bankAccounts(); track account.id) {
+          <article class="asset-card">
+
+            <div>
+              <h3>{{ account.accountName }}</h3>
+
+              <p>
+                {{ account.accountType }}
+                · Ending {{ account.accountNumberLast4 }}
+              </p>
+
+              <small>
+                @if (account.lastSyncedAt) {
+                  Last synced:
+                  {{ account.lastSyncedAt | date:'medium' }}
+                } @else {
+                  Not yet synchronised
+                }
+              </small>
+            </div>
+
+            <strong>
+              {{
+                account.balance
+                  | currency:account.currency
+              }}
+            </strong>
+
+          </article>
+        } @empty {
+          @if (!bankError()) {
+            <p class="empty">
+              No connected bank accounts yet.
+            </p>
+          }
+        }
+
+      </div>
+    }
+
+  </section>
+
+  @if (disconnectDialog(); as dialog) {
+  <div
+    class="modal-backdrop"
+    (click)="closeDisconnectModal()"
+  >
+    <section
+      class="confirm-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="disconnect-modal-title"
+      (click)="$event.stopPropagation()"
+    >
+      <h3 id="disconnect-modal-title">
+        Disconnect Mock Bank?
+      </h3>
+
+      <p class="modal-message">
+        Disconnect Mock Bank access for
+        <strong>{{ dialog.accountNames.join(', ') }}</strong>?
+      </p>
+
+      <p class="modal-subtext">
+        Bank synchronisation will stop.
+        Existing transaction history will be preserved.
+      </p>
+
+      <div class="modal-actions">
+        <button
+          type="button"
+          class="button secondary"
+          (click)="closeDisconnectModal()"
+          [disabled]="disconnectingBank() !== null"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="button danger"
+          (click)="confirmDisconnectBank()"
+          [disabled]="disconnectingBank() !== null"
+        >
+          @if (disconnectingBank() !== null) {
+            Disconnecting...
+          } @else {
+            Disconnect
+          }
+        </button>
+      </div>
+    </section>
+  </div>
+}
+
+
+<!-- Create Cash Wallet Modal -->
+@if (showCreateWallet()) {
+  <div
+    class="modal-backdrop"
+    (click)="closeCreateWalletModal()"
+  >
+    <section
+    #profileModal
+    class="create-wallet-modal"
+    tabindex="-1"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-wallet-title"
+      aria-describedby="create-wallet-description"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="wallet-modal-header">
+        <div>
+          <h2 id="create-wallet-title">Add Cash Wallet</h2>
+          <p id="create-wallet-description">
+            Track cash outside your connected bank accounts.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="modal-close"
+          aria-label="Close Add Cash Wallet"
+          [disabled]="savingWallet()"
+          (click)="closeCreateWalletModal()"
+        >
+          &times;
+        </button>
+      </header>
+
+      <form
+        class="wallet-form"
+        (ngSubmit)="createCashWallet()"
+        #walletForm="ngForm"
+      >
+        <label for="wallet-name">Wallet name</label>
+
+        <input
+          id="wallet-name"
+          name="walletName"
+          type="text"
+          maxlength="80"
+          required
+          [(ngModel)]="walletName"
+          placeholder="e.g. Personal Cash"
+        />
+
+        <label for="opening-balance">
+          Opening balance (NZD)
+        </label>
+
+        <input
+          id="opening-balance"
+          name="openingBalance"
+          type="number"
+          min="0"
+          step="0.01"
+          required
+          [(ngModel)]="openingBalance"
+        />
+
+        @if (createWalletError()) {
+          <p class="error" role="alert">
+            {{ createWalletError() }}
+          </p>
+        }
+
+        <div class="wallet-modal-actions">
+          <button
+            type="button"
+            class="button secondary"
+            [disabled]="savingWallet()"
+            (click)="closeCreateWalletModal()"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            class="button primary"
+            [disabled]="savingWallet() || walletForm.invalid"
+          >
+            {{ savingWallet() ? 'Creating...' : 'Create Wallet' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+}
+
+
+<!-- Edit Cash Wallet Modal -->
+@if (editingWallet(); as wallet) {
+  <div
+    class="modal-backdrop"
+    (click)="closeEditWalletModal()"
+  >
+    <section
+  #profileModal
+  class="confirm-modal"
+  tabindex="-1"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-wallet-title"
+      aria-describedby="edit-wallet-description"
+      (click)="$event.stopPropagation()"
+    >
+
+      <header class="wallet-modal-header">
+        <div>
+          <h2 id="edit-wallet-title">
+            Edit Cash Wallet
+          </h2>
+
+          <p id="edit-wallet-description">
+            Update your wallet details and opening balance.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="modal-close"
+          aria-label="Close Edit Cash Wallet"
+          [disabled]="savingEditWallet()"
+          (click)="closeEditWalletModal()"
+        >
+          &times;
+        </button>
+      </header>
+
+      <form
+        class="wallet-form"
+        (ngSubmit)="saveEditWallet()"
+        #editWalletForm="ngForm"
+      >
+
+        <label for="edit-wallet-name">
+          Wallet name
+        </label>
+
+        <input
+          id="edit-wallet-name"
+          name="editWalletName"
+          type="text"
+          maxlength="80"
+          required
+          [(ngModel)]="editWalletName"
+          placeholder="e.g. Personal Cash"
+        />
+
+        <label for="edit-opening-balance">
+          Opening balance (NZD)
+        </label>
+
+        <input
+          id="edit-opening-balance"
+          name="editOpeningBalance"
+          type="number"
+          min="0"
+          step="0.01"
+          required
+          [(ngModel)]="editOpeningBalance"
+        />
+
+        <p class="wallet-helper">
+          This changes the wallet's opening balance.
+          Existing transactions will remain unchanged,
+          but the current balance may be recalculated.
+        </p>
+
+        <div class="wallet-balance-preview">
+          <span>Current wallet balance</span>
+
+          <strong>
+            {{ wallet.currentBalance | currency:wallet.currency }}
+          </strong>
+        </div>
+
+        @if (editWalletError()) {
+          <p class="error" role="alert">
+            {{ editWalletError() }}
+          </p>
+        }
+
+        <div class="wallet-modal-actions">
+          <button
+            type="button"
+            class="button secondary"
+            [disabled]="savingEditWallet()"
+            (click)="closeEditWalletModal()"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            class="button primary"
+            [disabled]="savingEditWallet() || editWalletForm.invalid"
+          >
+            {{
+              savingEditWallet()
+                ? 'Saving...'
+                : 'Save Changes'
+            }}
+          </button>
+        </div>
+
+      </form>
+    </section>
+  </div>
+}
+
+
+<!-- Archive Cash Wallet Confirmation -->
+@if (archiveWalletDialog(); as wallet) {
+  <div
+    class="modal-backdrop"
+    (click)="closeArchiveWalletModal()"
+  >
+    <section
+      class="confirm-modal"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="archive-wallet-title"
+      aria-describedby="archive-wallet-description"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="archive-wallet-title">
+        Archive Cash Wallet?
+      </h2>
+
+      <p id="archive-wallet-description" class="modal-message">
+        Are you sure you want to archive
+        <strong>{{ wallet.name }}</strong>?
+      </p>
+
+      <div class="wallet-balance-preview">
+        <span>Current wallet balance</span>
+
+        <strong>
+          {{ wallet.currentBalance | currency:wallet.currency }}
+        </strong>
+      </div>
+
+      <p class="modal-subtext">
+        This wallet will no longer appear in your active
+        wallet list or active balance total.
+        Its transaction history will be preserved.
+      </p>
+
+      @if (wallet.currentBalance !== 0) {
+        <p class="archive-warning">
+          This wallet still has a balance.
+          Review the amount before archiving.
+        </p>
+      }
+
+      @if (archiveWalletError()) {
+        <p class="error" role="alert">
+          {{ archiveWalletError() }}
+        </p>
+      }
+
+      <div class="modal-actions">
+        <button
+          type="button"
+          class="button secondary"
+          [disabled]="archivingWallet()"
+          (click)="closeArchiveWalletModal()"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="button danger"
+          [disabled]="archivingWallet()"
+          (click)="confirmArchiveWallet()"
+        >
+          {{
+            archivingWallet()
+              ? 'Archiving...'
+              : 'Archive Wallet'
+          }}
+        </button>
+      </div>
+    </section>
+  </div>
+}
+
+</main>

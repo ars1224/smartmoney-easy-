@@ -153,21 +153,10 @@ export const routes: Routes = [
       {
         path: 'profile',
         loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page')
-            .then((m) => m.RoutePlaceholderPage),
-        data: {
-          eyebrow: 'Your account',
-          title: 'Profile & assets',
-          description:
-            'Personal details, cash assets and connected accounts will appear here.',
-
-          nextLink: '/app/bank/connect',
-          nextLabel: 'Connect Mock Bank',
-
-          secondaryLink: '/app/profile/settings',
-          secondaryLabel: 'Open Profile Settings',
-        },
+          import('./pages/profile-assets/profile-assets')
+            .then((m) => m.ProfileAssetsPage),
       },
+
       {
         path: '',
         redirectTo: 'dashboard',

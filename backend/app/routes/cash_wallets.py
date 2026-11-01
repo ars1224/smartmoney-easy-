@@ -12,7 +12,7 @@ from app.auth_security import (
 )
 
 from sqlalchemy import func
-
+from flask import request
 
 cash_wallets_bp = Blueprint(
     "cash_wallets",
@@ -82,6 +82,7 @@ def serialize_wallet(wallet):
     }
 
 
+
 @cash_wallets_bp.get("")
 def get_cash_wallets():
     user_id = get_authenticated_user_id()
@@ -91,11 +92,22 @@ def get_cash_wallets():
             "error": "Authentication required."
         }), 401
 
+    archived_param = request.args.get(
+        "archived", "false"
+    ).lower()
+
+    if archived_param not in ("true", "false"):
+        return jsonify({
+            "error": "archived must be true or false."
+        }), 400
+
+    is_archived = archived_param == "true"
+
     wallets = (
         CashWallet.query
         .filter_by(
             user_id=user_id,
-            is_archived=False,
+            is_archived=is_archived,
         )
         .order_by(CashWallet.created_at.desc())
         .all()
@@ -112,6 +124,7 @@ def get_cash_wallets():
     response.headers["Cache-Control"] = "no-store"
 
     return response, 200
+
 
 
 @cash_wallets_bp.post("")
