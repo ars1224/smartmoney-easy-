@@ -447,3 +447,45 @@
     font-size: 0.75rem;
   }
 }
+
+
+/* Budget edit action */
+
+.budget-edit-btn {
+  min-height: 36px;
+  padding: 0.4rem 0.75rem;
+  color: var(--sm-color-teal-dark);
+  background: var(--sm-color-teal-soft);
+  border: 1px solid var(--sm-color-border);
+  border-radius: var(--sm-radius-md);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--sm-color-background);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--sm-color-teal);
+    outline-offset: 2px;
+  }
+}
+
+/* Form feedback */
+
+.budget-form-error {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.825rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Disabled dialog buttons */
+
+.budget-dialog button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
