@@ -3,6 +3,7 @@ from flask import Flask
 from flask_cors import CORS
 
 from config import Config
+from app.routes.learn import learn_bp
 from app.extensions import db, migrate
 from app.routes import (
     health_bp,
@@ -25,6 +26,7 @@ def create_app():
 
     app.register_blueprint(savings_goals_bp)
     app.config.from_object(Config)
+    app.register_blueprint(learn_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(bank_oauth_bp)
     CORS(
