@@ -24,6 +24,7 @@ export class AppShellComponent {
   private readonly router = inject(Router);
 
   thinkerOpen = false;
+  isSettingsModalOpen = false;
 
   readonly navigation: NavigationItem[] = [
     { label: 'Home', route: '/app/dashboard', iconName: 'home-outline' },
@@ -59,6 +60,12 @@ export class AppShellComponent {
 
   closeThinker(): void {
     this.thinkerOpen = false;
+  }
+
+  @HostListener('window:smartmoney:settings-modal', ['$event'])
+  onSettingsModalChange(event: Event): void {
+    const customEvent = event as CustomEvent<{ isOpen: boolean }>;
+    this.isSettingsModalOpen = customEvent.detail?.isOpen === true;
   }
 
   @HostListener('document:keydown.escape')

@@ -1,4 +1,10 @@
-import { Component, ElementRef, HostListener, ViewChild, inject } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  ViewChild,
+  inject,
+} from '@angular/core';
 import { IonContent } from '@ionic/angular';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -52,9 +58,19 @@ export class ProfileSettingsPage {
       }
 
       const firstFocusable = this.getFocusableElements(modal)[0];
-
       (firstFocusable ?? modal).focus();
-    }) 
+    });
+  }
+
+  /**
+   * Notify AppShell when a settings modal opens or closes.
+   */
+  private notifyModalState(isOpen: boolean): void {
+    window.dispatchEvent(
+      new CustomEvent('smartmoney:settings-modal', {
+        detail: { isOpen },
+      }),
+    );
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -193,6 +209,7 @@ export class ProfileSettingsPage {
       this.personalDetailsError = '';
       this.personalDetailsMessage = '';
       this.activeModal = 'personal-details';
+      this.notifyModalState(true);
       return;
     }
 
@@ -203,6 +220,7 @@ export class ProfileSettingsPage {
       this.passwordError = '';
       this.passwordMessage = '';
       this.activeModal = 'change-password';
+      this.notifyModalState(true);
       return;
     }
 
@@ -212,11 +230,13 @@ export class ProfileSettingsPage {
     ) {
       this.privacyMessage = '';
       this.activeModal = 'privacy-data';
+      this.notifyModalState(true);
       return;
     }
 
     if (action === 'logout') {
       this.activeModal = 'logout';
+      this.notifyModalState(true);
       return;
     }
 
@@ -224,6 +244,7 @@ export class ProfileSettingsPage {
       this.deleteConfirmation = '';
       this.deleteAccountMessage = '';
       this.activeModal = 'delete-account';
+      this.notifyModalState(true);
       return;
     }
 
@@ -236,6 +257,8 @@ export class ProfileSettingsPage {
     const trigger = this.modalTrigger;
 
     this.activeModal = null;
+    this.notifyModalState(false);
+
     this.modalTrigger = null;
     this.modalElement = null;
 
@@ -328,11 +351,17 @@ export class ProfileSettingsPage {
     }
   }
 
-  // Log out and return to the login page
+  // Log out using Flask session-based authentication
   confirmLogout(): void {
-    this.auth.logout();
-    this.closeModal();
-    void this.router.navigateByUrl('/auth/login');
+    this.auth.logout().subscribe({
+      next: () => {
+        this.closeModal();
+        void this.router.navigateByUrl('/auth/login');
+      },
+      error: (error: Error) => {
+        console.error('Logout failed:', error);
+      },
+    });
   }
 
   // Validate the account deletion confirmation
@@ -343,7 +372,8 @@ export class ProfileSettingsPage {
 
     // Account deletion is not connected to the backend yet.
     // Do not delete the account or log the user out.
-    this.deleteAccountMessage = 'Account data backend is not connected. Account deletion is not available yet and your account has not been deleted.';
+    this.deleteAccountMessage =
+      'Account data backend is not connected. Account deletion is not available yet and your account has not been deleted.';
   }
 
   // Return to the Profile & Assets page
