@@ -15,6 +15,10 @@ import {
   CashTransactionsApiService,
 } from '../../core/services/cash-transactions-api.service';
 
+import {
+  BankAccountsApiService,
+} from '../../core/bank/bank-accounts-api.service';
+
 type TransactionSource = 'cash' | 'bank';
 type SourceFilter = 'all' | TransactionSource;
 
@@ -39,6 +43,9 @@ export class ActivityPage implements OnInit {
   private deleteTrigger: HTMLElement | null = null;
 
   private deleteModalElement: HTMLElement | null = null;
+
+  private readonly bankAccountsApi =
+  inject(BankAccountsApiService);
 
   @ViewChild('deleteModal')
   set deleteModal(ref: ElementRef<HTMLElement> | undefined) {
@@ -71,6 +78,7 @@ export class ActivityPage implements OnInit {
   selectedSource: SourceFilter = 'all';
 
   manualTransactions: Transaction[] = [];
+  bankTransactions: Transaction[] = [];
 
   isLoading = false;
   loadError = '';
@@ -83,46 +91,85 @@ export class ActivityPage implements OnInit {
     void this.loadManualTransactions();
   }
 
-  async loadManualTransactions(): Promise<void> {
-    this.isLoading = true;
-    this.loadError = '';
 
-    try {
-      const savedTransactions = await firstValueFrom(
+async loadManualTransactions(): Promise<void> {
+  if (this.isLoading) return;
+
+  this.isLoading = true;
+  this.loadError = '';
+
+  try {
+    const [cashResult, bankResult] = await Promise.allSettled([
+      firstValueFrom(
         this.cashTransactionsApi.getTransactions()
-      );
+      ),
+      firstValueFrom(
+        this.bankAccountsApi.getAllTransactions()
+      ),
+    ]);
 
-      this.manualTransactions = savedTransactions.map(
+    // Cash transactions
+    if (cashResult.status === 'fulfilled') {
+      this.manualTransactions = cashResult.value.map(
         transaction => ({
           id: transaction.id,
           description:
             transaction.note.trim() || transaction.category,
           source: 'cash' as const,
           category: transaction.category,
-          amount: transaction.type === 'income'
-            ? transaction.amount
-            : -transaction.amount,
+          amount:
+            transaction.type === 'income'
+              ? transaction.amount
+              : -transaction.amount,
           date: transaction.date,
         })
       );
-
-    } catch (error) {
+    } else {
       this.manualTransactions = [];
-
-      this.loadError = this.getErrorMessage(
-        error,
-        'Unable to load cash transactions.'
-      );
-
-    } finally {
-      this.isLoading = false;
-      this.changeDetector.markForCheck();
+      this.loadError = 'Unable to load cash transactions.';
     }
-  }
 
-  get transactions(): Transaction[] {
-    return [...this.manualTransactions];
+    // Imported bank transactions
+    if (bankResult.status === 'fulfilled') {
+      this.bankTransactions = bankResult.value.map(
+        transaction => ({
+          id: transaction.id,
+          description: transaction.description,
+          source: 'bank' as const,
+          category:
+            transaction.category?.trim() || 'Uncategorised',
+          amount: transaction.amount,
+          date: transaction.transactionDate,
+        })
+      );
+    } else {
+      this.bankTransactions = [];
+      this.loadError = [
+        this.loadError,
+        'Unable to load bank transactions.',
+      ].filter(Boolean).join(' ');
+    }
+
+  } finally {
+    this.isLoading = false;
+    this.changeDetector.markForCheck();
   }
+}
+
+
+
+get transactions(): Transaction[] {
+  return [
+    ...this.manualTransactions,
+    ...this.bankTransactions,
+  ].sort((a, b) => {
+    const aTime = Date.parse(a.date) || 0;
+    const bTime = Date.parse(b.date) || 0;
+
+    return bTime - aTime || a.id.localeCompare(b.id);
+  });
+}
+
 
   get filteredTransactions(): Transaction[] {
     if (this.selectedSource === 'all') {

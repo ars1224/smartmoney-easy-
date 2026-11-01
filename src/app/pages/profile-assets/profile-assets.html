@@ -321,34 +321,39 @@
       <div class="asset-list">
 
         @for (account of bankAccounts(); track account.id) {
-          <article class="asset-card">
 
+            <a
+            class="asset-card bank-account-card"
+            [routerLink]="['/app/bank/accounts', account.id]"
+            [attr.aria-label]="'View bank account details for ' + account.accountName"
+            >
             <div>
-              <h3>{{ account.accountName }}</h3>
+                <h3>{{ account.accountName }}</h3>
 
-              <p>
+                <p>
                 {{ account.accountType }}
                 · Ending {{ account.accountNumberLast4 }}
-              </p>
+                </p>
 
-              <small>
+                <small>
                 @if (account.lastSyncedAt) {
-                  Last synced:
-                  {{ account.lastSyncedAt | date:'medium' }}
+                    Last synced:
+                    {{ account.lastSyncedAt | date:'medium' }}
                 } @else {
-                  Not yet synchronised
+                    Not yet synchronised
                 }
-              </small>
+                </small>
             </div>
 
-            <strong>
-              {{
-                account.balance
-                  | currency:account.currency
-              }}
-            </strong>
+            <div class="bank-account-card-end">
+                <strong>
+                {{ account.balance | currency:account.currency }}
+                </strong>
 
-          </article>
+                <small>View account details →</small>
+            </div>
+            </a>
+
         } @empty {
           @if (!bankError()) {
             <p class="empty">

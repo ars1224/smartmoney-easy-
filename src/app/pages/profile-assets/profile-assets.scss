@@ -691,3 +691,42 @@ h3 {
     max-width: 100%;
   }
 }
+
+
+
+.bank-account-card {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #93c5fd;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 3px;
+  }
+}
+
+.bank-account-card-end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+
+  strong {
+    color: #12284c;
+  }
+
+  small {
+    color: #2563eb;
+    font-weight: 600;
+  }
+}
+
+@media (max-width: 700px) {
+  .bank-account-card-end {
+    align-items: flex-start;
+  }
+}

@@ -1,0 +1,242 @@
+
+.bank-details-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+  color: #243247;
+}
+
+.page-header {
+  margin-bottom: 24px;
+
+  h1 {
+    margin: 16px 0 8px;
+    font-size: 30px;
+  }
+
+  p {
+    color: #64748b;
+    line-height: 1.5;
+  }
+}
+
+.back-link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.account-summary {
+  padding: 24px;
+  border: 1px solid #e0e6ee;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.account-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+
+  h2 {
+    margin: 6px 0;
+    font-size: 24px;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+  }
+}
+
+.eyebrow {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2563eb !important;
+}
+
+.connection-status {
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.balance-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 20px;
+  border-radius: 12px;
+  background: #eff6ff;
+
+  span {
+    color: #64748b;
+  }
+
+  strong {
+    font-size: 32px;
+    color: #12284c;
+    overflow-wrap: anywhere;
+  }
+}
+
+.account-metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  span {
+    font-size: 13px;
+    color: #64748b;
+  }
+}
+
+.transactions-section {
+  margin-top: 32px;
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+
+  h2 {
+    margin: 0;
+    font-size: 22px;
+  }
+
+  p {
+    margin: 6px 0 0;
+    color: #64748b;
+  }
+}
+
+.transaction-count {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.transaction-list {
+  display: grid;
+  gap: 12px;
+}
+
+.transaction-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  background: white;
+  border: 1px solid #e0e6ee;
+  border-radius: 12px;
+}
+
+.transaction-info {
+  min-width: 0;
+
+  h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    overflow-wrap: anywhere;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+  }
+}
+
+.transaction-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+
+  strong {
+    font-size: 17px;
+  }
+
+  small {
+    color: #64748b;
+  }
+}
+
+.expense {
+  color: #b42318;
+}
+
+.income {
+  color: #15803d;
+}
+
+.empty-state,
+.error-message,
+.status-message {
+  padding: 20px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid #e0e6ee;
+}
+
+.error-message {
+  color: #b42318;
+}
+
+.retry-button {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  .bank-details-page {
+    padding: 16px 16px calc(120px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .account-summary {
+    padding: 18px;
+  }
+
+  .account-heading,
+  .section-heading,
+  .transaction-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .account-metadata {
+    grid-template-columns: 1fr;
+  }
+
+  .balance-section strong {
+    font-size: 26px;
+  }
+
+  .transaction-amount {
+    align-items: flex-start;
+  }
+}
