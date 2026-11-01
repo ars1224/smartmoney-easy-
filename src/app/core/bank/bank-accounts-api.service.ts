@@ -180,6 +180,37 @@ getAllTransactions(): Observable<BankActivityTransaction[]> {
 }
 
 
+updateTransactionCategory(
+  transactionId: string,
+  category: string | null
+): Observable<{ id: string; category: string | null }> {
+  const url =
+    `${environment.apiUrl}/bank/transactions/` +
+    `${encodeURIComponent(transactionId)}/category`;
+
+  return this.auth.getCsrfToken().pipe(
+    switchMap(token =>
+      this.http.patch<{
+        message: string;
+        transaction: {
+          id: string;
+          category: string | null;
+        };
+      }>(
+        url,
+        { category },
+        {
+          withCredentials: true,
+          headers: {
+            'X-CSRF-Token': token,
+          },
+        }
+      )
+    ),
+    map(response => response.transaction)
+  );
+}
+
 syncConnection(connectionId: string): Observable<unknown> {
   const url =
     `${environment.apiUrl}/bank/connections/` +
