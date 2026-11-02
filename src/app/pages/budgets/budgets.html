@@ -10,6 +10,36 @@
     <span class="page-info">About this page</span>
   </header>
 
+<nav
+  class="budget-month-nav"
+  aria-label="Budget month navigation"
+>
+  <button
+    type="button"
+    class="budget-month-btn"
+    aria-label="Previous month"
+    [disabled]="isLoading || saving"
+    (click)="changeMonth(-1)"
+  >
+    <span aria-hidden="true">&#8249;</span>
+  </button>
+
+  <div class="budget-month-current" aria-live="polite">
+    <span>Viewing month</span>
+    <strong>{{ selectedMonthLabel }}</strong>
+  </div>
+
+  <button
+    type="button"
+    class="budget-month-btn"
+    aria-label="Next month"
+    [disabled]="isCurrentMonth || isLoading || saving"
+    (click)="changeMonth(1)"
+  >
+    <span aria-hidden="true">&#8250;</span>
+  </button>
+</nav>
+
   <div class="budgets-layout">
 
     <section

@@ -286,6 +286,72 @@ def run_tests():
             )
 
 
+            # Verify the month selection API.
+            nz_timezone = ZoneInfo("Pacific/Auckland")
+
+            previous_month = (
+                month_start - timedelta(seconds=1)
+            ).astimezone(nz_timezone).strftime("%Y-%m")
+
+            following_month = (
+                next_month_start
+            ).astimezone(nz_timezone).strftime("%Y-%m")
+
+            for selected_month, expected_spent in [
+                (previous_month, "75.00"),
+                (following_month, "50.00"),
+            ]:
+                response = owner.get(
+                    "/api/budgets",
+                    query_string={"month": selected_month},
+                )
+
+                check(
+                    response,
+                    200,
+                    f"Retrieve selected month {selected_month}",
+                )
+
+                data = response.get_json()
+                assert data["month"] == selected_month
+
+                groceries = next(
+                    item for item in data["budgets"]
+                    if item["category"] == "Groceries"
+                )
+
+                assert groceries["spent"] == expected_spent
+
+            # Reject invalid month formats and values.
+            invalid_months = [
+                "",
+                "2026-0",
+                "2026-00",
+                "2026-13",
+                "2026/10",
+                "2026-10-01",
+                "not-a-month",
+                "0000-01",
+                "9999-12",
+            ]
+
+            for invalid_month in invalid_months:
+                response = owner.get(
+                    "/api/budgets",
+                    query_string={"month": invalid_month},
+                )
+
+                check(
+                    response,
+                    400,
+                    f"Reject invalid month {invalid_month!r}",
+                )
+
+            print("PASS: Historical month selection")
+            print("PASS: Invalid month validation")
+
+
+
             # Test categorised Mock Bank spending.
             connection = BankConnection(
                 user_id=user_ids[0],

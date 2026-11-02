@@ -1,4 +1,4 @@
-
+import re
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
@@ -87,7 +87,47 @@ def parse_monthly_limit(value):
         raise ValueError("Invalid monthly limit.")
 
 
-def current_month():
+
+def current_month(month_value=None):
+    if month_value is None:
+        now = datetime.now(NZ_TIMEZONE)
+        year, month = now.year, now.month
+
+    else:
+        if not isinstance(month_value, str) or not re.fullmatch(
+            r"[0-9]{4}-(0[1-9]|1[0-2])",
+            month_value,
+        ):
+            raise ValueError(
+                "Month must be in YYYY-MM format."
+            )
+
+        year, month = map(int, month_value.split("-"))
+
+        if year < 1 or year > 9998:
+            raise ValueError("Month is out of range.")
+
+    start = datetime(
+        year, month, 1,
+        tzinfo=NZ_TIMEZONE,
+    )
+
+    if month == 12:
+        next_year, next_month = year + 1, 1
+    else:
+        next_year, next_month = year, month + 1
+
+    end = datetime(
+        next_year, next_month, 1,
+        tzinfo=NZ_TIMEZONE,
+    )
+
+    return (
+        f"{year:04d}-{month:02d}",
+        start.astimezone(timezone.utc),
+        end.astimezone(timezone.utc),
+    )
+
     now = datetime.now(NZ_TIMEZONE)
     year, month = now.year, now.month
 
@@ -186,7 +226,16 @@ def list_budgets():
             "error": "Authentication required."
         }), 401
 
-    month, start, end = current_month()
+
+    try:
+        month, start, end = current_month(
+            request.args.get("month")
+        )
+    except ValueError as error:
+        return jsonify({
+            "error": str(error)
+        }), 400
+
 
     spending = get_monthly_spending(
         user_id, start, end
