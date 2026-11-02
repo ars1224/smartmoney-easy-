@@ -37,6 +37,7 @@ export class ProfileSettingsPage {
   personalDetailsLoading = false;
   passwordLoading = false;
   logoutLoading = false;
+  logoutError = '';
 
   private modalTrigger: HTMLElement | null = null;
   private modalElement: HTMLElement | null = null;
@@ -234,6 +235,7 @@ export class ProfileSettingsPage {
     }
 
     if (action === 'logout') {
+      this.logoutError = '';
       this.activeModal = 'logout';
       this.notifyModalState(true);
       return;
@@ -281,6 +283,7 @@ export class ProfileSettingsPage {
 
     this.privacyMessage = '';
     this.deleteConfirmation = '';
+    this.logoutError = '';
 
     // Return keyboard focus to the button that opened the modal.
     setTimeout(() => {
@@ -429,6 +432,7 @@ export class ProfileSettingsPage {
     }
 
     this.logoutLoading = true;
+    this.logoutError = '';
 
     this.auth.logout().subscribe({
       next: () => {
@@ -438,7 +442,10 @@ export class ProfileSettingsPage {
       },
       error: (error: Error) => {
         this.logoutLoading = false;
-        console.error('Logout failed:', error.message);
+        this.logoutError =
+          error.message || 'Logout failed. Please try again.';
+
+        this.cdr.detectChanges();
       },
     });
   }

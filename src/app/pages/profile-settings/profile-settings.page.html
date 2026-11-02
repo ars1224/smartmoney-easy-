@@ -297,6 +297,11 @@
           <p class="settings-modal__description">
             Are you sure you want to log out?
           </p>
+          @if (logoutError) {
+            <p class="settings-modal__error" role="alert">
+              {{ logoutError }}
+            </p>
+          }
           <div class="settings-modal__actions">
             <button
               type="button"
