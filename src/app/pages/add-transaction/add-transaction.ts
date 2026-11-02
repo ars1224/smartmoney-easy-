@@ -1,5 +1,5 @@
 
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   FormBuilder,
@@ -39,6 +39,7 @@ export class AddTransactionPage implements OnInit {
   private readonly cashWalletApi =
   inject(CashWalletApiService);
   private readonly fb = inject(FormBuilder);
+  private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
 
@@ -242,6 +243,7 @@ export class AddTransactionPage implements OnInit {
 
     } finally {
       this.walletsLoading = false;
+      this.changeDetector.markForCheck();
     }
   }
 
@@ -328,6 +330,7 @@ export class AddTransactionPage implements OnInit {
 
     } finally {
       this.isSaving = false;
+      this.changeDetector.markForCheck();
     }
   }
 
@@ -395,6 +398,7 @@ async createCashWallet(): Promise<void> {
 
   } finally {
     this.isCreatingWallet = false;
+    this.changeDetector.markForCheck();
   }
 }
 
