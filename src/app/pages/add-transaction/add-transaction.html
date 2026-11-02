@@ -161,15 +161,18 @@
 
           <div class="form-group">
             <label for="amount">Amount (NZD)</label>
-            <span aria-hidden="true">$</span>
-            <input
-              type="number"
-              id="amount"
-              formControlName="amount"
-              placeholder="0.00"
-              min="0.01"
-              step="0.01"
-            />
+
+            <div class="currency-input">
+              <span class="currency-prefix" aria-hidden="true">$</span>
+              <input
+                type="number"
+                id="amount"
+                formControlName="amount"
+                placeholder="0.00"
+                min="0.01"
+                step="0.01"
+              />
+            </div>
 
             @if (
               transactionForm.controls.amount.invalid &&
