@@ -127,8 +127,8 @@ export const routes: Routes = [
       {
         path: 'learn',
         loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page')
-            .then((m) => m.RoutePlaceholderPage),
+          import('./pages/learn/learn.page')
+            .then((m) => m.LearnPage),
         data: {
           eyebrow: 'Learn one step at a time',
           title: 'Learn',
