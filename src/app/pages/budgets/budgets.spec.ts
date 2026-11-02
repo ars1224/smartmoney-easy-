@@ -231,8 +231,5 @@ it('shows a loading error and recovers after retry', async () => {
   expect(component.loadError).toBe('');
   expect(component.budgets).toEqual([]);
   expect(component.isLoading).toBe(false);
+    });
 });
-
-
-});
-
