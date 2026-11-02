@@ -58,3 +58,8 @@ class Config:
     REMEMBER_COOKIE_SECURE = (
         os.getenv("SESSION_COOKIE_SECURE", "true").lower() == "true"
 )
+    # Yahoo personal-finance discovery via public Google News RSS. Empty disables.
+    YAHOO_FINANCE_RSS_URL = os.getenv(
+        "YAHOO_FINANCE_RSS_URL",
+        "https://news.google.com/rss/search?q=site%3Afinance.yahoo.com%2Fpersonal-finance+%28budget+OR+budgeting+OR+saving+OR+savings+OR+%22emergency+fund%22+OR+debt+OR+scam+OR+fraud+OR+spending%29+when%3A1y&hl=en-NZ&gl=NZ&ceid=NZ%3Aen",
+    )
