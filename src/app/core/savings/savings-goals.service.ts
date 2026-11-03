@@ -5,9 +5,12 @@ import { Observable, map, switchMap } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { environment } from '../../../environments/environment';
 
+export type GoalBudgetGroup = 'Needs' | 'Wants' | 'Savings';
+
 export interface SavingsGoalRecord {
   id: string;
   name: string;
+  budgetGroup: GoalBudgetGroup;
   targetAmount: number;
   savedAmount: number;
   targetDate: string;
@@ -18,6 +21,7 @@ export interface SavingsGoalRecord {
 interface SavingsGoalDto {
   id: string;
   name: string;
+  budgetGroup: GoalBudgetGroup;
   targetAmount: string;
   savedAmount: string;
   targetDate: string;
@@ -27,6 +31,7 @@ interface SavingsGoalDto {
 
 export interface SavingsGoalPayload {
   name: string;
+  budgetGroup: GoalBudgetGroup;
   targetAmount: number;
   savedAmount: number;
   targetDate: string;
@@ -135,6 +140,7 @@ export class SavingsGoalsService {
     return {
       id: dto.id,
       name: dto.name,
+      budgetGroup: dto.budgetGroup ?? 'Savings',
       targetAmount: Number(dto.targetAmount),
       savedAmount: Number(dto.savedAmount),
       targetDate: dto.targetDate,
