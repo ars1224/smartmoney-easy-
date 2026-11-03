@@ -22,12 +22,23 @@ savings_goals_bp = Blueprint(
 
 MAX_AMOUNT = Decimal("999999999999.99")
 CENT = Decimal("0.01")
+GOAL_GROUPS = {"needs": "Needs", "wants": "Wants", "savings": "Savings"}
+
+
+def parse_budget_group(value):
+    if not isinstance(value, str):
+        raise ValueError("Goal group must be Needs, Wants, or Savings.")
+    group = GOAL_GROUPS.get(value.strip().casefold())
+    if group is None:
+        raise ValueError("Goal group must be Needs, Wants, or Savings.")
+    return group
 
 
 def serialize_goal(goal):
     return {
         "id": goal.id,
         "name": goal.name,
+        "budgetGroup": goal.budget_group,
         "targetAmount": str(goal.target_amount),
         "savedAmount": str(goal.saved_amount),
         "targetDate": goal.target_date.isoformat(),
@@ -152,6 +163,9 @@ def create_savings_goal():
         target_date = parse_target_date(
             data.get("targetDate")
         )
+        budget_group = parse_budget_group(
+            data.get("budgetGroup", "Savings")
+        )
 
     except ValueError as error:
         return jsonify({
@@ -161,6 +175,7 @@ def create_savings_goal():
     goal = SavingsGoal(
         user_id=user_id,
         name=name,
+        budget_group=budget_group,
         target_amount=target_amount,
         saved_amount=saved_amount,
         target_date=target_date,
@@ -201,6 +216,7 @@ def update_savings_goal(goal_id):
         "targetAmount",
         "savedAmount",
         "targetDate",
+        "budgetGroup",
     }
 
     if not set(data).issubset(allowed):
@@ -252,6 +268,10 @@ def update_savings_goal(goal_id):
         if "targetDate" in data:
             changes["target_date"] = parse_target_date(
                 data["targetDate"]
+            )
+        if "budgetGroup" in data:
+            changes["budget_group"] = parse_budget_group(
+                data["budgetGroup"]
             )
 
     except ValueError as error:
