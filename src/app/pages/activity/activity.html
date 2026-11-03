@@ -38,6 +38,25 @@
     </p>
     }
 
+    @if (isLoading) {
+  <p role="status">
+    Loading cash transactions...
+  </p>
+}
+
+@if (loadError) {
+  <div role="alert">
+    <p class="delete-error">{{ loadError }}</p>
+
+    <button
+      type="button"
+      (click)="loadManualTransactions()"
+    >
+      Try Again
+    </button>
+  </div>
+}
+
   <!-- Transactions Table -->
   <section class="transaction-card">
     <table class="transaction-table">
@@ -90,12 +109,11 @@
 
                 <!-- Delete Transaction -->
                 <button
-                    type="button"
-                    class="delete-transaction-btn"
-                    (click)="deleteTransaction(transaction)"
-                    [attr.aria-label]="'Delete ' + transaction.description"
+                  class="delete-transaction-btn"
+                  type="button"
+                  (click)="openDeleteModal(transaction, $event)"
                 >
-                    Delete
+                  Delete
                 </button>
 
                 </div>
@@ -111,15 +129,22 @@
 
             </tr>
         } @empty {
-            <tr>
+          <tr>
             <td colspan="5" class="empty-state">
+              @if (isLoading) {
+                Loading transactions...
+              } @else if (loadError) {
+                Transactions unavailable.
+              } @else {
                 No transactions found for this source.
+              }
             </td>
-            </tr>
+          </tr>
         }
-        </tbody>
+      </tbody>
     </table>
   </section>
+
 
   <!-- Information Notice -->
   <aside class="activity-notice">
@@ -129,5 +154,65 @@
       descriptions. Users can change them at any time.
     </p>
   </aside>
+
+  @if (transactionToDelete) {
+  <div
+    class="modal-backdrop"
+    (click)="closeDeleteModal()"
+  >
+      <div
+        #deleteModal
+        class="confirm-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-modal-title"
+        tabindex="-1"
+        (click)="$event.stopPropagation()"
+      >
+      <h2 id="delete-modal-title">
+        Delete transaction?
+      </h2>
+
+      <p class="modal-text">
+        Are you sure you want to delete
+        <strong>"{{ transactionToDelete.description }}"</strong>?
+      </p>
+
+      <p class="modal-subtext">
+        This action cannot be undone.
+      </p>
+
+      @if (deleteError) {
+        <p class="modal-error">
+          {{ deleteError }}
+        </p>
+      }
+
+      <div class="modal-actions">
+        <button
+          type="button"
+          class="modal-cancel-btn"
+          (click)="closeDeleteModal()"
+          [disabled]="deletingId !== null"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="modal-delete-btn"
+          (click)="confirmDeleteTransaction()"
+          [disabled]="deletingId !== null"
+        >
+          @if (deletingId === transactionToDelete.id) {
+            Deleting...
+          } @else {
+            Delete
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
 
 </main>

@@ -7,7 +7,6 @@ from app.extensions import db
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
-
 def utc_now():
     return datetime.now(timezone.utc)
 
@@ -198,6 +197,13 @@ class Transaction(db.Model):
         index=True
     )
 
+    cash_wallet_id = db.Column(
+    db.String(36),
+    db.ForeignKey("cash_wallets.id", ondelete="RESTRICT"),
+    nullable=True,
+    index=True
+    )
+
     external_transaction_id = db.Column(
         db.String(100),
         nullable=True
@@ -211,6 +217,16 @@ class Transaction(db.Model):
     description = db.Column(
         db.String(255),
         nullable=False
+    )
+
+    category = db.Column(
+    db.String(80),
+    nullable=True
+    )
+
+    note = db.Column(
+        db.String(250),
+        nullable=True
     )
 
     amount = db.Column(
@@ -295,8 +311,7 @@ class BankOAuthAttempt(db.Model):
         db.DateTime(timezone=True),
         default=utc_now,
         nullable=False
+
     )
-from app.models.savings_goal import (
-    SavingsGoal,
-    SavingsGoalContribution,
-)
+from app.models.savings_goal import (SavingsGoal, SavingsGoalContribution,)
+from app.models.cash_wallet import CashWallet
