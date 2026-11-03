@@ -122,6 +122,17 @@ def run_tests():
             goal_id = goal["id"]
 
             assert goal["savedAmount"] == "500.00"
+            assert goal["budgetGroup"] == "Savings"
+
+            verify(
+                owner.post(
+                    "/api/savings-goals",
+                    json={**payload, "budgetGroup": "invalid"},
+                    headers=owner_headers,
+                ),
+                400,
+                "Invalid goal group rejected",
+            )
 
             verify(
                 owner.post(
@@ -153,6 +164,17 @@ def run_tests():
             )
 
             verify(response, 200, "Edit savings goal")
+
+            response = owner.patch(
+                f"/api/savings-goals/{goal_id}",
+                json={"budgetGroup": "Wants"},
+                headers=owner_headers,
+            )
+            verify(response, 200, "Change goal group")
+            assert response.get_json()["goal"]["budgetGroup"] == "Wants"
+
+            response = owner.get("/api/savings-goals")
+            assert response.get_json()["goals"][0]["budgetGroup"] == "Wants"
 
             assert (
                 response.get_json()["goal"]["name"]
