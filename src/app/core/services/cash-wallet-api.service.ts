@@ -134,6 +134,20 @@ archiveWallet(
 }
 
 
+  restoreWallet(
+    id: string
+  ): Observable<CashWalletRecord> {
+    return this.write<WalletResponse>(
+      'PATCH',
+      `${this.apiUrl}/${encodeURIComponent(id)}/restore`,
+      {}
+    ).pipe(
+      map(response => this.mapWallet(response.wallet))
+    );
+  }
+
+
+
   private write<T>(
     method: 'POST' | 'PATCH',
     url: string,

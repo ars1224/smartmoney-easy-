@@ -31,16 +31,37 @@
 
     <article class="summary-card">
       <span>Bank balances (NZD)</span>
-      <strong>
-        {{ bankTotal() | currency:'NZD' }}
-      </strong>
+
+      @if (loading()) {
+        <strong>Loading...</strong>
+      } @else if (bankError()) {
+        <strong>Unavailable</strong>
+        <p class="error" role="alert">
+          Bank balances could not be loaded.
+        </p>
+      } @else {
+        <strong>
+          {{ bankTotal() | currency:'NZD' }}
+        </strong>
+      }
     </article>
 
     <article class="summary-card featured">
       <span>Combined NZD balance</span>
-      <strong>
-        {{ combinedTotal() | currency:'NZD' }}
-      </strong>
+
+      @if (loading()) {
+        <strong>Loading...</strong>
+      } @else if (walletError() || bankError()) {
+        <strong>Unavailable</strong>
+        <p class="error" role="alert">
+          Balance summary is incomplete.
+          Refresh to try again.
+        </p>
+      } @else {
+        <strong>
+          {{ combinedTotal() | currency:'NZD' }}
+        </strong>
+      }
     </article>
 
   </section>
@@ -211,6 +232,18 @@
               </strong>
             </div>
 
+
+            <button
+              type="button"
+              class="button secondary"
+              [disabled]="restoringWallet()"
+              [attr.aria-label]="'Restore ' + wallet.name"
+              (click)="openRestoreWalletModal(wallet)"
+            >
+              Restore Wallet
+            </button>
+
+
           </article>
         }
 
@@ -368,7 +401,9 @@
     (click)="closeDisconnectModal()"
   >
     <section
+      #profileModal
       class="confirm-modal"
+      tabindex="-1"
       role="dialog"
       aria-modal="true"
       aria-labelledby="disconnect-modal-title"
@@ -388,10 +423,17 @@
         Existing transaction history will be preserved.
       </p>
 
+      @if (disconnectError()) {
+        <p class="error" role="alert">
+          {{ disconnectError() }}
+          You can try disconnecting again or cancel.
+        </p>
+      }
       <div class="modal-actions">
         <button
           type="button"
           class="button secondary"
+          data-initial-focus
           (click)="closeDisconnectModal()"
           [disabled]="disconnectingBank() !== null"
         >
@@ -472,15 +514,24 @@
           Opening balance (NZD)
         </label>
 
-        <input
-          id="opening-balance"
-          name="openingBalance"
-          type="number"
-          min="0"
-          step="0.01"
-          required
-          [(ngModel)]="openingBalance"
-        />
+        <div class="currency-input">
+          <span class="currency-prefix" aria-hidden="true">
+            NZ$
+          </span>
+
+
+          <input
+            id="opening-balance"
+            name="openingBalance"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            required
+            [(ngModel)]="openingBalance"
+          />
+        </div>
+
 
         @if (createWalletError()) {
           <p class="error" role="alert">
@@ -575,15 +626,22 @@
           Opening balance (NZD)
         </label>
 
-        <input
-          id="edit-opening-balance"
-          name="editOpeningBalance"
-          type="number"
-          min="0"
-          step="0.01"
-          required
-          [(ngModel)]="editOpeningBalance"
-        />
+        <div class="currency-input">
+          <span class="currency-prefix" aria-hidden="true">
+            NZ$
+          </span>
+
+          <input
+            id="edit-opening-balance"
+            name="editOpeningBalance"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            required
+            [(ngModel)]="editOpeningBalance"
+          />
+        </div>
 
         <p class="wallet-helper">
           This changes the wallet's opening balance.
@@ -641,7 +699,9 @@
     (click)="closeArchiveWalletModal()"
   >
     <section
+      #profileModal
       class="confirm-modal"
+      tabindex="-1"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="archive-wallet-title"
@@ -688,6 +748,7 @@
         <button
           type="button"
           class="button secondary"
+          data-initial-focus
           [disabled]="archivingWallet()"
           (click)="closeArchiveWalletModal()"
         >
@@ -710,5 +771,86 @@
     </section>
   </div>
 }
+
+
+<!-- Restore Cash Wallet Confirmation -->
+@if (restoreWalletDialog(); as wallet) {
+  <div
+    class="modal-backdrop"
+    (click)="closeRestoreWalletModal()"
+  >
+    <section
+      #profileModal
+      class="confirm-modal"
+      tabindex="-1"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="restore-wallet-title"
+      aria-describedby="restore-wallet-description"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="restore-wallet-title">
+        Restore Cash Wallet?
+      </h2>
+
+      <p
+        id="restore-wallet-description"
+        class="modal-message"
+      >
+        Restore <strong>{{ wallet.name }}</strong>
+        to your active Cash Wallets?
+      </p>
+
+      <div class="wallet-balance-preview">
+        <span>Last recorded balance</span>
+
+        <strong>
+          {{
+            wallet.currentBalance
+              | currency:wallet.currency
+          }}
+        </strong>
+      </div>
+
+      <p class="modal-subtext">
+        This wallet will be included in your active
+        balance again. Its transaction history
+        will remain unchanged.
+      </p>
+
+      @if (restoreWalletError()) {
+        <p class="error" role="alert">
+          {{ restoreWalletError() }}
+        </p>
+      }
+
+      <div class="modal-actions">
+        <button
+          type="button"
+          class="button secondary"
+          data-initial-focus
+          [disabled]="restoringWallet()"
+          (click)="closeRestoreWalletModal()"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="button primary"
+          [disabled]="restoringWallet()"
+          (click)="confirmRestoreWallet()"
+        >
+          {{
+            restoringWallet()
+              ? 'Restoring...'
+              : 'Restore Wallet'
+          }}
+        </button>
+      </div>
+    </section>
+  </div>
+}
+
 
 </main>

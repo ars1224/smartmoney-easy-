@@ -35,7 +35,7 @@ h3 {
 }
 
 .eyebrow {
-  color: #2563eb;
+  color: var(--sm-color-teal);
   font-weight: 700;
 }
 
@@ -130,8 +130,8 @@ h3 {
 }
 
 .primary {
-  background: #2563eb;
-  color: white;
+  background: var(--sm-color-teal);
+  color: var(--sm-color-on-dark);
 }
 
 .secondary {
@@ -193,7 +193,7 @@ h3 {
     color-scheme: light;
     background-color: #ffffff;
     color: #243247;
-    caret-color: #2563eb;
+    caret-color: var(--sm-color-teal);
 
     border: 1px solid #cbd5e1;
     border-radius: 10px;
@@ -208,10 +208,11 @@ h3 {
       border-color: #94a3b8;
     }
 
+
     &:focus {
       outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+      border-color: var(--sm-color-teal);
+      box-shadow: var(--sm-focus-ring);
     }
   }
 
@@ -280,46 +281,16 @@ h3 {
   cursor: pointer;
 }
 
+
+
 .create-wallet-modal .wallet-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
-  width: 100%;
   max-width: none;
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
-
-  label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #334155;
-  }
-
-  input {
-    width: 100%;
-    min-height: 48px;
-    box-sizing: border-box;
-    padding: 12px 14px;
-    color-scheme: light;
-    background: #ffffff;
-    color: #243247;
-    caret-color: #2563eb;
-    border: 1px solid #cbd5e1;
-    border-radius: 9px;
-    font: inherit;
-
-    &::placeholder {
-      color: #94a3b8;
-    }
-
-    &:focus {
-      outline: 2px solid #2563eb;
-      outline-offset: 1px;
-    }
-  }
 }
+
 
 .wallet-modal-actions {
   display: flex;
@@ -689,5 +660,28 @@ h3 {
   .wallet-form {
     padding: 16px;
     max-width: 100%;
+  }
+}
+
+
+/* NZD amount inputs */
+.wallet-form .currency-input {
+  position: relative;
+  width: 100%;
+
+  .currency-prefix {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--sm-color-text-muted);
+    font-weight: 600;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  input {
+    width: 100%;
+    padding-left: 58px;
   }
 }
