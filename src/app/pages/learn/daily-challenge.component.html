@@ -1,0 +1,43 @@
+<section class="challenge" aria-roledescription="carousel" aria-label="Quick money challenges">
+  <header class="challenge-header">
+    <span class="eyebrow"><span class="spark" aria-hidden="true">✦</span> {{ mode() === 'daily' ? 'Daily Money Check' : 'Practice Money Check' }}</span>
+    <span class="position" aria-live="polite" aria-atomic="true">{{ completed() ? 'Round complete' : 'Question ' + (index() + 1) + ' of ' + questions.length }}</span>
+  </header>
+  <div class="daily-meta"><span>{{ mode() === 'daily' ? 'Today’s session · ' + day() : 'Practice round' }}</span><span>{{ bankSize }} questions · {{ storageAvailable() ? 'Daily progress saved on this browser' : 'Progress cannot be saved in this browser' }}</span></div>
+  @if (mode() === 'practice') { <button class="text-action" type="button" (click)="returnToDaily()">Back to today’s session</button> }
+  <div class="progress" aria-hidden="true">@for (item of questions; track item.id; let i = $index) { <span [class.visited]="answers()[item.id] !== undefined" [class.current]="!completed() && index() === i"></span> }</div>
+  @if (completed()) {
+    <div class="completion slide-in">
+      <span class="completion-icon" aria-hidden="true">✓</span>
+      <p class="topic">Everyday money skills</p>
+      <h2 #questionHeading tabindex="-1">{{ answeredCount() === questions.length ? (mode() === 'daily' ? 'Today’s session complete.' : 'Practice session complete.') : 'Your session is complete.' }}</h2>
+      <p>You explored {{ answeredCount() }} of {{ questions.length }} questions. {{ mode() === 'daily' ? 'Review your answers or try a fresh practice session. A new daily set arrives tomorrow.' : 'Review this session or practise with another set.' }}</p>
+      <div class="completion-actions"><app-sm-button label="Review answers" (pressed)="review()" /><app-sm-button label="Practise more →" (pressed)="practise()" /><button class="text-action" type="button" (click)="restart()">Restart session ↺</button></div>
+    </div>
+  } @else {
+    @for (item of [question()]; track item.id) {
+      <div class="question-content slide-in" [class.scam-layout]="item.id === 'scam'">
+        <div class="question-copy"><p class="topic">{{ item.topic }} <span>· {{ isNumeric() ? 'Do the maths' : item.id === 'scam' ? 'Spot the signs' : 'Everyday choices' }}</span></p>
+          <h2 #questionHeading id="challenge-title" tabindex="-1">{{ item.title }}</h2><p class="prompt">{{ item.prompt }}</p><p class="note">{{ item.note }}</p>
+        </div>
+        @if (item.id !== 'scam') {
+          <div class="visual-area"><p class="area-label">The situation</p>@if (['payday', 'subscription', 'saving', 'expense'].includes(item.id)) { <app-challenge-story [story]="item.id" [answered]="answer() !== null" /> } @else { <app-challenge-scene [id]="item.id" [answered]="answer() !== null" /> }</div>
+        }
+        <div class="answer-area" [class.phone-frame]="item.id === 'scam'"><p class="area-label">Choose your answer</p>@if (item.id === 'scam') { <div class="phone-header"><span aria-hidden="true">● ● ●</span> Messages <span>Fictional</span></div> }<div class="choices" [class.numeric]="isNumeric()" [class.messages]="item.id === 'scam'" role="group" aria-labelledby="challenge-title">
+          @for (choice of item.choices; track $index; let i = $index) {
+            <button #firstChoice type="button" class="choice" [class.selected]="answer() === i" [class.correct]="answer() !== null && item.correct === i" [class.reconsider]="answer() === i && item.correct !== i" [attr.aria-pressed]="answer() === i" (click)="choose(i)">
+              <span class="choice-top"><span class="letter">{{ ['A', 'B', 'C'][i] }}</span>@if (item.id === 'scam') { <span class="message-label">Message {{ ['A', 'B'][i] }}</span> }<span class="choice-marker" aria-hidden="true">{{ answer() !== null && item.correct === i ? '✓' : answer() === i ? '↻' : '' }}</span></span>
+              <span class="choice-body">@if (item.id === 'scam' && i === 0) { Your account will be locked in <mark [class.warning]="answer() !== null">10 minutes</mark>. Verify your details now at <mark [class.warning]="answer() !== null">secure-bank.example</mark>. } @else { {{ choice }} }</span>
+              @if (answer() !== null && item.correct === i) { <span class="choice-state">✓ Correct answer</span> } @else if (answer() === i) { <span class="choice-state">Your choice · see why below</span> }
+            </button>
+          }
+        </div></div>
+      </div>
+      @if (answer() !== null) {
+        <div class="feedback" role="status"><span class="feedback-icon" aria-hidden="true">{{ answer() === item.correct ? '✓' : '↳' }}</span><div><h3>{{ answer() === item.correct ? item.success : 'Here’s how to think about it.' }}</h3><p>{{ item.explanation }}</p><p class="takeaway"><strong>Put it into practice:</strong> {{ takeaway() }}</p>@if (item.caution) { <p class="caution">{{ item.caution }}</p> }</div><button class="text-action" type="button" (click)="reset()">Try again ↺</button></div>
+        @if (item.id === 'scam') { <a class="source" href="https://www.ownyouronline.govt.nz/personal/know-the-risks/common-risks-and-threats/text-message-scams/" target="_blank" rel="noopener noreferrer">Scam tips from Own Your Online, NZ ↗<span class="sr-only"> (opens a new tab)</span></a> }
+      }
+    }
+    <nav class="challenge-navigation" aria-label="Challenge questions"><button class="previous" type="button" [disabled]="index() === 0" (click)="move(-1)">← Previous</button>@if (index() === questions.length - 1) { <app-sm-button label="Finish session →" (pressed)="finish()" /> } @else { <app-sm-button label="Next question →" (pressed)="move(1)" /> }</nav>
+  }
+</section>

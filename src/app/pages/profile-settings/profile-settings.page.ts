@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, ViewChild, inject } from '@angular/core';
+import { Component, ElementRef, HostListener, ViewChild, ChangeDetectorRef, inject } from '@angular/core';
 import { IonContent } from '@ionic/angular';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -30,8 +30,14 @@ type SettingsModal =
 export class ProfileSettingsPage {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   activeModal: SettingsModal = null;
+
+  personalDetailsLoading = false;
+  passwordLoading = false;
+  logoutLoading = false;
+  logoutError = '';
 
   private modalTrigger: HTMLElement | null = null;
   private modalElement: HTMLElement | null = null;
@@ -52,9 +58,19 @@ export class ProfileSettingsPage {
       }
 
       const firstFocusable = this.getFocusableElements(modal)[0];
-
       (firstFocusable ?? modal).focus();
-    }) 
+    });
+  }
+
+  /**
+   * Notify AppShell when a settings modal opens or closes.
+   */
+  private notifyModalState(isOpen: boolean): void {
+    window.dispatchEvent(
+      new CustomEvent('smartmoney:settings-modal', {
+        detail: { isOpen },
+      }),
+    );
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -193,6 +209,7 @@ export class ProfileSettingsPage {
       this.personalDetailsError = '';
       this.personalDetailsMessage = '';
       this.activeModal = 'personal-details';
+      this.notifyModalState(true);
       return;
     }
 
@@ -203,6 +220,7 @@ export class ProfileSettingsPage {
       this.passwordError = '';
       this.passwordMessage = '';
       this.activeModal = 'change-password';
+      this.notifyModalState(true);
       return;
     }
 
@@ -212,11 +230,14 @@ export class ProfileSettingsPage {
     ) {
       this.privacyMessage = '';
       this.activeModal = 'privacy-data';
+      this.notifyModalState(true);
       return;
     }
 
     if (action === 'logout') {
+      this.logoutError = '';
       this.activeModal = 'logout';
+      this.notifyModalState(true);
       return;
     }
 
@@ -224,6 +245,7 @@ export class ProfileSettingsPage {
       this.deleteConfirmation = '';
       this.deleteAccountMessage = '';
       this.activeModal = 'delete-account';
+      this.notifyModalState(true);
       return;
     }
 
@@ -233,9 +255,20 @@ export class ProfileSettingsPage {
 
   // Close the modal and reset temporary messages
   closeModal(): void {
+    // Prevent closing while an API request is in progress.
+    if (
+      this.personalDetailsLoading ||
+      this.passwordLoading ||
+      this.logoutLoading
+    ) {
+      return;
+    }
+
     const trigger = this.modalTrigger;
 
     this.activeModal = null;
+    this.notifyModalState(false);
+
     this.modalTrigger = null;
     this.modalElement = null;
 
@@ -250,6 +283,7 @@ export class ProfileSettingsPage {
 
     this.privacyMessage = '';
     this.deleteConfirmation = '';
+    this.logoutError = '';
 
     // Return keyboard focus to the button that opened the modal.
     setTimeout(() => {
@@ -261,16 +295,17 @@ export class ProfileSettingsPage {
   savePersonalDetails(): void {
     const name = this.personalName.trim();
     const email = this.personalEmail.trim();
-
-    if (!name) {
+    
+    if (!name || name.length < 2 || name.length > 100) {
       this.personalDetailsError =
-        'Please enter your full name.';
-      this.personalDetailsMessage = '';
+        'Name must be between 2 and 100 characters.';
+        this.personalDetailsMessage = '';
       return;
     }
-
+    
     if (
       !email ||
+      email.length > 255 ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     ) {
       this.personalDetailsError =
@@ -279,11 +314,35 @@ export class ProfileSettingsPage {
       return;
     }
 
-    // Saving will be implemented after integration.
+    if (this.personalDetailsLoading) {
+      return;
+    }
+
+    this.personalDetailsLoading = true;
     this.personalDetailsError = '';
-    this.personalDetailsMessage =
-      'Your details look valid. Saving will be available after integration.';
+    this.personalDetailsMessage = '';
+
+    this.auth.updateProfile(name, email).subscribe({
+      next: (user) => {
+        this.personalName = user.name;
+        this.personalEmail = user.email;     
+      
+        this.personalDetailsMessage =
+          'Your personal details have been updated successfully.';
+        
+        this.personalDetailsLoading = false;
+
+        this.cdr.detectChanges();
+      },
+      error: (error: Error) => {
+        this.personalDetailsError = error.message;
+        this.personalDetailsLoading = false;
+
+        this.cdr.detectChanges();
+      },
+    });
   }
+
 
   // Validate password fields
   updatePassword(): void {
@@ -294,9 +353,12 @@ export class ProfileSettingsPage {
       return;
     }
 
-    if (this.newPassword.length < 12) {
+    if (
+      this.newPassword.length < 12 ||
+      this.newPassword.length > 128
+    ) {
       this.passwordError =
-        'Your new password must be at least 12 characters.';
+        'Your new password must be between 12 and 128 characters.';
       this.passwordMessage = '';
       return;
     }
@@ -308,11 +370,46 @@ export class ProfileSettingsPage {
       return;
     }
 
-    // Actual password changes will be implemented later.
+    if (this.currentPassword === this.newPassword) {
+      this.passwordError =
+        'Your new password must be different from your current password.';
+      this.passwordMessage = '';
+      return;
+    }
+
+    if (this.passwordLoading) {
+      return;
+    }
+
+    this.passwordLoading = true;
     this.passwordError = '';
-    this.passwordMessage =
-      'Your password meets the requirements. Updating will be available after integration.';
+    this.passwordMessage = '';
+
+    this.auth.changePassword(
+      this.currentPassword,
+      this.newPassword
+    ).subscribe({
+      next: () => {
+        this.passwordMessage =
+          'Your password has been updated successfully.';
+          
+        this.currentPassword = '';
+        this.newPassword = '';
+        this.confirmPassword = '';
+
+        this.passwordLoading = false;
+        this.cdr.detectChanges();
+      },
+
+      error: (error: Error) => {
+        this.passwordError = error.message;
+        this.passwordLoading = false;
+
+        this.cdr.detectChanges();
+      },
+    });
   }
+
 
   // Show privacy-related status messages
   showPrivacyMessage(action: string): void {
@@ -328,11 +425,29 @@ export class ProfileSettingsPage {
     }
   }
 
-  // Log out and return to the login page
+  // Log out using Flask session-based authentication
   confirmLogout(): void {
-    this.auth.logout();
-    this.closeModal();
-    void this.router.navigateByUrl('/auth/login');
+    if (this.logoutLoading) {
+      return;
+    }
+
+    this.logoutLoading = true;
+    this.logoutError = '';
+
+    this.auth.logout().subscribe({
+      next: () => {
+        this.logoutLoading = false;
+        this.closeModal();
+        void this.router.navigateByUrl('/auth/login');
+      },
+      error: (error: Error) => {
+        this.logoutLoading = false;
+        this.logoutError =
+          error.message || 'Logout failed. Please try again.';
+
+        this.cdr.detectChanges();
+      },
+    });
   }
 
   // Validate the account deletion confirmation
@@ -343,7 +458,8 @@ export class ProfileSettingsPage {
 
     // Account deletion is not connected to the backend yet.
     // Do not delete the account or log the user out.
-    this.deleteAccountMessage = 'Account data backend is not connected. Account deletion is not available yet and your account has not been deleted.';
+    this.deleteAccountMessage =
+      'Account data backend is not connected. Account deletion is not available yet and your account has not been deleted.';
   }
 
   // Return to the Profile & Assets page
