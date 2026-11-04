@@ -28,6 +28,9 @@ export class AppShellComponent implements OnInit {
   thinkerOpen = false;
   isSettingsModalOpen = false;
 
+  isLogoutModalOpen = false;
+  logoutLoading = false;
+
   readonly navigation: NavigationItem[] = [
     { label: 'Home', route: '/app/dashboard', iconName: 'home-outline' },
     { label: 'Activity', route: '/app/activity', icon: '↕' },
@@ -48,13 +51,35 @@ export class AppShellComponent implements OnInit {
     void this.bankAutoSync.syncOnAppOpen();
   }
 
+  openLogoutModal(): void {
+    this.isLogoutModalOpen = true;
+  }
+
+  closeLogoutModal(): void {
+    if (this.logoutLoading) {
+      return;
+    }
+
+    this.isLogoutModalOpen = false;
+  }
+
 
   logout(): void {
+    if (this.logoutLoading) {
+      return;
+    }
+
+    this.logoutLoading = true;
+
     this.auth.logout().subscribe({
       next: () => {
+        this.logoutLoading = false;
+        this.isLogoutModalOpen = false;
+
         void this.router.navigateByUrl('/auth/login');
       },
       error: (error: Error) => {
+        this.logoutLoading = false;
         window.alert(error.message);
       },
     });

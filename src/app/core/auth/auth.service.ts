@@ -175,7 +175,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
   }
 
   logout(): Observable<void> {
-    return this.getCsrfToken().pipe(
+    return this.fetchCsrfToken().pipe(
       switchMap(token =>
         this.http.post<void>(
           `${this.apiBase}/logout`,
@@ -253,6 +253,10 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
         throwError(() => this.toError(error))
       )
     );
+  }
+
+  handleSessionExpired(): void {
+    this.clearLocalSession();
   }
 
 

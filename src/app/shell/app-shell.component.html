@@ -27,7 +27,7 @@
         </span>
         <span>Profile</span>
       </a>
-      <button class="sidebar__logout" type="button" (click)="logout()">
+      <button class="sidebar__logout" type="button" (click)="openLogoutModal()">
         <ion-icon name="log-out-outline" aria-hidden="true"></ion-icon>
         <span>Log out</span>
       </button>
@@ -44,7 +44,7 @@
         <a class="app-header__profile" routerLink="/app/profile" aria-label="Open profile">
           <span aria-hidden="true"><ion-icon name="person-outline"></ion-icon></span>
         </a>
-        <button class="app-header__logout" type="button" (click)="logout()" aria-label="Log out">
+        <button class="app-header__logout" type="button" (click)="openLogoutModal()" aria-label="Log out">
           <ion-icon name="log-out-outline" aria-hidden="true"></ion-icon>
         </button>
       </div>
@@ -94,4 +94,45 @@
     </div>
     <p class="thinker-panel__disclaimer">Educational guidance only — not financial advice.</p>
   </aside>
+}
+
+@if (isLogoutModalOpen) {
+  <div
+    class="settings-modal-backdrop"
+    (click)="closeLogoutModal()"
+  >
+    <section
+      class="settings-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="logout-title"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="logout-title">Log out of SmartMoney?</h2>
+
+      <p class="settings-modal__description">
+        Are you sure you want to log out?
+      </p>
+
+      <div class="settings-modal__actions">
+        <button
+          type="button"
+          class="settings-modal__primary"
+          [disabled]="logoutLoading"
+          (click)="logout()"
+        >
+          {{ logoutLoading ? 'Logging out...' : 'Log out' }}
+        </button>
+
+        <button
+          type="button"
+          class="settings-modal__secondary"
+          [disabled]="logoutLoading"
+          (click)="closeLogoutModal()"
+        >
+          Stay signed in
+        </button>
+      </div>
+    </section>
+  </div>
 }
