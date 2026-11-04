@@ -42,10 +42,13 @@ def run_tests():
 
     if (
         url.host not in ("localhost", "127.0.0.1")
-        or url.database != "smartmoney_easy"
+        or url.database not in (
+            "smartmoney_easy_test",
+            "smartmoney_pr13_test",
+        )
     ):
         raise RuntimeError(
-            "Tests require the local smartmoney_easy database."
+            "Tests require an approved local test database."
         )
 
     with app.app_context():

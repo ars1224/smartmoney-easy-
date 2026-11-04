@@ -1,0 +1,62 @@
+<div class="learn">
+  <header class="learn-heading"><h1>Learn</h1><p>Try a challenge. Pick up a useful money skill.</p></header>
+
+  @if (topic() === 'All topics' && !search().trim()) { <app-daily-challenge /> }
+
+  <section aria-labelledby="guides-title">
+    <div class="section-heading"><h2 id="guides-title">One-minute money skills</h2><span>Made for everyday life</span></div>
+    <div class="learn-tools">
+      <div class="topic-filters" role="group" aria-label="Filter learning guides by topic">
+        @for (item of topics; track item) { <button type="button" [class.is-active]="topic() === item" [attr.aria-pressed]="topic() === item" (click)="topic.set(item)">{{ item }}</button> }
+      </div>
+      <label class="learn-search"><span class="sr-only">Search guides and Yahoo Finance headlines</span><input type="search" placeholder="What would you like to learn?" [ngModel]="search()" (ngModelChange)="setSearch($event)" /></label>
+    </div>
+    <p class="sr-only" role="status">{{ guides().length }} learning guides found.</p>
+    <div class="guide-grid">
+      @for (guide of listedGuides(); track guide.id; let index = $index) {
+        <app-sm-card [labelledBy]="'guide-' + guide.id" [style.animation-delay.ms]="index * 45">
+          <article class="guide-card">
+            @if (imageAvailable(guide.id)) {
+              <div class="guide-thumbnail"><img [src]="photos[guide.id].src" [alt]="photos[guide.id].alt" width="640" height="427" loading="lazy" (error)="hideImage(guide.id)" /></div>
+            } @else { <div class="guide-placeholder" aria-hidden="true">{{ guide.topic }}</div> }
+            <p class="topic-label">{{ guide.topic }}</p>
+            <h3 [id]="'guide-' + guide.id">{{ guide.title }}</h3>
+            <p class="guide-meta">{{ guide.minutes }} min · SmartMoney guide</p>
+            <button class="text-action" type="button" (click)="openGuide(guide)" [attr.aria-label]="'Read guide: ' + guide.title">Explore <span aria-hidden="true">→</span></button>
+          </article>
+        </app-sm-card>
+      } @empty { <div class="empty-state"><h3>No guides found</h3><p>Try another search or topic.</p><app-sm-button label="Clear filters" variant="secondary" (pressed)="resetFilters()" /></div> }
+    </div>
+  </section>
+
+  <section class="yahoo-section" aria-labelledby="yahoo-title" [attr.aria-busy]="feedLoading()">
+    <div class="section-heading"><div><h2 id="yahoo-title">Worth a read</h2><p>Personal finance from Yahoo Finance · via Google News</p></div><a class="text-action" href="https://finance.yahoo.com/personal-finance/" target="_blank" rel="noopener noreferrer">Visit Yahoo <span aria-hidden="true">↗</span><span class="sr-only"> (opens a new tab)</span></a></div>
+    @if (feedLoading()) { <p class="feed-notice" role="status">Finding articles…</p> }
+    @else if (feedError() || feed()?.status === 'unavailable') {
+      <div class="feed-notice" role="status"><p>Yahoo Finance articles are currently unavailable.</p><app-sm-button label="Try again" variant="secondary" (pressed)="loadArticles()" /></div>
+    } @else {
+      @if (feed()?.status === 'stale') { <p class="source-note" role="status">Showing saved headlines while the latest feed is unavailable.</p> }
+      <p class="sr-only" role="status">Showing {{ visibleArticles().length }} of {{ articles().length }} matching articles.</p>
+      <div class="article-grid">
+        @for (article of visibleArticles(); track article.url) {
+          <app-sm-card><article class="news-card"><p class="topic-label">{{ article.topic || 'Personal finance' }}</p><h3>{{ article.title }}</h3><p class="guide-meta">Yahoo Finance @if (article.via === 'Google News') { · Google News } @if (article.publishedAt) { <br />{{ article.via === 'Google News' ? 'Feed date' : 'Published' }} {{ article.publishedAt | date:'mediumDate' }} }</p><a class="text-action" [href]="article.url" target="_blank" rel="noopener noreferrer">Read {{ article.via === 'Google News' ? 'via Google News' : 'on Yahoo Finance' }} <span aria-hidden="true">↗</span><span class="sr-only"> (opens a new tab): {{ article.title }}</span></a></article></app-sm-card>
+        } @empty { <p class="empty-state">No matching headlines. Try another search.</p> }
+      </div>
+      @if (visibleArticles().length < articles().length) { <div class="more-articles"><app-sm-button label="Show more articles" variant="secondary" (pressed)="showMoreArticles()" /></div> }
+    }
+    <details class="source-details"><summary>About these articles &amp; photos</summary>
+      <p>Yahoo Finance results are discovered through Google News. Feed dates may differ from publisher updates. Articles can cover overseas rules, products and currencies. Topic buttons filter SmartMoney guides; search filters guides and headlines.</p>
+      @if (feed()?.fetchedAt) { <p>Feed last checked {{ feed()?.fetchedAt | date:'medium' }}.</p> }
+      <p>Photos illustrate original SmartMoney guides, not Yahoo articles. Licensed stock photos from Pexels:</p>
+      <ul>
+        <li><a href="https://www.pexels.com/photo/close-up-of-an-open-notebook-calculator-and-a-pen-8250947/" target="_blank" rel="noopener noreferrer">Budgeting: PNW Production<span class="sr-only"> (opens a new tab)</span></a></li>
+        <li><a href="https://www.pexels.com/photo/clear-glass-jar-with-silver-coins-9821387/" target="_blank" rel="noopener noreferrer">Saving: Towfiqu barbhuiya<span class="sr-only"> (opens a new tab)</span></a></li>
+        <li><a href="https://www.pexels.com/photo/a-person-holding-a-basket-of-fresh-vegetables-7879906/" target="_blank" rel="noopener noreferrer">Spending: Tima Miroshnichenko<span class="sr-only"> (opens a new tab)</span></a></li>
+        <li><a href="https://www.pexels.com/photo/person-using-smartphone-7343000/" target="_blank" rel="noopener noreferrer">Safety: cottonbro studio<span class="sr-only"> (opens a new tab)</span></a></li>
+      </ul><p>External publishers and photographers are not affiliated with SmartMoney! Easy.</p>
+    </details>
+  </section>
+  <footer class="learn-footer">Educational content, not personalised financial advice.</footer>
+</div>
+
+<app-guide-reader [guide]="activeGuide()" [photo]="activeGuide() && imageAvailable(activeGuide()!.id) ? photos[activeGuide()!.id] : null" (imageFailed)="hideImage($event)" (closed)="closeGuide()" />

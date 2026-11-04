@@ -69,7 +69,7 @@ export class ProfileAssetsPage implements OnInit {
     } | null>(null);
 
   walletName = '';
-  openingBalance: number | null = 0;
+  openingBalance: number | null = null;
 
   // Active Cash Wallets
   readonly activeWallets = computed(() =>
@@ -134,6 +134,11 @@ export class ProfileAssetsPage implements OnInit {
     readonly archiveWalletError = signal('');
     readonly archiveWalletNotice = signal('');
 
+    readonly restoreWalletDialog = signal<CashWallet | null>(null);
+    readonly restoringWallet = signal(false);
+    readonly restoreWalletError = signal('');
+
+
 
   // Load wallets and connected bank accounts
 
@@ -193,6 +198,10 @@ export class ProfileAssetsPage implements OnInit {
         return;
     }
 
+    this.openingBalance = null;
+    this.createWalletError.set('');
+    this.showCreateWallet.set(true);
+
     this.createWalletError.set('');
     this.showCreateWallet.set(true);
     }
@@ -251,7 +260,7 @@ export class ProfileAssetsPage implements OnInit {
 
         // Reset form after success
         this.walletName = '';
-        this.openingBalance = 0;
+        this.openingBalance = null;
         this.showCreateWallet.set(false);
         } catch {
         this.createWalletError.set(
@@ -376,6 +385,14 @@ export class ProfileAssetsPage implements OnInit {
 
     @HostListener('document:keydown.escape', ['$event'])
     onDisconnectModalEscape(event: Event): void {
+    if (this.restoreWalletDialog()) {
+      if (this.restoringWallet()) return;
+
+      event.preventDefault();
+      this.closeRestoreWalletModal();
+      return;
+    }
+
     if (this.archiveWalletDialog()) {
         if (this.archivingWallet()) return;
 
@@ -580,6 +597,104 @@ export class ProfileAssetsPage implements OnInit {
         this.archivingWallet.set(false);
     }
     }
+
+
+  openRestoreWalletModal(wallet: CashWallet): void {
+    if (
+      !wallet.isArchived ||
+      this.restoringWallet() ||
+      this.archivingWallet() ||
+      this.savingWallet() ||
+      this.savingEditWallet() ||
+      this.loading() ||
+      this.editingWallet() ||
+      this.showCreateWallet() ||
+      this.archiveWalletDialog() ||
+      this.disconnectDialog()
+    ) {
+      return;
+    }
+
+    this.restoreWalletError.set('');
+    this.restoreWalletDialog.set(wallet);
+  }
+
+  closeRestoreWalletModal(): void {
+    if (this.restoringWallet()) {
+      return;
+    }
+
+    this.restoreWalletDialog.set(null);
+    this.restoreWalletError.set('');
+  }
+
+
+  async confirmRestoreWallet(): Promise<void> {
+    const wallet = this.restoreWalletDialog();
+
+    if (!wallet || this.restoringWallet()) {
+      return;
+    }
+
+    this.restoringWallet.set(true);
+    this.restoreWalletError.set('');
+    this.archiveWalletNotice.set('');
+
+    try {
+      await firstValueFrom(
+        this.walletApi.restoreWallet(wallet.id)
+      );
+
+      this.restoreWalletDialog.set(null);
+
+      this.archiveWalletNotice.set(
+        `${wallet.name} has been restored successfully. ` +
+        'Its balance and transaction history are preserved.'
+      );
+
+      // Refresh active and archived wallets.
+      const [activeResult, archivedResult] =
+        await Promise.allSettled([
+          firstValueFrom(this.walletService.loadWallets()),
+          firstValueFrom(this.walletApi.getArchivedWallets()),
+        ]);
+
+      if (activeResult.status === 'fulfilled') {
+        this.walletError.set('');
+      } else {
+        this.walletError.set(
+          'Wallet restored, but active wallets could not be refreshed. Please reload.'
+        );
+      }
+
+      if (archivedResult.status === 'fulfilled') {
+        this.archivedWallets.set(archivedResult.value);
+        this.archivedWalletError.set('');
+      } else {
+        this.archivedWalletError.set(
+          'Wallet restored, but archived wallets could not be refreshed. Please reload.'
+        );
+      }
+    } catch (error: unknown) {
+      if (error instanceof HttpErrorResponse) {
+        const backendError = error.error?.error;
+
+        this.restoreWalletError.set(
+          typeof backendError === 'string'
+            ? backendError
+            : 'Unable to restore this wallet. Please try again.'
+        );
+      } else {
+        this.restoreWalletError.set(
+          'Unable to restore this wallet. Please try again.'
+        );
+      }
+    } finally {
+      this.restoringWallet.set(false);
+    }
+  }
+
+
 
 
 private activeModalElement: HTMLElement | null = null;
