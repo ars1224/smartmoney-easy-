@@ -1,5 +1,5 @@
 
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   FormBuilder,
@@ -39,6 +39,7 @@ export class AddTransactionPage implements OnInit {
   private readonly cashWalletApi =
   inject(CashWalletApiService);
   private readonly fb = inject(FormBuilder);
+  private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
 
@@ -102,8 +103,8 @@ export class AddTransactionPage implements OnInit {
       Validators.required
     ),
 
-    amount: this.fb.nonNullable.control(
-      0,
+    amount: this.fb.control<number | null>(
+      null,
       [
         Validators.required,
         Validators.min(0.01),
@@ -242,6 +243,7 @@ export class AddTransactionPage implements OnInit {
 
     } finally {
       this.walletsLoading = false;
+      this.changeDetector.markForCheck();
     }
   }
 
@@ -284,14 +286,17 @@ export class AddTransactionPage implements OnInit {
       return;
     }
 
+    const amount = formData.amount;
+
     if (
-      !Number.isFinite(formData.amount) ||
-      formData.amount <= 0 ||
+      amount === null ||
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
       Math.abs(
-        formData.amount * 100 -
-        Math.round(formData.amount * 100)
+        amount * 100 -
+        Math.round(amount * 100)
       ) > 1e-7
-    ) {
+    ){
       this.saveError =
         'Enter a valid amount with up to two decimal places.';
       return;
@@ -299,25 +304,27 @@ export class AddTransactionPage implements OnInit {
 
     this.isSaving = true;
 
+    const payload = {
+      ...formData,
+      amount,
+    };
+
     try {
       if (this.editId) {
         await firstValueFrom(
           this.cashTransactionsApi.updateTransaction(
             this.editId,
-            formData
+            payload
           )
         );
-
       } else {
         await firstValueFrom(
           this.cashTransactionsApi.createTransaction(
-            formData
+            payload
           )
         );
       }
 
-      // Return to the Activity page after Flask confirms
-      // that the transaction was saved successfully.
       await this.router.navigateByUrl('/app/activity');
 
     } catch (error) {
@@ -328,11 +335,11 @@ export class AddTransactionPage implements OnInit {
 
     } finally {
       this.isSaving = false;
+      this.changeDetector.markForCheck();
     }
   }
 
-
-async createCashWallet(): Promise<void> {
+  async createCashWallet(): Promise<void> {
   this.walletCreateError = '';
 
   if (this.isCreatingWallet || this.walletForm.invalid) {
@@ -395,6 +402,7 @@ async createCashWallet(): Promise<void> {
 
   } finally {
     this.isCreatingWallet = false;
+    this.changeDetector.markForCheck();
   }
 }
 

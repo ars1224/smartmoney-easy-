@@ -8,3 +8,4 @@ requests
 Flask-Migrate
 cryptography
 tzdata
+defusedxml>=0.7.1,<1

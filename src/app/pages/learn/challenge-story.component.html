@@ -1,0 +1,26 @@
+<div class="story" [class.revealed]="answered">
+  @switch (story) {
+    @case ('payday') {
+      <div class="story-heading"><span>PAYDAY PLAN</span><span>Example figures</span></div>
+      <div class="ledger"><div><span>Income this fortnight</span><strong>$1,000</strong></div><div><span>Rent, food & transport</span><strong>−$800</strong></div><div class="missing"><span>{{ answered ? 'Set aside for registration' : 'Occasional bill missing' }}</span><strong>{{ answered ? '−$40' : '?' }}</strong></div><div class="total"><span>{{ answered ? 'Left after these planned costs' : 'Left before the missing cost' }}</span><strong>{{ answered ? '$160' : '$200' }}</strong></div></div>
+      @if (answered) { <p class="caption">The $40 is an example contribution, not a registration fee estimate.</p> }
+    }
+    @case ('subscription') {
+      <div class="story-heading"><span>THE YEARLY VIEW</span><span>Example subscription</span></div>
+      <div class="price"><strong>$8<span>/month</span></strong><span class="equation">× 12 = <b>{{ answered ? '$96/year' : '?' }}</b></span></div>
+      <div class="months" aria-label="Twelve monthly payments of eight dollars">@for (month of months; track month; let i = $index) { <div [style.--step]="i"><span>{{ month }}</span><b>{{ answered ? '$8' : '·' }}</b></div> }</div>
+      <p class="caption">{{ answered ? 'Twelve small payments add up to $96.' : 'Look beyond a single monthly payment.' }}</p>
+    }
+    @case ('saving') {
+      <div class="story-heading"><span>YOUR SIX-WEEK PLAN</span><span>Example goal</span></div>
+      <div class="price"><strong>$120<span> goal</span></strong><span class="equation">{{ answered ? '$20 × 6 weeks' : '$0 starting balance' }}</span></div>
+      <div class="steps" aria-label="Six weekly savings contributions">@for (week of weeks; track week; let i = $index) { <div [style.--step]="i"><span class="step-fill"></span><b>{{ answered ? '$20' : '—' }}</b><small>Week {{ week }}</small></div> }</div>
+      <p class="caption">{{ answered ? '$20 each week reaches $120 after six contributions.' : 'What weekly amount would reach the goal?' }}</p>
+    }
+    @case ('expense') {
+      <div class="story-heading"><span>A BILL YOU DID NOT PLAN FOR</span><span>Fictional scenario</span></div>
+      <div class="bill"><span>REPAIR INVOICE</span><strong>Payment due</strong><span class="bill-lines" aria-hidden="true"></span><small>Pause and check your options.</small></div>
+      @if (answered) { <div class="checklist"><span>✓ Review your budget</span><span>✓ Check available savings</span><span>✓ Ask about payment arrangements</span></div> }
+    }
+  }
+</div>

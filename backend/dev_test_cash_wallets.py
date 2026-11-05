@@ -44,13 +44,18 @@ def run_tests():
         app.config["SQLALCHEMY_DATABASE_URI"]
     )
 
+
     if (
         database_url.host not in ("localhost", "127.0.0.1")
-        or database_url.database != "smartmoney_easy"
+        or database_url.database not in (
+            "smartmoney_easy_test",
+            "smartmoney_pr13_test",
+        )
     ):
         raise RuntimeError(
-            "Tests require the local smartmoney_easy database."
+            "Tests require an approved local test database."
         )
+
 
     with app.app_context():
         suffix = uuid.uuid4().hex
@@ -491,6 +496,86 @@ def run_tests():
             )
 
             print("ALL CASH WALLET ARCHIVE TESTS PASSED!")
+
+
+            # Test restoring an archived cash wallet.
+
+            verify(
+                owner.patch(
+                    f"/api/cash-wallets/{wallet_id}/restore",
+                ),
+                403,
+                "Restore without CSRF token blocked",
+            )
+
+            verify(
+                other.patch(
+                    f"/api/cash-wallets/{wallet_id}/restore",
+                    headers=other_headers,
+                ),
+                404,
+                "Other user cannot restore wallet",
+            )
+
+            response = owner.get(
+                "/api/cash-wallets?archived=true"
+            )
+            verify(response, 200, "Retrieve archived wallets")
+
+            archived_wallet = next(
+                w for w in response.get_json()["wallets"]
+                if w["id"] == wallet_id
+            )
+            balance_before = archived_wallet["currentBalance"]
+
+            response = owner.patch(
+                f"/api/cash-wallets/{wallet_id}/restore",
+                headers=owner_headers,
+            )
+            verify(response, 200, "Restore archived wallet")
+
+            restored_wallet = response.get_json()["wallet"]
+
+            assert restored_wallet["isArchived"] is False
+            assert restored_wallet["currentBalance"] == balance_before
+
+            response = owner.get("/api/cash-wallets")
+            verify(response, 200, "Retrieve restored wallet")
+
+            assert any(
+                w["id"] == wallet_id
+                for w in response.get_json()["wallets"]
+            )
+
+            response = owner.get(
+                "/api/cash-wallets?archived=true"
+            )
+            verify(response, 200, "Check archived list")
+
+            assert all(
+                w["id"] != wallet_id
+                for w in response.get_json()["wallets"]
+            )
+
+            response = owner.patch(
+                f"/api/cash-wallets/{wallet_id}/restore",
+                headers=owner_headers,
+            )
+            verify(response, 200, "Restore already active wallet")
+
+            assert response.get_json()["wallet"]["isArchived"] is False
+
+            db.session.expire_all()
+            saved_transaction = db.session.get(
+                Transaction, transaction.id
+            )
+
+            assert saved_transaction is not None
+            assert saved_transaction.cash_wallet_id == wallet_id
+            assert saved_transaction.amount == Decimal("-10.00")
+
+            print("ALL CASH WALLET RESTORE TESTS PASSED!")
+
 
 
 

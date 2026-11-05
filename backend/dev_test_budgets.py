@@ -52,10 +52,10 @@ def run_tests():
 
     if (
         url.host not in ("localhost", "127.0.0.1")
-        or url.database != "smartmoney_easy"
+        or url.database != "smartmoney_easy_test"
     ):
         raise RuntimeError(
-            "Tests require the local smartmoney_easy database."
+            "Tests require the local smartmoney_easy_test database."
         )
 
     with app.app_context():
@@ -120,6 +120,53 @@ def run_tests():
                 409,
                 "Duplicate category rejected",
             )
+
+
+            # Custom Other budget categories.
+            custom_payload = {
+                "category": "Other - Loan",
+                "monthlyLimit": "50000.00",
+            }
+
+            response = owner.post(
+                "/api/budgets",
+                json=custom_payload,
+                headers=headers,
+            )
+            check(response, 201, "Create custom Other budget")
+
+            custom_budget = response.get_json()["budget"]
+            assert custom_budget["category"] == "Other - Loan"
+            assert custom_budget["monthlyLimit"] == "50000.00"
+
+            check(
+                owner.post(
+                    "/api/budgets",
+                    json=custom_payload,
+                    headers=headers,
+                ),
+                409,
+                "Duplicate custom Other budget rejected",
+            )
+
+            for invalid_category in (
+                "Other - ",
+                "Other - " + ("X" * 73),
+                "Other - Loan\nInvalid",
+            ):
+                check(
+                    owner.post(
+                        "/api/budgets",
+                        json={
+                            "category": invalid_category,
+                            "monthlyLimit": "100.00",
+                        },
+                        headers=headers,
+                    ),
+                    400,
+                    "Invalid custom Other category rejected",
+                )
+
 
             for invalid in (
                 "0",
@@ -376,6 +423,7 @@ def run_tests():
                 ("-15.00", None, "DEBIT"),
                 ("-40.00", "Groceries", "TRANSFER"),
                 ("100.00", "Groceries", "CREDIT"),
+                ("-50.00", "Other - Loan", "DEBIT"),
             ]
 
             for amount, category, transaction_type in bank_cases:
@@ -410,6 +458,16 @@ def run_tests():
 
             # Cash 35.50 + categorised bank 24.50 = 60.00.
             assert groceries["spent"] == "60.00", groceries
+
+            other_loan = next(
+                item
+                for item in response.get_json()["budgets"]
+                if item["category"] == "Other - Loan"
+            )
+
+            assert other_loan["spent"] == "50.00", other_loan
+
+            print("PASS: Custom Other - Loan bank spending included")
 
             print("PASS: Categorised bank expenses included")
             print("PASS: Uncategorised bank expenses excluded")
