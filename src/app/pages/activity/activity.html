@@ -90,7 +90,8 @@
                 [class.income]="transaction.amount >= 0"
                 [class.expense]="transaction.amount < 0"
             >
-                {{ formatAmount(transaction.amount) }}
+            {{ formatAmount(transaction.amount, transaction.currency) }}
+
             </td>   
 
             <td class="actions-column">

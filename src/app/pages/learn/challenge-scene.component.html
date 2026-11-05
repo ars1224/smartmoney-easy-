@@ -1,0 +1,14 @@
+@if (scene; as visual) {
+  <figure class="scene" [class.phone]="visual.kind === 'phone'" [class.revealed]="answered" [attr.aria-label]="visual.title">
+    <figcaption><strong>{{ visual.title }}</strong><span>Fictional example</span></figcaption>
+    <div class="scene-rows" [class.compare]="visual.kind === 'compare' || visual.kind === 'transfer'">
+      @for (row of visual.rows; track row.label; let i = $index) {
+        <div class="scene-row"><span>{{ row.label }}</span><strong [class.warning]="answered && visual.kind === 'phone'">{{ !answered && visual.kind === 'compare' ? 'Calculate the total' : row.value }}</strong></div>
+      }
+    </div>
+    @if (visual.kind === 'progress') { <div class="goal-track" aria-hidden="true"><span></span><b>$200</b></div> }
+
+    <div class="scene-result"><span class="result-icon" aria-hidden="true">{{ answered ? '✓' : '?' }}</span><strong>{{ answered ? visual.result : 'What would you choose?' }}</strong></div>
+    @if (answered) { <p class="scene-caption">{{ visual.caption }}</p> }
+  </figure>
+}

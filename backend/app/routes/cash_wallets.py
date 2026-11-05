@@ -385,3 +385,43 @@ def archive_cash_wallet(wallet_id):
     response.headers["Cache-Control"] = "no-store"
 
     return response, 200
+
+@cash_wallets_bp.patch("/<wallet_id>/restore")
+@csrf_required
+def restore_cash_wallet(wallet_id):
+    user_id = get_authenticated_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Authentication required."
+        }), 401
+
+    wallet = (
+        CashWallet.query
+        .filter_by(id=wallet_id, user_id=user_id)
+        .with_for_update()
+        .first()
+    )
+
+    if wallet is None:
+        return jsonify({
+            "error": "Cash wallet not found."
+        }), 404
+
+    if not wallet.is_archived:
+        response = jsonify({
+            "message": "Cash wallet is already active.",
+            "wallet": serialize_wallet(wallet),
+        })
+        response.headers["Cache-Control"] = "no-store"
+        return response, 200
+
+    wallet.is_archived = False
+    db.session.commit()
+
+    response = jsonify({
+        "message": "Cash wallet restored successfully.",
+        "wallet": serialize_wallet(wallet),
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response, 200

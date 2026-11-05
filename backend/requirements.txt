@@ -7,3 +7,4 @@ psycopg[binary]
 requests
 Flask-Migrate
 cryptography
+defusedxml>=0.7.1,<1

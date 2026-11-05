@@ -1,0 +1,19 @@
+<dialog #reader class="reader" aria-labelledby="reader-title" (cancel)="$event.preventDefault(); close()" (close)="closed.emit()">
+  <div class="reader-layout">
+    <header class="reader-toolbar"><span class="publisher"><span class="publisher-mark" aria-hidden="true">S</span> SmartMoney <span class="original">Original guide</span></span><button autofocus type="button" class="close-button" aria-label="Close learning guide" (click)="close()">×</button></header>
+    @if (guide; as article) {
+      <div class="reader-scroll">
+        <div class="reader-hero" [class.without-photo]="!photo">
+          @if (photo; as image) { <figure class="reader-photo"><img [src]="image.src" [alt]="image.alt" width="640" height="427" (error)="imageFailed.emit(article.id)" /><figcaption>{{ credits[article.id] }} / Pexels</figcaption></figure> }
+          <div class="reader-heading"><p class="reader-topic">{{ article.topic }} <span>· {{ article.minutes }} min read</span></p><h2 id="reader-title">{{ article.title }}</h2><p class="reader-deck">{{ article.description }}</p></div>
+        </div>
+        <main class="reader-content"><div class="reading-label"><span>Three things to know</span><span>Read at your own pace</span></div>
+          <ol class="reader-sections">@for (section of article.sections; track section.title; let i = $index) { <li><span class="section-number" aria-hidden="true">0{{ i + 1 }}</span><div><h3>{{ section.title }}</h3><p>{{ section.body }}</p></div></li> }</ol>
+          <aside class="reader-takeaway" aria-label="Practical takeaway"><span class="takeaway-symbol" aria-hidden="true">↗</span><div><h3>Make it practical</h3><p>{{ takeaways[article.id] }}</p></div></aside>
+          <p class="reader-disclaimer">Original SmartMoney guide · General financial education, not personalised advice.</p>
+        </main>
+      </div>
+      <footer class="reader-footer"><div><span>Your next step</span><strong>Put this guide into practice</strong></div><a [routerLink]="article.route" (click)="close()">{{ article.action }} <span aria-hidden="true">→</span></a></footer>
+    }
+  </div>
+</dialog>

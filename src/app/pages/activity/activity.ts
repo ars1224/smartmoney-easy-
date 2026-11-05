@@ -30,6 +30,7 @@ interface Transaction {
   source: TransactionSource;
   category: string;
   amount: number;
+  currency: string;
   date: string;
 }
 
@@ -123,6 +124,7 @@ export class ActivityPage implements OnInit {
               transaction.type === 'income'
                 ? transaction.amount
                 : -transaction.amount,
+            currency: 'NZD',
             date: transaction.date,
           })
         );
@@ -141,6 +143,7 @@ export class ActivityPage implements OnInit {
             category:
               transaction.category?.trim() || 'Uncategorised',
             amount: transaction.amount,
+            currency: transaction.currency,
             date: transaction.transactionDate,
           })
         );
@@ -194,18 +197,17 @@ export class ActivityPage implements OnInit {
       }
     }
 
-    formatAmount(amount: number): string {
-      const formatted = Math.abs(amount).toLocaleString(
-        'en-NZ',
-        {
-          style: 'currency',
-          currency: 'NZD',
-          currencyDisplay: 'narrowSymbol',
-        }
-      );
+
+    formatAmount(amount: number, currency: string): string {
+      const formatted = Math.abs(amount).toLocaleString('en-NZ', {
+        style: 'currency',
+        currency,
+        currencyDisplay: 'code',
+      });
 
       return `${amount >= 0 ? '+' : '-'}${formatted}`;
     }
+
 
   openDeleteModal(transaction: Transaction, event: Event): void {
     if (
@@ -498,7 +500,4 @@ export class ActivityPage implements OnInit {
   savingCategory = false;
 
   private categoryTrigger: HTMLElement | null = null;
-
-
-
 }
