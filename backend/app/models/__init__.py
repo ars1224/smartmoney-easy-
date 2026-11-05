@@ -7,6 +7,8 @@ from app.extensions import db
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
+from app.models.budget import Budget
+
 def utc_now():
     return datetime.now(timezone.utc)
 
