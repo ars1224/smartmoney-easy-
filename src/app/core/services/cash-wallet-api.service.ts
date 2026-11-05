@@ -106,17 +106,47 @@ export class CashWalletApiService {
     );
   }
 
-  archiveWallet(
+
+getArchivedWallets(): Observable<CashWalletRecord[]> {
+  return this.http.get<WalletListResponse>(
+    this.apiUrl,
+    {
+      params: { archived: 'true' },
+      withCredentials: true,
+    }
+  ).pipe(
+    map(response =>
+      response.wallets.map(wallet => this.mapWallet(wallet))
+    )
+  );
+}
+
+archiveWallet(
+  id: string
+): Observable<CashWalletRecord> {
+  return this.write<WalletResponse>(
+    'PATCH',
+    `${this.apiUrl}/${encodeURIComponent(id)}/archive`,
+    {}
+  ).pipe(
+    map(response => this.mapWallet(response.wallet))
+  );
+}
+
+
+  restoreWallet(
     id: string
   ): Observable<CashWalletRecord> {
     return this.write<WalletResponse>(
       'PATCH',
-      `${this.apiUrl}/${encodeURIComponent(id)}/archive`,
+      `${this.apiUrl}/${encodeURIComponent(id)}/restore`,
       {}
     ).pipe(
       map(response => this.mapWallet(response.wallet))
     );
   }
+
+
 
   private write<T>(
     method: 'POST' | 'PATCH',
