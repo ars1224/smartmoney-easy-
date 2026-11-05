@@ -28,6 +28,7 @@ interface Transaction {
   source: TransactionSource;
   category: string;
   amount: number;
+  currency: string;
   date: string;
 }
 
@@ -120,8 +121,10 @@ async loadManualTransactions(): Promise<void> {
           amount:
             transaction.type === 'income'
               ? transaction.amount
-              : -transaction.amount,
-          date: transaction.date,
+              :-transaction.amount,
+              currency: 'NZD',
+              date: transaction.date,
+
         })
       );
     } else {
@@ -138,8 +141,10 @@ async loadManualTransactions(): Promise<void> {
           source: 'bank' as const,
           category:
             transaction.category?.trim() || 'Uncategorised',
-          amount: transaction.amount,
-          date: transaction.transactionDate,
+            amount: transaction.amount,
+            currency: transaction.currency,
+            date: transaction.transactionDate,
+
         })
       );
     } else {
@@ -192,18 +197,17 @@ get transactions(): Transaction[] {
     }
   }
 
-  formatAmount(amount: number): string {
-    const formatted = Math.abs(amount).toLocaleString(
-      'en-NZ',
-      {
-        style: 'currency',
-        currency: 'NZD',
-        currencyDisplay: 'narrowSymbol',
-      }
-    );
 
-    return `${amount >= 0 ? '+' : '-'}${formatted}`;
-  }
+formatAmount(amount: number, currency: string): string {
+  const formatted = Math.abs(amount).toLocaleString('en-NZ', {
+    style: 'currency',
+    currency,
+    currencyDisplay: 'code',
+  });
+
+  return `${amount >= 0 ? '+' : '-'}${formatted}`;
+}
+
 
   openDeleteModal(transaction: Transaction, event: Event): void {
     if (
