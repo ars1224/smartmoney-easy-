@@ -263,7 +263,7 @@
         [(ngModel)]="selectedBankCategory"
         [disabled]="savingCategory"
       >
-        <option value="">Uncategorised</option>
+        <option value="" disabled>Select a category</option>
 
         @for (category of bankCategories; track category) {
           <option [value]="category">
@@ -272,6 +272,26 @@
         }
       </select>
     </div>
+
+    @if (selectedBankCategory === 'Other') {
+      <div class="category-field">
+        <label for="bank-other-category">
+          Please specify
+        </label>
+
+        <input
+          id="bank-other-category"
+          name="otherBankCategory"
+          type="text"
+          class="category-select"
+          [(ngModel)]="otherBankCategory"
+          placeholder="e.g. Medical, Subscription"
+          maxlength="72"
+          [required]="selectedBankCategory === 'Other'"
+          [disabled]="savingCategory"
+        />
+      </div>
+    }
 
     @if (categoryError) {
       <p class="modal-error" role="alert">

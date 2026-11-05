@@ -284,8 +284,24 @@ def update_bank_transaction_category(transaction_id):
     elif isinstance(requested_category, str):
         cleaned = requested_category.strip()
 
+
         if not cleaned:
             category = None
+
+        elif cleaned.casefold().startswith("other - "):
+            specific = cleaned[len("other - "):].strip()
+
+            if (
+                not specific
+                or len(specific) > 72
+                or any(ord(char) < 32 or ord(char) == 127 for char in specific)
+            ):
+                return jsonify({
+                    "error": "Please provide a valid custom category (1–72 characters)."
+                }), 400
+
+            category = f"Other - {specific}"
+
         else:
             category = BANK_TRANSACTION_CATEGORIES.get(
                 cleaned.casefold()

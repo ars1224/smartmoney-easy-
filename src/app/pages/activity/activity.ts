@@ -301,10 +301,22 @@ export class ActivityPage implements OnInit {
 
     this.categoryTransaction = transaction;
 
-    this.selectedBankCategory =
-      transaction.category === 'Uncategorised'
-        ? ''
-        : transaction.category;
+
+      const currentCategory = transaction.category;
+
+      if (currentCategory.startsWith('Other - ')) {
+        this.selectedBankCategory = 'Other';
+        this.otherBankCategory =
+          currentCategory.slice('Other - '.length);
+      } else {
+        this.selectedBankCategory =
+          currentCategory === 'Uncategorised'
+            ? ''
+            : currentCategory;
+
+        this.otherBankCategory = '';
+      }
+
 
     this.categoryError = '';
 
@@ -330,6 +342,7 @@ export class ActivityPage implements OnInit {
 
     this.categoryTransaction = null;
     this.selectedBankCategory = '';
+    this.otherBankCategory = '';
     this.categoryError = '';
     this.categoryTrigger = null;
 
@@ -348,15 +361,40 @@ export class ActivityPage implements OnInit {
       return;
     }
 
-    const category = this.selectedBankCategory || null;
 
-    if (
-      category !== null &&
-      !this.bankCategories.includes(category)
-    ) {
-      this.categoryError = 'Select a valid category.';
+  let category: string | null =
+    this.selectedBankCategory || null;
+
+    if (!category) {
+      this.categoryError = 'Please select a category.';
       return;
     }
+
+  if (category === 'Other') {
+    const specific = this.otherBankCategory.trim();
+
+    if (!specific) {
+      this.categoryError =
+        'Please specify what the Other category is.';
+      return;
+    }
+
+    if (specific.length > 72) {
+      this.categoryError =
+        'The custom category is too long.';
+      return;
+    }
+
+    category = `Other - ${specific}`;
+
+  } else if (
+    category !== null &&
+    !this.bankCategories.includes(category)
+  ) {
+    this.categoryError = 'Select a valid category.';
+    return;
+  }
+
 
     this.savingCategory = true;
     this.categoryError = '';
@@ -496,6 +534,7 @@ export class ActivityPage implements OnInit {
 
   categoryTransaction: Transaction | null = null;
   selectedBankCategory = '';
+  otherBankCategory = '';
   categoryError = '';
   savingCategory = false;
 

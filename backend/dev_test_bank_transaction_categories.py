@@ -48,11 +48,12 @@ def run_tests():
 
     if (
         url.host not in ("localhost", "127.0.0.1")
-        or url.database != "smartmoney_easy"
+        or url.database != "smartmoney_migration_rehearsal"
     ):
         raise RuntimeError(
-            "Tests require the local smartmoney_easy database."
+            "Tests require the isolated rehearsal database."
         )
+
 
     with app.app_context():
         suffix = uuid.uuid4().hex
@@ -265,6 +266,51 @@ def run_tests():
                 item["id"] != transaction_id
                 for item in response.get_json()["transactions"]
             )
+
+            # Check custom Other categories.
+            response = owner.patch(
+                endpoint,
+                json={"category": "Other - Loan"},
+                headers=headers,
+            )
+
+            check(response, 200, "Save custom Other category")
+
+            assert (
+                response.get_json()["transaction"]["category"]
+                == "Other - Loan"
+            )
+
+            db.session.expire_all()
+            saved = db.session.get(Transaction, transaction_id)
+            assert saved.category == "Other - Loan"
+
+            assert (
+                saved.description,
+                saved.amount,
+                saved.balance_after,
+                saved.currency,
+                saved.transaction_type,
+                saved.transaction_date,
+            ) == original_bank_data
+
+            print("PASS: Custom category persisted and bank data preserved")
+
+            # Reject invalid custom categories.
+            for invalid in (
+                "Other - ",
+                "Other - " + "A" * 73,
+                "Other - Invalid\nCategory",
+            ):
+                check(
+                    owner.patch(
+                        endpoint,
+                        json={"category": invalid},
+                        headers=headers,
+                    ),
+                    400,
+                    "Invalid custom category rejected",
+                )
 
             # Check category reset.
             response = owner.patch(
