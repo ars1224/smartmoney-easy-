@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, current_app
+from flask import Blueprint, jsonify, current_app, request
 
 from app.extensions import db
 from app.models import BankConnection, BankAccount, Transaction
@@ -244,6 +244,116 @@ def get_all_bank_transactions():
     response.headers["Cache-Control"] = "no-store"
 
     return response, 200
+
+
+# Supported categories for bank transactions.
+BANK_TRANSACTION_CATEGORIES = {
+    "groceries": "Groceries",
+    "transport": "Transport",
+    "entertainment": "Entertainment",
+    "shopping": "Shopping",
+    "bills": "Bills",
+    "eating out": "Eating out",
+    "other": "Other",
+    "income": "Income",
+}
+
+
+@bank_accounts_bp.patch("/transactions/<transaction_id>/category")
+@csrf_required
+def update_bank_transaction_category(transaction_id):
+    user_id = get_authenticated_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Authentication required."
+        }), 401
+
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict) or set(data) != {"category"}:
+        return jsonify({
+            "error": "Only the category field may be updated."
+        }), 400
+
+    requested_category = data["category"]
+
+    if requested_category is None:
+        category = None
+
+    elif isinstance(requested_category, str):
+        cleaned = requested_category.strip()
+
+
+        if not cleaned:
+            category = None
+
+        elif cleaned.casefold().startswith("other - "):
+            specific = cleaned[len("other - "):].strip()
+
+            if (
+                not specific
+                or len(specific) > 72
+                or any(ord(char) < 32 or ord(char) == 127 for char in specific)
+            ):
+                return jsonify({
+                    "error": "Please provide a valid custom category (1–72 characters)."
+                }), 400
+
+            category = f"Other - {specific}"
+
+        else:
+            category = BANK_TRANSACTION_CATEGORIES.get(
+                cleaned.casefold()
+            )
+
+            if category is None:
+                return jsonify({
+                    "error": "Unsupported transaction category."
+                }), 400
+
+    else:
+        return jsonify({
+            "error": "Category must be text or null."
+        }), 400
+
+    # Only the transaction owner can update the category.
+    # Historical transactions remain editable after bank
+    # disconnection because their records are retained.
+    transaction = (
+        Transaction.query
+        .filter(
+            Transaction.id == transaction_id,
+            Transaction.user_id == user_id,
+            Transaction.source == "BANK",
+            Transaction.bank_account_id.isnot(None),
+        )
+        .with_for_update()
+        .first()
+    )
+
+    if transaction is None:
+        return jsonify({
+            "error": "Bank transaction not found."
+        }), 404
+
+    # Preserve bank-provided amount, date and description.
+    transaction.category = category
+
+    db.session.commit()
+
+    response = jsonify({
+        "message": "Transaction category updated.",
+        "transaction": {
+            "id": transaction.id,
+            "category": transaction.category,
+        },
+    })
+
+    response.headers["Cache-Control"] = "no-store"
+
+    return response, 200
+
 
 
 @bank_accounts_bp.post("/connections/<connection_id>/sync")
