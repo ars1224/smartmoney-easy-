@@ -41,18 +41,34 @@ CATEGORY_LOOKUP = {
 }
 
 
+
 def parse_category(value):
     if not isinstance(value, str):
         raise ValueError("A valid category is required.")
 
-    category = CATEGORY_LOOKUP.get(
-        value.strip().casefold()
-    )
+    cleaned = value.strip()
+
+    if cleaned.casefold().startswith("other - "):
+        specific = cleaned[len("other - "):].strip()
+
+        if (
+            not specific
+            or len(specific) > 72
+            or any(ord(c) < 32 or ord(c) == 127 for c in specific)
+        ):
+            raise ValueError(
+                "Please specify a valid category (1–72 characters)."
+            )
+
+        return f"Other - {specific}"
+
+    category = CATEGORY_LOOKUP.get(cleaned.casefold())
 
     if category is None:
         raise ValueError("Unsupported budget category.")
 
     return category
+
 
 
 def parse_monthly_limit(value):

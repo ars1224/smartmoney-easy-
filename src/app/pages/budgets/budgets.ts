@@ -18,10 +18,9 @@ import {
 
 export type BudgetStatus = 'safe' | 'warning' | 'danger';
 
-
-
 interface BudgetForm {
   category: string;
+  otherCategory: string;
   monthlyLimit: number | null;
 }
 
@@ -82,10 +81,10 @@ export class BudgetsPage implements OnInit {
     }
   }
 
-
   private emptyForm(): BudgetForm {
     return {
       category: '',
+      otherCategory: '',
       monthlyLimit: null,
     };
   }
@@ -105,8 +104,13 @@ export class BudgetsPage implements OnInit {
 
     this.editingBudgetId = budget.id;
 
+    const isCustomOther = budget.category.startsWith('Other - ');
+
     this.budgetForm = {
-      category: budget.category,
+      category: isCustomOther ? 'Other' : budget.category,
+      otherCategory: isCustomOther
+        ? budget.category.slice('Other - '.length)
+        : '',
       monthlyLimit: budget.monthlyLimit,
     };
 
@@ -142,13 +146,30 @@ export class BudgetsPage implements OnInit {
 
     this.formError = '';
 
-    const category = this.budgetForm.category;
-    const monthlyLimit = this.budgetForm.monthlyLimit;
+  const selectedCategory = this.budgetForm.category;
+  let category = selectedCategory;
+  const monthlyLimit = this.budgetForm.monthlyLimit;
 
-    if (!this.categories.includes(category)) {
-      this.formError = 'Please select a valid category.';
+  if (!this.categories.includes(selectedCategory)) {
+    this.formError = 'Please select a valid category.';
+    return;
+  }
+
+  if (selectedCategory === 'Other') {
+    const specific = this.budgetForm.otherCategory.trim();
+
+    if (
+      !specific ||
+      specific.length > 72 ||
+      /[\x00-\x1f\x7f]/.test(specific)
+    ) {
+      this.formError =
+        'Please specify a valid category (1–72 characters).';
       return;
     }
+
+    category = `Other - ${specific}`;
+  }
 
     if (
       monthlyLimit === null ||

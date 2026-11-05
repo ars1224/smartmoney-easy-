@@ -201,6 +201,25 @@
       </select>
     </div>
 
+    @if (budgetForm.category === 'Other') {
+      <div class="budget-form-group">
+        <label for="budget-other-category">
+          Please specify
+        </label>
+
+        <input
+          id="budget-other-category"
+          name="otherCategory"
+          type="text"
+          [(ngModel)]="budgetForm.otherCategory"
+          placeholder="e.g. Loan, Medical, Education"
+          maxlength="72"
+          [disabled]="saving"
+          required
+        />
+      </div>
+    }
+
     <div class="budget-form-group">
       <label for="budget-limit">
         Monthly limit (NZD)
