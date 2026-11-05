@@ -664,6 +664,44 @@ h3 {
 }
 
 
+/* Connected bank account cards */
+.bank-account-card {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--sm-color-teal);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--sm-color-teal);
+    outline-offset: 3px;
+  }
+}
+
+.bank-account-card-end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+
+  strong {
+    color: var(--sm-color-text);
+  }
+
+  small {
+    color: var(--sm-color-teal);
+    font-weight: 600;
+  }
+}
+
+@media (max-width: 700px) {
+  .bank-account-card-end {
+    align-items: flex-start;
+  }
+}
+
 /* NZD amount inputs */
 .wallet-form .currency-input {
   position: relative;
