@@ -50,6 +50,30 @@ export class BudgetsPage implements OnInit {
 
   budgets: BudgetRecord[] = [];
 
+
+  selectedMonth = this.getCurrentNzMonth();
+
+  private loadRequestId = 0;
+
+  get selectedMonthLabel(): string {
+    const [year, month] = this.selectedMonth
+      .split('-')
+      .map(Number);
+
+    return new Intl.DateTimeFormat('en-NZ', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(
+      new Date(Date.UTC(year, month - 1, 15))
+    );
+  }
+
+  get isCurrentMonth(): boolean {
+    return this.selectedMonth >= this.getCurrentNzMonth();
+  }
+
+
   isLoading = true;
   loadError = '';
   formError = '';
@@ -64,22 +88,87 @@ export class BudgetsPage implements OnInit {
   }
 
 
-  async loadBudgets(): Promise<void> {
-    this.isLoading = true;
-    this.loadError = '';
+private getCurrentNzMonth(): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date());
 
-    try {
-      this.budgets = await firstValueFrom(
-        this.budgetsApi.getBudgets()
-      );
-    } catch {
-      this.loadError =
-        'Unable to load budgets. Please try again.';
-    } finally {
+  const year = parts.find(
+    part => part.type === 'year'
+  )?.value;
+
+  const month = parts.find(
+    part => part.type === 'month'
+  )?.value;
+
+  return `${year}-${month}`;
+}
+
+changeMonth(direction: -1 | 1): void {
+  if (this.isLoading || this.saving) return;
+
+  const [year, month] = this.selectedMonth
+    .split('-')
+    .map(Number);
+
+  const targetDate = new Date(
+    Date.UTC(year, month - 1 + direction, 1)
+  );
+
+  const targetMonth =
+    `${targetDate.getUTCFullYear()}-` +
+    `${String(targetDate.getUTCMonth() + 1).padStart(2, '0')}`;
+
+  if (
+    targetMonth > this.getCurrentNzMonth() ||
+    targetDate.getUTCFullYear() < 1
+  ) {
+    return;
+  }
+
+  this.selectedMonth = targetMonth;
+  void this.loadBudgets();
+}
+
+
+
+
+async loadBudgets(): Promise<void> {
+  const requestId = ++this.loadRequestId;
+  const month = this.selectedMonth;
+
+  this.isLoading = true;
+  this.loadError = '';
+
+  try {
+    const budgets = await firstValueFrom(
+      this.budgetsApi.getBudgets(month)
+    );
+
+    if (requestId !== this.loadRequestId) {
+      return;
+    }
+
+    this.budgets = budgets;
+
+  } catch {
+    if (requestId !== this.loadRequestId) {
+      return;
+    }
+
+    this.loadError =
+      'Unable to load budgets. Please try again.';
+
+  } finally {
+    if (requestId === this.loadRequestId) {
       this.isLoading = false;
       this.cdr.markForCheck();
     }
   }
+}
+
 
   private emptyForm(): BudgetForm {
     return {
@@ -212,35 +301,25 @@ export class BudgetsPage implements OnInit {
         monthlyLimit,
       };
 
-      const savedBudget = await firstValueFrom(
-        this.editingBudgetId
-          ? this.budgetsApi.updateBudget(
-              this.editingBudgetId,
-              payload
-            )
-          : this.budgetsApi.createBudget(payload)
-      );
-
-      if (this.editingBudgetId) {
-        this.budgets = this.budgets.map(budget =>
-          budget.id === savedBudget.id
-            ? savedBudget
-            : budget
-        );
-      } else {
-        this.budgets = [
-          ...this.budgets,
-          savedBudget,
-        ];
-      }
-
-      this.budgets.sort((a, b) =>
-        a.category.localeCompare(b.category)
-      );
+    await firstValueFrom(
+      this.editingBudgetId
+        ? this.budgetsApi.updateBudget(
+            this.editingBudgetId,
+            payload,
+            this.selectedMonth
+          )
+        : this.budgetsApi.createBudget(
+            payload,
+            this.selectedMonth
+          )
+    );
 
       this.budgetDialog?.nativeElement.close();
       this.editingBudgetId = null;
       this.budgetForm = this.emptyForm();
+
+      // Reload budgets for the currently selected month.
+      await this.loadBudgets();
 
     } catch (error: unknown) {
       this.formError =
@@ -320,4 +399,6 @@ export class BudgetsPage implements OnInit {
       maximumFractionDigits: 2,
     }).format(amount);
   }
+
+
 }

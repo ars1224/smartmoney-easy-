@@ -118,6 +118,7 @@ describe('BudgetsPage', () => {
     };
 
     budgetsApi.createBudget.mockReturnValue(of(savedBudget));
+    budgetsApi.getBudgets.mockReturnValue(of([savedBudget]));
 
     component.budgetForm = {
       category: 'Transport',
@@ -126,46 +127,60 @@ describe('BudgetsPage', () => {
     };
 
     await component.saveBudget();
+    expect(budgetsApi.createBudget).toHaveBeenCalledWith(
+    {
+        category: 'Transport',
+        monthlyLimit: 250,
+    },
+    component.selectedMonth
+    );
 
-    expect(budgetsApi.createBudget).toHaveBeenCalledWith({
-      category: 'Transport',
-      monthlyLimit: 250,
-    });
 
     expect(component.budgets).toEqual([savedBudget]);
     expect(component.formError).toBe('');
     expect(component.saving).toBe(false);
   });
 
-  it('creates a custom Other - Loan budget', async () => {
+
+    it('creates a custom Other - Loan budget', async () => {
     const savedBudget = {
-      id: 'budget-custom',
-      category: 'Other - Loan',
-      monthlyLimit: 50000,
-      spent: 50,
-      createdAt: '',
-      updatedAt: '',
+        id: 'budget-custom',
+        category: 'Other - Loan',
+        monthlyLimit: 50000,
+        spent: 50,
+        createdAt: '',
+        updatedAt: '',
     };
 
+    // Configure the API responses before saving.
     budgetsApi.createBudget.mockReturnValue(of(savedBudget));
+    budgetsApi.getBudgets.mockReturnValue(of([savedBudget]));
 
     component.budgetForm = {
-      category: 'Other',
-      otherCategory: '  Loan  ',
-      monthlyLimit: 50000,
+        category: 'Other',
+        otherCategory: '  Loan  ',
+        monthlyLimit: 50000,
     };
 
     await component.saveBudget();
 
-    expect(budgetsApi.createBudget).toHaveBeenCalledWith({
-      category: 'Other - Loan',
-      monthlyLimit: 50000,
-    });
+    expect(budgetsApi.createBudget).toHaveBeenCalledWith(
+    {
+        category: 'Other - Loan',
+        monthlyLimit: 50000,
+    },
+    component.selectedMonth
+    );
+
+    expect(budgetsApi.getBudgets).toHaveBeenCalledWith(
+        component.selectedMonth
+    );
 
     expect(component.budgets).toEqual([savedBudget]);
     expect(component.formError).toBe('');
     expect(component.saving).toBe(false);
-  });
+    });
+
 
   it('rejects an empty custom Other category', async () => {
     component.budgetForm = {
@@ -231,15 +246,18 @@ describe('BudgetsPage', () => {
     };
 
     budgetsApi.updateBudget.mockReturnValue(of(updatedBudget));
+    budgetsApi.getBudgets.mockReturnValue(of([updatedBudget]));
 
     await component.saveBudget();
 
+
     expect(budgetsApi.updateBudget).toHaveBeenCalledWith(
-      'budget-1',
-      {
+    'budget-1',
+    {
         category: 'Groceries',
         monthlyLimit: 600,
-      }
+    },
+    component.selectedMonth
     );
 
     expect(component.budgets).toEqual([updatedBudget]);
@@ -279,6 +297,7 @@ describe('BudgetsPage', () => {
     budgetsApi.createBudget.mockReturnValueOnce(
       of(savedBudget)
     );
+    budgetsApi.getBudgets.mockReturnValue(of([savedBudget]));
 
     await component.saveBudget();
 

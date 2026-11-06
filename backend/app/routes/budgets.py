@@ -1,4 +1,5 @@
 
+import re
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
@@ -12,7 +13,7 @@ from app.auth_security import (
     get_authenticated_user_id,
 )
 from app.extensions import db
-from app.models import Budget, Transaction
+from app.models import Budget, BudgetMonthlyLimit, Transaction
 
 
 budgets_bp = Blueprint(
@@ -41,7 +42,6 @@ CATEGORY_LOOKUP = {
 }
 
 
-
 def parse_category(value):
     if not isinstance(value, str):
         raise ValueError("A valid category is required.")
@@ -54,7 +54,10 @@ def parse_category(value):
         if (
             not specific
             or len(specific) > 72
-            or any(ord(c) < 32 or ord(c) == 127 for c in specific)
+            or any(
+                ord(c) < 32 or ord(c) == 127
+                for c in specific
+            )
         ):
             raise ValueError(
                 "Please specify a valid category (1–72 characters)."
@@ -68,7 +71,6 @@ def parse_category(value):
         raise ValueError("Unsupported budget category.")
 
     return category
-
 
 
 def parse_monthly_limit(value):
@@ -103,12 +105,35 @@ def parse_monthly_limit(value):
         raise ValueError("Invalid monthly limit.")
 
 
-def current_month():
-    now = datetime.now(NZ_TIMEZONE)
-    year, month = now.year, now.month
+def current_month(month_value=None):
+    if month_value is None:
+        now = datetime.now(NZ_TIMEZONE)
+        year, month = now.year, now.month
+
+    else:
+        if (
+            not isinstance(month_value, str)
+            or not re.fullmatch(
+                r"[0-9]{4}-(0[1-9]|1[0-2])",
+                month_value,
+            )
+        ):
+            raise ValueError(
+                "Month must be in YYYY-MM format."
+            )
+
+        year, month = map(
+            int, month_value.split("-")
+        )
+
+        # Avoid datetime overflow at the lower boundary
+        # when converting Auckland time to UTC.
+        if year < 2 or year > 9998:
+            raise ValueError("Month is out of range.")
 
     start = datetime(
-        year, month, 1, tzinfo=NZ_TIMEZONE
+        year, month, 1,
+        tzinfo=NZ_TIMEZONE,
     )
 
     if month == 12:
@@ -171,16 +196,22 @@ def get_monthly_spending(user_id, start, end):
     }
 
 
-def serialize_budget(budget, spending):
+def serialize_budget(budget, spending, monthly_limit=None):
     spent = spending.get(
         budget.category.casefold(),
         Decimal("0.00"),
     )
 
+    effective_limit = (
+        monthly_limit
+        if monthly_limit is not None
+        else budget.monthly_limit
+    )
+
     return {
         "id": budget.id,
         "category": budget.category,
-        "monthlyLimit": str(budget.monthly_limit),
+        "monthlyLimit": str(effective_limit),
         "spent": str(spent),
         "createdAt": budget.created_at.isoformat(),
         "updatedAt": budget.updated_at.isoformat(),
@@ -202,7 +233,12 @@ def list_budgets():
             "error": "Authentication required."
         }), 401
 
-    month, start, end = current_month()
+    try:
+        month, start, end = current_month(
+            request.args.get("month")
+        )
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
 
     spending = get_monthly_spending(
         user_id, start, end
@@ -215,10 +251,33 @@ def list_budgets():
         .all()
     )
 
+    monthly_limits = {}
+
+    if budgets:
+        records = (
+            BudgetMonthlyLimit.query
+            .filter(
+                BudgetMonthlyLimit.budget_id.in_(
+                    [budget.id for budget in budgets]
+                ),
+                BudgetMonthlyLimit.month == month,
+            )
+            .all()
+        )
+
+        monthly_limits = {
+            record.budget_id: record.monthly_limit
+            for record in records
+        }
+
     return no_cache({
         "month": month,
         "budgets": [
-            serialize_budget(budget, spending)
+            serialize_budget(
+                budget,
+                spending,
+                monthly_limits.get(budget.id),
+            )
             for budget in budgets
         ],
         "count": len(budgets),
@@ -250,6 +309,9 @@ def create_budget():
         monthly_limit = parse_monthly_limit(
             data["monthlyLimit"]
         )
+        month, start, end = current_month(
+            request.args.get("month")
+        )
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
 
@@ -261,21 +323,34 @@ def create_budget():
 
     try:
         db.session.add(budget)
+        db.session.flush()
+
+        monthly_record = BudgetMonthlyLimit(
+            budget_id=budget.id,
+            month=month,
+            monthly_limit=monthly_limit,
+        )
+
+        db.session.add(monthly_record)
         db.session.commit()
+
     except IntegrityError:
         db.session.rollback()
         return jsonify({
             "error": "A budget for this category already exists."
         }), 409
 
-    _, start, end = current_month()
     spending = get_monthly_spending(
         user_id, start, end
     )
 
     return no_cache({
         "message": "Budget created successfully.",
-        "budget": serialize_budget(budget, spending),
+        "budget": serialize_budget(
+            budget,
+            spending,
+            monthly_record.monthly_limit,
+        ),
     }, 201)
 
 
@@ -303,21 +378,31 @@ def update_budget(budget_id):
         }), 400
 
     try:
+        month, start, end = current_month(
+            request.args.get("month")
+        )
+
         category = (
             parse_category(data["category"])
-            if "category" in data else None
+            if "category" in data
+            else None
         )
 
         monthly_limit = (
             parse_monthly_limit(data["monthlyLimit"])
-            if "monthlyLimit" in data else None
+            if "monthlyLimit" in data
+            else None
         )
+
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
 
     budget = (
         Budget.query
-        .filter_by(id=budget_id, user_id=user_id)
+        .filter_by(
+            id=budget_id,
+            user_id=user_id,
+        )
         .with_for_update()
         .first()
     )
@@ -330,23 +415,50 @@ def update_budget(budget_id):
     if category is not None:
         budget.category = category
 
+    monthly_record = (
+        BudgetMonthlyLimit.query
+        .filter_by(
+            budget_id=budget.id,
+            month=month,
+        )
+        .first()
+    )
+
     if monthly_limit is not None:
-        budget.monthly_limit = monthly_limit
+        if monthly_record is None:
+            monthly_record = BudgetMonthlyLimit(
+                budget_id=budget.id,
+                month=month,
+                monthly_limit=monthly_limit,
+            )
+            db.session.add(monthly_record)
+        else:
+            monthly_record.monthly_limit = monthly_limit
 
     try:
         db.session.commit()
+
     except IntegrityError:
         db.session.rollback()
         return jsonify({
             "error": "A budget for this category already exists."
         }), 409
 
-    _, start, end = current_month()
     spending = get_monthly_spending(
         user_id, start, end
     )
 
+    effective_limit = (
+        monthly_record.monthly_limit
+        if monthly_record is not None
+        else budget.monthly_limit
+    )
+
     return no_cache({
         "message": "Budget updated successfully.",
-        "budget": serialize_budget(budget, spending),
+        "budget": serialize_budget(
+            budget,
+            spending,
+            effective_limit,
+        ),
     })

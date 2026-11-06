@@ -53,74 +53,82 @@ export class BudgetsApiService {
   private readonly apiUrl =
     `${environment.apiUrl}/budgets`;
 
-  getBudgets(): Observable<BudgetRecord[]> {
+    getBudgets(month?: string): Observable<BudgetRecord[]> {
     return this.http.get<BudgetListResponse>(
-      this.apiUrl,
-      { withCredentials: true }
+        this.apiUrl,
+        {
+        withCredentials: true,
+        params: month ? { month } : {},
+        }
     ).pipe(
-      map(response =>
+        map(response =>
         response.budgets.map(budget =>
-          this.mapBudget(budget)
+            this.mapBudget(budget)
         )
-      )
+        )
     );
-  }
+    }
 
-  createBudget(
-    payload: CreateBudgetPayload
-  ): Observable<BudgetRecord> {
-    return this.write<BudgetResponse>(
-      'POST',
-      this.apiUrl,
-      {
-        category: payload.category,
-        monthlyLimit: payload.monthlyLimit.toFixed(2),
-      }
-    ).pipe(
-      map(response => this.mapBudget(response.budget))
-    );
-  }
+    createBudget(
+      payload: CreateBudgetPayload,
+      month?: string
+    ): Observable<BudgetRecord> {
+      return this.write<BudgetResponse>(
+        'POST',
+        this.apiUrl,
+        {
+          category: payload.category,
+          monthlyLimit: payload.monthlyLimit.toFixed(2),
+        },
+        month
+      ).pipe(
+        map(response => this.mapBudget(response.budget))
+      );
+    }
 
-  updateBudget(
-    id: string,
-    payload: UpdateBudgetPayload
-  ): Observable<BudgetRecord> {
-    const body = {
-      ...payload,
-      ...(payload.monthlyLimit !== undefined
-        ? {
-            monthlyLimit:
-              payload.monthlyLimit.toFixed(2),
-          }
-        : {}),
-    };
+    updateBudget(
+      id: string,
+      payload: UpdateBudgetPayload,
+      month?: string
+    ): Observable<BudgetRecord> {
+      const body = {
+        ...payload,
+        ...(payload.monthlyLimit !== undefined
+          ? {
+              monthlyLimit: payload.monthlyLimit.toFixed(2),
+            }
+          : {}),
+      };
 
-    return this.write<BudgetResponse>(
-      'PATCH',
-      `${this.apiUrl}/${encodeURIComponent(id)}`,
-      body
-    ).pipe(
-      map(response => this.mapBudget(response.budget))
-    );
-  }
+      return this.write<BudgetResponse>(
+        'PATCH',
+        `${this.apiUrl}/${encodeURIComponent(id)}`,
+        body,
+        month
+      ).pipe(
+        map(response => this.mapBudget(response.budget))
+      );
+    }
 
-  private write<T>(
-    method: 'POST' | 'PATCH',
-    url: string,
-    body: unknown
-  ): Observable<T> {
-    return this.auth.getCsrfToken().pipe(
-      switchMap(token =>
-        this.http.request<T>(method, url, {
-          body,
-          withCredentials: true,
-          headers: {
-            'X-CSRF-Token': token,
-          },
-        })
-      )
-    );
-  }
+    private write<T>(
+      method: 'POST' | 'PATCH',
+      url: string,
+      body: unknown,
+      month?: string
+    ): Observable<T> {
+      return this.auth.getCsrfToken().pipe(
+        switchMap(token =>
+          this.http.request<T>(method, url, {
+            body,
+            withCredentials: true,
+            params: month ? { month } : {},
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          })
+        )
+      );
+    }
 
   private mapBudget(dto: BudgetDto): BudgetRecord {
     return {
