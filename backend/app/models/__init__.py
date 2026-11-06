@@ -8,6 +8,7 @@ from app.extensions import db
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from app.models.budget import Budget
+from app.models.budget_monthly_limit import BudgetMonthlyLimit
 
 def utc_now():
     return datetime.now(timezone.utc)

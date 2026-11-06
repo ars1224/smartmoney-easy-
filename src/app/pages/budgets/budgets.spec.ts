@@ -127,11 +127,14 @@ describe('BudgetsPage', () => {
     };
 
     await component.saveBudget();
+    expect(budgetsApi.createBudget).toHaveBeenCalledWith(
+    {
+        category: 'Transport',
+        monthlyLimit: 250,
+    },
+    component.selectedMonth
+    );
 
-    expect(budgetsApi.createBudget).toHaveBeenCalledWith({
-      category: 'Transport',
-      monthlyLimit: 250,
-    });
 
     expect(component.budgets).toEqual([savedBudget]);
     expect(component.formError).toBe('');
@@ -161,10 +164,13 @@ describe('BudgetsPage', () => {
 
     await component.saveBudget();
 
-    expect(budgetsApi.createBudget).toHaveBeenCalledWith({
+    expect(budgetsApi.createBudget).toHaveBeenCalledWith(
+    {
         category: 'Other - Loan',
         monthlyLimit: 50000,
-    });
+    },
+    component.selectedMonth
+    );
 
     expect(budgetsApi.getBudgets).toHaveBeenCalledWith(
         component.selectedMonth
@@ -244,12 +250,14 @@ describe('BudgetsPage', () => {
 
     await component.saveBudget();
 
+
     expect(budgetsApi.updateBudget).toHaveBeenCalledWith(
-      'budget-1',
-      {
+    'budget-1',
+    {
         category: 'Groceries',
         monthlyLimit: 600,
-      }
+    },
+    component.selectedMonth
     );
 
     expect(component.budgets).toEqual([updatedBudget]);

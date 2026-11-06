@@ -301,15 +301,18 @@ async loadBudgets(): Promise<void> {
         monthlyLimit,
       };
 
-
-      await firstValueFrom(
-        this.editingBudgetId
-          ? this.budgetsApi.updateBudget(
-              this.editingBudgetId,
-              payload
-            )
-          : this.budgetsApi.createBudget(payload)
-      );
+    await firstValueFrom(
+      this.editingBudgetId
+        ? this.budgetsApi.updateBudget(
+            this.editingBudgetId,
+            payload,
+            this.selectedMonth
+          )
+        : this.budgetsApi.createBudget(
+            payload,
+            this.selectedMonth
+          )
+    );
 
       this.budgetDialog?.nativeElement.close();
       this.editingBudgetId = null;

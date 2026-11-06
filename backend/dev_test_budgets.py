@@ -369,6 +369,113 @@ def run_tests():
 
                 assert groceries["spent"] == expected_spent
 
+
+            # Verify independent budget limits for each month.
+            current_label, _, _ = current_month()
+
+            response = owner.patch(
+                f"/api/budgets/{budget_id}",
+                query_string={"month": previous_month},
+                json={"monthlyLimit": "300.00"},
+                headers=headers,
+            )
+            check(response, 200, "Update previous month's limit")
+
+            response = owner.patch(
+                f"/api/budgets/{budget_id}",
+                query_string={"month": current_label},
+                json={"monthlyLimit": "650.00"},
+                headers=headers,
+            )
+            check(response, 200, "Update current month's limit")
+
+            for selected_month, expected_limit in (
+                (previous_month, "300.00"),
+                (current_label, "650.00"),
+            ):
+                response = owner.get(
+                    "/api/budgets",
+                    query_string={"month": selected_month},
+                )
+                check(response, 200, "Retrieve saved monthly limit")
+
+                groceries = next(
+                    item
+                    for item in response.get_json()["budgets"]
+                    if item["category"] == "Groceries"
+                )
+
+                assert groceries["monthlyLimit"] == expected_limit, (
+                    selected_month,
+                    groceries,
+                )
+
+            print("PASS: Monthly budget limits are independent")
+
+
+            # Simulate an existing budget with no monthly overrides.
+            legacy_budget = Budget(
+                user_id=user_ids[0],
+                category="Shopping",
+                monthly_limit=Decimal("225.00"),
+            )
+
+            db.session.add(legacy_budget)
+            db.session.commit()
+
+            for selected_month in (
+                previous_month,
+                current_label,
+            ):
+                response = owner.get(
+                    "/api/budgets",
+                    query_string={"month": selected_month},
+                )
+
+                check(response, 200, "Read existing budget")
+
+                shopping = next(
+                    item
+                    for item in response.get_json()["budgets"]
+                    if item["category"] == "Shopping"
+                )
+
+                assert shopping["monthlyLimit"] == "225.00"
+
+            # Update the previous month only.
+            response = owner.patch(
+                f"/api/budgets/{legacy_budget.id}",
+                query_string={"month": previous_month},
+                json={"monthlyLimit": "275.00"},
+                headers=headers,
+            )
+
+            check(response, 200, "Update legacy budget month")
+
+            for selected_month, expected in (
+                (previous_month, "275.00"),
+                (current_label, "225.00"),
+            ):
+                response = owner.get(
+                    "/api/budgets",
+                    query_string={"month": selected_month},
+                )
+
+                shopping = next(
+                    item
+                    for item in response.get_json()["budgets"]
+                    if item["category"] == "Shopping"
+                )
+
+                assert shopping["monthlyLimit"] == expected
+
+            db.session.refresh(legacy_budget)
+            assert legacy_budget.monthly_limit == Decimal("225.00")
+
+            print("PASS: Existing budget defaults preserved")
+
+
+
             # Reject invalid month formats and values.
             invalid_months = [
                 "",
