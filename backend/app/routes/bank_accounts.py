@@ -245,6 +245,48 @@ def get_all_bank_transactions():
 
     return response, 200
 
+@bank_accounts_bp.delete("/transactions/imported")
+@csrf_required
+def delete_imported_bank_transactions():
+    user_id = get_authenticated_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Authentication required."
+        }), 401
+
+    try:
+        deleted_count = (
+            Transaction.query
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.source == "BANK",
+                Transaction.bank_account_id.isnot(None),
+            )
+            .delete(synchronize_session=False)
+        )
+
+        db.session.commit()
+
+    except Exception:
+        db.session.rollback()
+
+        current_app.logger.exception(
+            "Failed to remove imported bank transactions."
+        )
+
+        return jsonify({
+            "error": "Unable to remove imported bank transactions."
+        }), 500
+
+    response = jsonify({
+        "message": "Imported bank transactions removed successfully.",
+        "deleted_count": deleted_count,
+    })
+
+    response.headers["Cache-Control"] = "no-store"
+
+    return response, 200
 
 @bank_accounts_bp.post("/connections/<connection_id>/sync")
 @csrf_required
