@@ -46,11 +46,22 @@ def create_app():
             "origins": [
                 "http://localhost:8100",
                 "http://localhost:4200",
-            ]
+            ],
+            "methods": [
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS",
+            ],
+            "allow_headers": [
+                "Content-Type",
+                "X-CSRF-Token",
+            ],
         }
     },
     supports_credentials=True,
-    allow_headers=["Content-Type", "X-CSRF-Token"]
 )
 
     db.init_app(app)
