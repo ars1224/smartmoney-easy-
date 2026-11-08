@@ -1,9 +1,28 @@
-import { Component, ElementRef, HostListener, inject, ViewChild, } from '@angular/core';
+
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  inject,
+  OnInit,
+  ViewChild,
+} from '@angular/core';
 import { IonIcon } from '@ionic/angular';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import {
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet,
+} from '@angular/router';
 import { addIcons } from 'ionicons';
-import { bookOutline, homeOutline, logOutOutline, personOutline } from 'ionicons/icons';
+import {
+  bookOutline,
+  homeOutline,
+  logOutOutline,
+  personOutline,
+} from 'ionicons/icons';
 import { AuthService } from '../core/auth/auth.service';
+import { BankAutoSyncService } from '../core/bank/bank-auto-sync.service';
 
 interface NavigationItem {
   label: string;
@@ -19,9 +38,10 @@ interface NavigationItem {
   styleUrl: './app-shell.component.scss',
   imports: [IonIcon, RouterLink, RouterLinkActive, RouterOutlet],
 })
-export class AppShellComponent {
+export class AppShellComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly bankAutoSync = inject(BankAutoSyncService);
 
   thinkerOpen = false;
   isSettingsModalOpen = false;
@@ -46,6 +66,13 @@ export class AppShellComponent {
     addIcons({ bookOutline, homeOutline, logOutOutline, personOutline });
   }
 
+  ngOnInit(): void {
+    // Automatically synchronise connected banks
+    // when the authenticated application opens.
+    // Do not block the UI while synchronising.
+    void this.bankAutoSync.syncOnAppOpen();
+  }
+
   openLogoutModal(): void {
     this.logoutModalTrigger = document.activeElement as HTMLElement;
 
@@ -59,7 +86,7 @@ export class AppShellComponent {
   }
 
   closeLogoutModal(): void {
-    if (this.logoutLoading) {  
+    if (this.logoutLoading) {
       return;
     }
 
@@ -70,7 +97,6 @@ export class AppShellComponent {
       this.logoutModalTrigger = null;
     });
   }
-
 
   logout(): void {
     if (this.logoutLoading) {
@@ -130,8 +156,14 @@ export class AppShellComponent {
       return;
     }
 
+    const dialog = this.logoutDialog?.nativeElement;
+
+    if (!dialog) {
+      return;
+    }
+
     const focusableElements =
-      this.logoutDialog.nativeElement.querySelectorAll<HTMLElement>(
+      dialog.querySelectorAll<HTMLElement>(
         'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
       );
 
@@ -146,11 +178,12 @@ export class AppShellComponent {
     if (event.shiftKey && document.activeElement === firstElement) {
       event.preventDefault();
       lastElement.focus();
-    } else if (!event.shiftKey && document.activeElement === lastElement) {
+    } else if (
+      !event.shiftKey &&
+      document.activeElement === lastElement
+    ) {
       event.preventDefault();
       firstElement.focus();
     }
   }
-
-
 }

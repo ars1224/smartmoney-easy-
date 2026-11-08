@@ -1,9 +1,10 @@
 
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, map, switchMap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { AuthService } from '../auth/auth.service';
 
 export interface ConnectedBankAccount {
   id: string;
@@ -40,6 +41,8 @@ interface BankAccountsResponse {
 export class BankAccountsApiService {
   private readonly http = inject(HttpClient);
 
+  private readonly auth = inject(AuthService);
+
   private readonly apiUrl =
     `${environment.apiUrl}/bank/accounts`;
 
@@ -62,6 +65,26 @@ export class BankAccountsApiService {
           status: account.status,
           lastSyncedAt: account.last_synced_at,
         }))
+      )
+    );
+  }
+  syncConnection(connectionId: string): Observable<unknown> {
+    const url =
+      `${environment.apiUrl}/bank/connections/` +
+      `${encodeURIComponent(connectionId)}/sync`;
+
+    return this.auth.getCsrfToken().pipe(
+      switchMap(token =>
+        this.http.post<unknown>(
+          url,
+          {},
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
       )
     );
   }
