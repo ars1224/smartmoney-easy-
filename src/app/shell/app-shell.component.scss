@@ -458,6 +458,11 @@
   }
 }
 
+.settings-modal__actions button:focus {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 3px;
+}
+
 @keyframes modal-slide-in {
   from {
     opacity: 0;

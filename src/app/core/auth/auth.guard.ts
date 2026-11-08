@@ -1,4 +1,3 @@
-
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { map } from 'rxjs';
@@ -16,8 +15,8 @@ export const authGuard: CanActivateFn = (_route, state) => {
         : router.createUrlTree(['/auth/login'], {
             queryParams: {
               returnUrl: state.url,
-              sessionExpired: true,
-             },
+              sessionExpired: auth.sessionExpired() ? true : null,
+            },
           })
     )
   );

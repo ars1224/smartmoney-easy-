@@ -1,4 +1,4 @@
-import { Component, HostListener, inject } from '@angular/core';
+import { Component, ElementRef, HostListener, inject, ViewChild, } from '@angular/core';
 import { IonIcon } from '@ionic/angular';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { addIcons } from 'ionicons';
@@ -29,6 +29,11 @@ export class AppShellComponent {
   isLogoutModalOpen = false;
   logoutLoading = false;
 
+  private logoutModalTrigger: HTMLElement | null = null;
+
+  @ViewChild('logoutDialog')
+  logoutDialog!: ElementRef<HTMLElement>;
+
   readonly navigation: NavigationItem[] = [
     { label: 'Home', route: '/app/dashboard', iconName: 'home-outline' },
     { label: 'Activity', route: '/app/activity', icon: '↕' },
@@ -42,15 +47,28 @@ export class AppShellComponent {
   }
 
   openLogoutModal(): void {
+    this.logoutModalTrigger = document.activeElement as HTMLElement;
+
     this.isLogoutModalOpen = true;
+
+    setTimeout(() => {
+      this.logoutDialog?.nativeElement
+        ?.querySelector<HTMLElement>('button:not(:disabled)')
+        ?.focus();
+    });
   }
 
   closeLogoutModal(): void {
-    if (this.logoutLoading) {
+    if (this.logoutLoading) {  
       return;
     }
 
     this.isLogoutModalOpen = false;
+
+    setTimeout(() => {
+      this.logoutModalTrigger?.focus();
+      this.logoutModalTrigger = null;
+    });
   }
 
 
@@ -96,8 +114,43 @@ export class AppShellComponent {
 
   @HostListener('document:keydown.escape')
   closeThinkerWithEscape(): void {
+    if (this.isLogoutModalOpen) {
+      this.closeLogoutModal();
+      return;
+    }
+
     if (this.thinkerOpen) {
       this.closeThinker();
     }
   }
+
+  @HostListener('document:keydown', ['$event'])
+  trapLogoutModalFocus(event: KeyboardEvent): void {
+    if (!this.isLogoutModalOpen || event.key !== 'Tab') {
+      return;
+    }
+
+    const focusableElements =
+      this.logoutDialog.nativeElement.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+      );
+
+    if (focusableElements.length === 0) {
+      event.preventDefault();
+      return;
+    }
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    if (event.shiftKey && document.activeElement === firstElement) {
+      event.preventDefault();
+      lastElement.focus();
+    } else if (!event.shiftKey && document.activeElement === lastElement) {
+      event.preventDefault();
+      firstElement.focus();
+    }
+  }
+
+
 }
