@@ -381,3 +381,12 @@
     }
   }
 }
+
+/* Reports keeps the mobile Thinker action in reserved header space. */
+.reports-thinker { display: none; }
+@media (max-width: 63.999rem) {
+  .app-shell:has(app-reports) .thinker-fab { display: none; }
+  .app-shell:has(app-reports) .reports-thinker { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--sm-color-navy); color: var(--sm-color-on-dark); font: inherit; font-weight: 750; cursor: pointer; }
+  .app-shell:has(app-reports) .app-header__brand img { width: clamp(100px, 33vw, 150px); }
+  .app-shell:has(app-reports) .reports-thinker:focus-visible { outline: 3px solid var(--sm-color-teal); outline-offset: 2px; }
+}

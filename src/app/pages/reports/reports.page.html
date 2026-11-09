@@ -1,0 +1,88 @@
+<main class="reports-page">
+  <header class="page-heading">
+    <div><h1>Reports &amp; insights</h1><p>Monthly transaction report</p></div>
+    <a routerLink="/app/activity" class="activity-link" aria-label="View transactions">View transactions <span aria-hidden="true">↗</span></a>
+  </header>
+  <section class="filters" aria-label="Report filters">
+    <div class="month-picker">
+      <button type="button" aria-label="Previous month" [disabled]="month() === '1900-01'" (click)="moveMonth(-1)">‹</button>
+      <label><span>Period</span><input type="month" aria-label="Reporting month" min="1900-01" [max]="currentMonth" [ngModel]="month()" (ngModelChange)="selectMonth($event)" /></label>
+      <button type="button" aria-label="Next month" [disabled]="month() >= currentMonth" (click)="moveMonth(1)">›</button>
+    </div>
+    <label class="source-picker"><span>Source</span><select aria-label="Transaction source" [ngModel]="source()" (ngModelChange)="selectSource($event)"><option value="all">Cash + bank</option><option value="cash">Cash only</option><option value="bank">Bank only</option></select></label>
+    <app-sm-button label="Refresh report" variant="secondary" [loading]="loading()" (pressed)="load()" />
+  </section>
+  <div class="report-caption"><strong>{{ monthLabel() }}</strong><span>NZD · Saved transactions</span></div>
+  @if (loading()) {
+    <section class="state-card" role="status" aria-live="polite"><h2>Loading report</h2><p>Retrieving recorded transactions.</p></section>
+  } @else if (error()) {
+    <section class="state-card" role="alert"><h2>Report unavailable</h2><p>{{ error() }}</p><app-sm-button label="Try again" (pressed)="load()" /></section>
+  } @else if (report(); as data) {
+    @if (data.coverage === 'partial') {
+      <aside class="coverage" role="status"><details><summary>This report has exclusions <span>({{ data.excluded.foreignCurrency + data.excluded.reviewNeeded }} records)</span></summary><p>{{ data.excluded.foreignCurrency }} non-NZD and {{ data.excluded.reviewNeeded }} review-needed records are excluded. Details are in “How this report works”.</p></details></aside>
+    }
+    <section class="summary-section" aria-labelledby="summary-title">
+      <div class="section-heading"><h2 id="summary-title">Summary</h2><span>{{ data.transactionCount }} included transactions</span></div>
+      <div class="summary-grid" aria-label="Recorded monthly totals">
+        <article><h3>Recorded income</h3><strong class="stat-amount">{{ money(data.income) }}</strong><p>Excludes refunds</p></article>
+        <article><h3>Recorded expenses</h3><strong class="stat-amount">{{ money(data.expenses) }}</strong><p>Before refunds</p></article>
+        <article><h3>Refunds received</h3><strong class="stat-amount">{{ money(data.refunds) }}</strong><p>Separate from income</p></article>
+        <article class="net-total"><h3>Net cash flow</h3><strong class="stat-amount" [class.negative]="+data.netCashFlow < 0">{{ money(data.netCashFlow) }}</strong><p>Income + refunds − expenses</p></article>
+      </div>
+      <p class="cash-flow-note">{{ cashFlowExplanation(data.netCashFlow) }} <span>Not an available balance or expected income.</span></p>
+    </section>
+    @if (!data.transactionCount) {
+      <section class="state-card empty"><h2>No included transactions this month</h2><p>Choose another period or source, or add transactions in Activity.</p><a routerLink="/app/activity">Go to Activity →</a></section>
+    } @else {
+      <div class="chart-grid">
+        <section class="report-panel" aria-labelledby="flow-title">
+          <div class="panel-heading"><h2 id="flow-title">Cash flow</h2><div class="legend" aria-hidden="true"><span><i class="income-key"></i>Income</span><span><i class="expense-key"></i>Expenses</span></div></div>
+          <p class="panel-description">Income and expenses by date · NZD</p>
+          <div class="chart-plot">
+            <div class="y-axis" aria-hidden="true">@for (tick of chartTicks(); track tick) {<span>{{ axisLabel(tick) }}</span>}</div>
+            <div class="flow-chart" role="img" aria-label="Grouped bars compare income and expenses by days of the month. Exact figures are in the table below.">
+              @for (week of weeks(); track week.label) {<div class="flow-group"><div class="bar-pair"><span class="income-bar" [style.height.%]="bar(week.income)"></span><span class="expense-bar" [style.height.%]="bar(week.expenses)"></span></div><span class="day-label">{{ week.label }}</span></div>}
+            </div>
+          </div>
+          <p class="x-axis">Days of the month</p>
+          <details class="chart-data"><summary>View chart figures</summary><div class="table-wrap"><table><caption>Days in {{ monthLabel() }} · NZD</caption><thead><tr><th scope="col">Days</th><th scope="col">Income</th><th scope="col">Expenses</th><th scope="col">Refunds</th></tr></thead><tbody>@for (week of weeks(); track week.label) {<tr><th scope="row">{{ week.label }}</th><td>{{ money(week.income) }}</td><td>{{ money(week.expenses) }}</td><td>{{ money(week.refunds) }}</td></tr>}</tbody></table></div></details>
+        </section>
+        <section class="report-panel" aria-labelledby="category-title">
+          <div class="panel-heading"><h2 id="category-title">Expense breakdown</h2><span class="muted">{{ data.categories.length }} categories</span></div>
+          <p class="panel-description">Select a category to view its transactions.</p>
+          <table class="category-table"><caption class="sr-only">Recorded expenses by category, before refunds</caption><thead><tr><th scope="col">Category</th><th scope="col">Amount</th><th scope="col">Share</th></tr></thead><tbody>
+            @for (category of data.categories; track category.name) {
+              <tr><th scope="row"><button class="category-open" type="button" [attr.aria-label]="'View ' + category.name + ' transactions'" (click)="openCategory(category.name, $event)"><i [attr.data-tone]="categoryTone(category.name)" aria-hidden="true"></i>{{ category.name }} <span aria-hidden="true">›</span></button><small>{{ category.count }} {{ category.count === 1 ? 'transaction' : 'transactions' }}</small></th><td>{{ money(category.amount) }}</td><td><span>{{ category.percentage.toFixed(1) }}%</span><div class="category-track" [attr.data-tone]="categoryTone(category.name)" aria-hidden="true"><span [style.width.%]="category.percentage"></span></div></td></tr>
+            } @empty {<tr><td colspan="3">No expense transactions.</td></tr>}
+          </tbody>@if (data.categories.length) {<tfoot><tr><th scope="row">Total expenses</th><td>{{ money(data.expenses) }}</td><td>100%</td></tr></tfoot>}</table>
+        </section>
+      </div>
+      <section class="report-notes" aria-labelledby="notes-title"><h2 id="notes-title">Report notes</h2><ul>
+        @if (topCategory(); as top) {<li>{{ top.name }} was the largest expense category: <strong>{{ money(top.amount) }}</strong> ({{ top.percentage.toFixed(1) }}%).</li>}
+        <li>{{ data.uncategorisedCount }} {{ data.uncategorisedCount === 1 ? 'expense transaction is' : 'expense transactions are' }} uncategorised and included in the totals. <a routerLink="/app/activity">Review transactions</a></li>
+      </ul></section>
+    }
+    <details class="methodology"><summary>How this report works</summary><div>
+      <p><strong>Recorded money movement, not your available bank balance or expected pay.</strong> This report uses saved transactions for the selected source and New Zealand calendar month. Refresh after syncing or changing transactions.</p>
+      <p>Excluded: {{ data.excluded.transfers }} identified transfers, {{ data.excluded.reviewNeeded }} records requiring review, and {{ data.excluded.foreignCurrency }} non-NZD records. No currency conversion is applied. Descriptions alone do not confirm a transfer.</p>
+      <p>Positive bank inflows are recorded income unless identified as refunds or transfers. Refunds are separate from income. Category totals and percentages use expenses before refunds; missing categories appear as Uncategorised. Category colours do not indicate budget status.</p>
+      <a routerLink="/app/activity">View source transactions →</a>
+    </div></details>
+  }
+</main>
+
+<dialog #categoryDialog class="category-dialog" aria-labelledby="category-dialog-title" (close)="categoryClosed()">
+  <header><div><p class="eyebrow">Transactions behind the total</p><h2 id="category-dialog-title">{{ selectedCategory() }}</h2><p>{{ monthLabel() }} · {{ source() === 'all' ? 'Cash + bank' : (source() === 'cash' ? 'Cash only' : 'Bank only') }}</p></div><button type="button" class="detail-close" autofocus aria-label="Close category transactions" (click)="closeCategory()">×</button></header>
+  <div aria-live="polite" [attr.aria-busy]="categoryLoading()">
+    @if (categoryLoading()) {<p role="status">Loading transactions…</p>}
+    @else if (categoryError()) {<div role="alert"><p>{{ categoryError() }}</p><app-sm-button label="Try again" (pressed)="loadCategory()" /></div>}
+    @else if (categoryReport(); as detail) {
+      <p class="detail-total">Recorded expenses <strong>{{ money(detail.total) }}</strong></p>
+      <p class="detail-note">Outflows are negative below. Their absolute amounts add up to this total. Refunds and excluded records are not included.</p>
+      <ul class="detail-list">@for (entry of detail.transactions; track entry.id) {
+        <li><div><strong>{{ entry.description }}</strong><small><time [attr.datetime]="entry.date" [title]="'Original date: ' + entry.date">{{ dateLabel(entry.reportDate) }}</time> · {{ entry.source === 'cash' ? 'Cash' : 'Bank' }}</small></div><span>{{ originalAmount(entry.amount, entry.currency) }}</span></li>
+      } @empty {<li>No matching expense transactions remain. Close and refresh the report if your transactions changed.</li>}</ul>
+    }
+  </div>
+  <footer><app-sm-button label="Back to report" variant="secondary" (pressed)="closeCategory()" /></footer>
+</dialog>
