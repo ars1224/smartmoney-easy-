@@ -102,7 +102,7 @@ tfoot th,tfoot td { font-weight: 650; border-bottom: 0; padding-top: 1rem; }
  .source-picker { min-width: 0; }
  .source-picker select { width: 100%; min-width: 0; }
  .filters app-sm-button { margin: 0; }
- 
+
  .section-heading { padding: .85rem; }
  .summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
  .summary-grid article { padding: 1rem .85rem; border-bottom: 1px solid var(--sm-color-border); }
@@ -111,7 +111,7 @@ tfoot th,tfoot td { font-weight: 650; border-bottom: 0; padding-top: 1rem; }
  .stat-amount { font-size: 1.4rem; }
  .cash-flow-note { padding: .75rem .85rem; line-height: 1.6; }
  .report-panel { padding: 1rem .85rem; }
- 
+
  .panel-heading { flex-wrap: wrap; }
  .y-axis,.bar-pair { height: 160px; }
  .flow-chart { gap: .35rem; background-size: auto 40px; }
