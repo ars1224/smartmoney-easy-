@@ -115,8 +115,8 @@ export const routes: Routes = [
       {
         path: 'reports',
         loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page')
-            .then((m) => m.RoutePlaceholderPage),
+          import('./pages/reports/reports.page')
+            .then((m) => m.ReportsPage),
         data: {
           eyebrow: 'Understand patterns',
           title: 'Reports & insights',
