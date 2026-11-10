@@ -56,7 +56,7 @@ export class RegisterPage {
       .register(name, email, password)
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: () => void this.router.navigateByUrl('/app/dashboard'),
+        next: () => void this.router.navigateByUrl('/onboarding'),
         error: (error: Error) => this.serverError.set(error.message),
       });
   }

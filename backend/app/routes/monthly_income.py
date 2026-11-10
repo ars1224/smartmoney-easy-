@@ -10,12 +10,15 @@ from app.auth_security import (
 )
 from app.extensions import db
 
+from app.services.nz_payroll import estimate_nz_payroll
+
 
 from app.models import (
     Budget,
     BudgetMonthlyLimit,
     MonthlyIncomePlan,
     RegularIncomeProfile,
+    PayrollSettings,
 )
 
 from app.services.regular_income import (
@@ -24,6 +27,9 @@ from app.services.regular_income import (
 
 
 from app.routes.budgets import current_month
+
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 monthly_income_bp = Blueprint(
@@ -155,9 +161,51 @@ def get_monthly_income():
             )
             income_source = "REGULAR"
 
+
         else:
-            expected = None
-            income_source = "NOT_SET"
+            # New onboarding users may have payroll settings
+            # without a legacy regular income profile.
+            payroll = db.session.get(
+                PayrollSettings,
+                user_id,
+            )
+
+            if payroll is not None:
+                pay_date = datetime.now(
+                    ZoneInfo("Pacific/Auckland")
+                ).date()
+
+                try:
+                    estimate = estimate_nz_payroll(
+                        income_type=payroll.income_type,
+                        gross_amount=payroll.gross_amount,
+                        pay_frequency=payroll.pay_frequency,
+                        hours_per_week=payroll.hours_per_week,
+                        tax_code=payroll.tax_code,
+                        kiwisaver_rate=payroll.kiwisaver_rate,
+                        has_student_loan=payroll.has_student_loan,
+                        pay_date=pay_date,
+                    )
+
+                    expected = Decimal(
+                        str(estimate["estimatedMonthlyNet"])
+                    )
+
+                except (ValueError, KeyError, TypeError):
+                    return no_cache({
+                        "error": (
+                            "Unable to calculate your payroll "
+                            "take-home estimate. Please review "
+                            "your payroll settings."
+                        )
+                    }, 422)
+
+                income_source = "PAYROLL"
+
+            else:
+                expected = None
+                income_source = "NOT_SET"
+
 
     unallocated = (
         expected - allocated

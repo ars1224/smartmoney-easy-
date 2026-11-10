@@ -120,7 +120,7 @@
 
 .budget-card,
 .budget-empty,
-.income-overview {
+.income-overview{
   background: var(--sm-color-surface);
   border: 1px solid var(--sm-color-border);
   border-radius: var(--sm-radius-lg);
@@ -140,18 +140,13 @@
 /* =========================================
    MONTHLY BUDGET OVERVIEW
 ========================================= */
-
 .income-overview {
-  margin-bottom: 1.5rem;
   padding: clamp(1rem, 2.5vw, 1.5rem);
 }
 
-
 .budgets-layout > .income-overview {
   grid-column: 1 / -1;
-  margin-bottom: 0;
 }
-
 
 .income-overview-heading {
   display: flex;
@@ -188,7 +183,6 @@
   border: 1px solid var(--sm-color-border);
   border-radius: var(--sm-radius-md);
 }
-
 .income-overview-stat h3 {
   margin: 0 0 0.75rem;
   color: var(--sm-color-text-muted);
@@ -703,13 +697,4 @@
     padding-inline: 0.5rem;
     font-size: 0.75rem;
   }
-
-
-  .budget-cancel-btn,
-  .budget-save-btn {
-    padding-inline: 0.5rem;
-    font-size: 0.75rem;
-  }
-
-
 }

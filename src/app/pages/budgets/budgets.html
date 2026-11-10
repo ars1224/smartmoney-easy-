@@ -138,6 +138,19 @@
 </section>
 
 
+
+<app-monthly-allocation
+  [monthLabel]="selectedMonthLabel"
+  [allocation]="budgetAllocation"
+  [amounts]="allocationAmounts"
+  [loading]="allocationLoading"
+  [incomeLoading]="incomeLoading"
+  [error]="allocationError"
+  (retry)="loadAllocation()"
+></app-monthly-allocation>
+
+
+
     <section
       class="budget-list"
       aria-label="Monthly budget categories"

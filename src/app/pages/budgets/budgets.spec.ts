@@ -1,6 +1,5 @@
-
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import {
   describe,
   beforeEach,
@@ -15,6 +14,11 @@ import { BudgetsApiService } from '../../core/services/budgets-api.service';
 import { MonthlyIncomeApiService } from
   '../../core/services/monthly-income-api.service';
 
+  import {
+  BudgetAllocationsApiService,
+} from '../../core/services/budget-allocations-api.service';
+
+import { provideRouter } from '@angular/router';
 
 describe('BudgetsPage', () => {
   let component: BudgetsPage;
@@ -25,6 +29,10 @@ describe('BudgetsPage', () => {
     updateBudget: vi.fn(),
   };
 
+  const allocationsApi = {
+  getAllocation: vi.fn(),
+  saveAllocation: vi.fn(),
+};
 
 const incomeApi = {
   getSummary: vi.fn(),
@@ -35,19 +43,32 @@ const incomeApi = {
     vi.clearAllMocks();
     budgetsApi.getBudgets.mockReturnValue(of([]));
 
-    TestBed.configureTestingModule({
-      providers: [
-        {
-          provide: BudgetsApiService,
-          useValue: budgetsApi,
-        },
-        {
-        provide: MonthlyIncomeApiService,
-        useValue: incomeApi,
-        },
+    allocationsApi.getAllocation.mockReturnValue(
+    of({
+        month: '2026-11',
+        allocation: null,
+    })
+    );
 
-      ],
-    });
+
+TestBed.configureTestingModule({
+  providers: [
+    provideRouter([]),
+    {
+      provide: BudgetsApiService,
+      useValue: budgetsApi,
+    },
+    {
+      provide: MonthlyIncomeApiService,
+      useValue: incomeApi,
+    },
+    {
+      provide: BudgetAllocationsApiService,
+      useValue: allocationsApi,
+    },
+  ],
+});
+
 
     incomeApi.getSummary.mockReturnValue(of({
     month: '2026-11',
@@ -348,5 +369,196 @@ const incomeApi = {
     expect(component.budgets).toEqual([]);
     expect(component.isLoading).toBe(false);
   });
+
+it('loads the saved monthly allocation', async () => {
+  const month = component.selectedMonth;
+
+  const allocation = {
+    needsPercent: 55,
+    savingsPercent: 25,
+    wantsPercent: 20,
+  };
+
+  allocationsApi.getAllocation.mockReturnValue(
+    of({ month, allocation })
+  );
+
+  await component.loadAllocation();
+
+  expect(allocationsApi.getAllocation)
+    .toHaveBeenCalledWith(month);
+
+  expect(component.budgetAllocation).toEqual(
+    allocation
+  );
+
+  expect(component.allocationLoading).toBe(false);
+  expect(component.allocationError).toBe('');
+});
+
+it('calculates allocation amounts with exact cent totals', () => {
+  component.incomeSummary = {
+    month: '2026-11',
+    expectedIncome: 3345.81,
+    allocatedBudget: 0,
+    unallocatedBudget: 3345.81,
+  };
+
+  component.budgetAllocation = {
+    needsPercent: 55,
+    savingsPercent: 25,
+    wantsPercent: 20,
+  };
+
+  const amounts = component.allocationAmounts;
+
+  expect(amounts).toEqual({
+    needs: 1840.20,
+    savings: 836.45,
+    wants: 669.16,
+  });
+
+  expect(
+    Math.round(
+      (
+        amounts!.needs +
+        amounts!.savings +
+        amounts!.wants
+      ) * 100
+    )
+  ).toBe(334581);
+});
+
+it('handles a month without a saved allocation', async () => {
+  allocationsApi.getAllocation.mockReturnValue(
+    of({
+      month: component.selectedMonth,
+      allocation: null,
+    })
+  );
+
+  await component.loadAllocation();
+
+  expect(component.budgetAllocation).toBeNull();
+  expect(component.allocationAmounts).toBeNull();
+  expect(component.allocationError).toBe('');
+});
+
+it('recovers from a failed allocation request', async () => {
+  allocationsApi.getAllocation.mockReturnValueOnce(
+    throwError(() => new Error('Network unavailable'))
+  );
+
+  await component.loadAllocation();
+
+  expect(component.allocationError).toBe(
+    'Unable to load your monthly allocation.'
+  );
+
+  expect(component.allocationLoading).toBe(false);
+  expect(component.budgetAllocation).toBeNull();
+
+  allocationsApi.getAllocation.mockReturnValueOnce(
+    of({
+      month: component.selectedMonth,
+      allocation: {
+        needsPercent: 55,
+        savingsPercent: 25,
+        wantsPercent: 20,
+      },
+    })
+  );
+
+  await component.loadAllocation();
+
+  expect(component.allocationError).toBe('');
+  expect(component.budgetAllocation?.needsPercent).toBe(55);
+  expect(component.allocationLoading).toBe(false);
+});
+
+
+it('loads the correct allocation when switching months', async () => {
+  const novemberAllocation = {
+    needsPercent: 55,
+    savingsPercent: 25,
+    wantsPercent: 20,
+  };
+
+  allocationsApi.getAllocation.mockImplementation(
+    (month: string) => of({
+      month,
+      allocation:
+        month === '2026-11' ? novemberAllocation : null,
+    })
+  );
+
+  component.selectedMonth = '2026-10';
+  component.isLoading = false;
+
+  await component.loadAllocation();
+
+  expect(component.budgetAllocation).toBeNull();
+
+  component.changeMonth(1);
+
+  await vi.waitFor(() => {
+    expect(component.selectedMonth).toBe('2026-11');
+
+    expect(component.budgetAllocation).toEqual(
+      novemberAllocation
+    );
+  });
+
+  expect(allocationsApi.getAllocation)
+    .toHaveBeenLastCalledWith('2026-11');
+});
+
+it('ignores outdated allocation responses', async () => {
+  const octoberResponse = new Subject<any>();
+  const novemberResponse = new Subject<any>();
+
+  allocationsApi.getAllocation.mockImplementation(
+    (month: string) =>
+      month === '2026-10'
+        ? octoberResponse.asObservable()
+        : novemberResponse.asObservable()
+  );
+
+  component.selectedMonth = '2026-10';
+  const firstRequest = component.loadAllocation();
+
+  component.selectedMonth = '2026-11';
+  const secondRequest = component.loadAllocation();
+
+  const novemberAllocation = {
+    needsPercent: 55,
+    savingsPercent: 25,
+    wantsPercent: 20,
+  };
+
+  novemberResponse.next({
+    month: '2026-11',
+    allocation: novemberAllocation,
+  });
+  novemberResponse.complete();
+
+  await secondRequest;
+
+  octoberResponse.next({
+    month: '2026-10',
+    allocation: null,
+  });
+  octoberResponse.complete();
+
+  await firstRequest;
+
+  expect(component.selectedMonth).toBe('2026-11');
+  expect(component.budgetAllocation).toEqual(
+    novemberAllocation
+  );
+  expect(component.allocationLoading).toBe(false);
+  expect(component.allocationError).toBe('');
+});
+
 
 });
