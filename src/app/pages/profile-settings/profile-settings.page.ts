@@ -803,10 +803,21 @@ async saveRegularIncome(): Promise<void> {
       })
     );
 
-    this.regularIncomeProfile = saved;
+        this.regularIncomeProfile = saved;
 
+    // The regular income save succeeded.
     this.regularIncomeMessage =
       'Regular income saved successfully.';
+
+    // Refresh the monthly summary after saving.
+    if (this.activeModal === 'expected-income') {
+      await this.loadExpectedIncome();
+
+      if (this.incomeError) {
+        this.regularIncomeMessage =
+          'Regular income was saved, but the monthly summary could not be refreshed. Please use Reload income.';
+      }
+    }
 
   } catch (error: unknown) {
     this.regularIncomeError =
@@ -820,6 +831,5 @@ async saveRegularIncome(): Promise<void> {
     this.cdr.detectChanges();
   }
 }
-
 
 }

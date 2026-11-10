@@ -9,6 +9,9 @@ import { AuthService } from '../../core/auth/auth.service';
 import { RegularIncomeApiService } from
   '../../core/services/regular-income-api.service';
 
+import { MonthlyIncomeApiService } from
+  '../../core/services/monthly-income-api.service';
+
 
 
 describe('ProfileSettingsPage logout recovery', () => {
@@ -42,6 +45,11 @@ describe('ProfileSettingsPage logout recovery', () => {
     saveProfile: vi.fn(),
   };
 
+  const monthlyIncomeMock = {
+  getSummary: vi.fn(),
+  saveExpectedIncome: vi.fn(),
+};
+
   const savedHourlyProfile = {
     incomeType: 'HOURLY' as const,
     amount: 28.20,
@@ -57,6 +65,19 @@ describe('ProfileSettingsPage logout recovery', () => {
 
     vi.clearAllMocks();
 
+    monthlyIncomeMock.getSummary.mockReturnValue(
+      of({
+        month: '2026-11',
+        expectedIncome: 6000,
+        allocatedBudget: 0,
+        unallocatedBudget: 6000,
+      })
+    );
+
+    monthlyIncomeMock.saveExpectedIncome.mockReturnValue(
+      of(undefined)
+    );
+
     regularIncomeMock.getProfile.mockReturnValue(of(null));
     regularIncomeMock.saveProfile.mockReturnValue(
       of(savedHourlyProfile)
@@ -71,6 +92,10 @@ describe('ProfileSettingsPage logout recovery', () => {
         {
           provide: RegularIncomeApiService,
           useValue: regularIncomeMock,
+        },
+        {
+          provide: MonthlyIncomeApiService,
+          useValue: monthlyIncomeMock,
         },
       ],
     }).compileComponents();
@@ -240,6 +265,130 @@ it('allows retry after regular income save fails', async () => {
     .toContain('saved successfully');
 
   expect(component.regularIncomeSaving).toBe(false);
+});
+
+it('saves regular pay without creating a monthly override', async () => {
+  // Create a fresh component so the correct modal
+  // is selected before its first render.
+  fixture.destroy();
+
+  fixture = TestBed.createComponent(ProfileSettingsPage);
+  component = fixture.componentInstance;
+
+  component.activeModal = 'expected-income';
+  component.incomeMonth = '2026-11';
+  component.incomeAmount = 4000;
+
+  component.regularIncomeType = 'SALARY';
+  component.regularIncomeAmount = 6000;
+  component.regularPayFrequency = 'MONTHLY';
+
+  regularIncomeMock.saveProfile.mockReturnValueOnce(
+    of({
+      incomeType: 'SALARY',
+      amount: 6000,
+      payFrequency: 'MONTHLY',
+      hoursPerWeek: null,
+      monthlyEstimate: 6000,
+    })
+  );
+
+  fixture.detectChanges();
+
+  const regularForm = fixture.nativeElement.querySelector(
+    '.regular-income-section form'
+  ) as HTMLFormElement | null;
+
+  expect(regularForm).not.toBeNull();
+  expect(regularForm!.parentElement?.closest('form'))
+    .toBeNull();
+
+  regularForm!.dispatchEvent(
+    new Event('submit', {
+      bubbles: true,
+      cancelable: true,
+    })
+  );
+
+  await vi.waitFor(() => {
+    expect(regularIncomeMock.saveProfile)
+      .toHaveBeenCalledTimes(1);
+
+    expect(monthlyIncomeMock.getSummary)
+      .toHaveBeenCalledWith('2026-11');
+
+    expect(component.incomeSummary?.expectedIncome)
+      .toBe(6000);
+  });
+
+  expect(monthlyIncomeMock.saveExpectedIncome)
+    .not.toHaveBeenCalled();
+});
+
+it('preserves a saved monthly override after regular pay changes', async () => {
+  component.activeModal = 'expected-income';
+  component.incomeMonth = '2026-11';
+
+  component.regularIncomeType = 'SALARY';
+  component.regularIncomeAmount = 6000;
+  component.regularPayFrequency = 'MONTHLY';
+
+  // An existing monthly override takes priority.
+  monthlyIncomeMock.getSummary.mockReturnValueOnce(
+    of({
+      month: '2026-11',
+      expectedIncome: 4000,
+      allocatedBudget: 0,
+      unallocatedBudget: 4000,
+    })
+  );
+
+  await component.saveRegularIncome();
+
+  expect(monthlyIncomeMock.getSummary)
+    .toHaveBeenCalledWith('2026-11');
+
+  expect(component.incomeSummary?.expectedIncome)
+    .toBe(4000);
+
+  expect(monthlyIncomeMock.saveExpectedIncome)
+    .not.toHaveBeenCalled();
+});
+
+it('reports a refresh failure without losing a successful regular pay save', async () => {
+  component.activeModal = 'expected-income';
+  component.incomeMonth = '2026-11';
+
+  component.regularIncomeType = 'HOURLY';
+  component.regularIncomeAmount = 28.20;
+  component.regularHoursPerWeek = 40;
+
+  monthlyIncomeMock.getSummary.mockReturnValueOnce(
+    throwError(() => new Error('Monthly income API unavailable'))
+  );
+
+  await component.saveRegularIncome();
+
+  expect(regularIncomeMock.saveProfile)
+    .toHaveBeenCalledTimes(1);
+
+  expect(monthlyIncomeMock.getSummary)
+    .toHaveBeenCalledWith('2026-11');
+
+  expect(component.regularIncomeProfile)
+    .toEqual(savedHourlyProfile);
+
+  expect(component.regularIncomeMessage)
+    .toContain('was saved, but the monthly summary');
+
+  expect(component.incomeError)
+    .toContain('Unable to load expected income');
+
+  expect(component.regularIncomeError).toBe('');
+  expect(component.regularIncomeSaving).toBe(false);
+
+  expect(monthlyIncomeMock.saveExpectedIncome)
+    .not.toHaveBeenCalled();
 });
 
 });
