@@ -23,6 +23,20 @@ savings_goals_bp = Blueprint(
 MAX_AMOUNT = Decimal("999999999999.99")
 CENT = Decimal("0.01")
 
+VALID_GOAL_GROUPS = {"NEEDS", "WANTS", "SAVINGS"}
+
+
+def parse_goal_group(value):
+    if not isinstance(value, str):
+        raise ValueError("Goal group must be text.")
+
+    if value not in VALID_GOAL_GROUPS:
+        raise ValueError(
+            "Goal group must be NEEDS, WANTS or SAVINGS."
+        )
+
+    return value
+
 
 def serialize_goal(goal):
     return {
@@ -33,6 +47,7 @@ def serialize_goal(goal):
         "targetDate": goal.target_date.isoformat(),
         "createdAt": goal.created_at.isoformat(),
         "updatedAt": goal.updated_at.isoformat(),
+        "group": goal.goal_group,
     }
 
 
@@ -144,6 +159,10 @@ def create_savings_goal():
             data.get("targetAmount")
         )
 
+        goal_group = parse_goal_group(
+            data.get("group", "SAVINGS")
+        )
+
         saved_amount = parse_amount(
             data.get("savedAmount", 0),
             allow_zero=True,
@@ -161,6 +180,7 @@ def create_savings_goal():
     goal = SavingsGoal(
         user_id=user_id,
         name=name,
+        goal_group=goal_group,
         target_amount=target_amount,
         saved_amount=saved_amount,
         target_date=target_date,
@@ -198,6 +218,7 @@ def update_savings_goal(goal_id):
 
     allowed = {
         "name",
+        "group",
         "targetAmount",
         "savedAmount",
         "targetDate",
@@ -237,6 +258,12 @@ def update_savings_goal(goal_id):
                 )
 
             changes["name"] = name
+
+        # Group classification can be updated independently.
+        if "group" in data:
+            changes["goal_group"] = parse_goal_group(
+                data["group"]
+            )
 
         if "targetAmount" in data:
             changes["target_amount"] = parse_amount(

@@ -31,6 +31,13 @@ class SavingsGoal(db.Model):
         nullable=False,
     )
 
+    goal_group = db.Column(
+    db.String(10),
+    nullable=False,
+    default="SAVINGS",
+    server_default="SAVINGS",
+)
+
     target_amount = db.Column(
         db.Numeric(14, 2),
         nullable=False,
@@ -69,6 +76,11 @@ class SavingsGoal(db.Model):
         db.CheckConstraint(
             "saved_amount >= 0",
             name="ck_savings_goals_saved_nonnegative",
+        ),
+
+        db.CheckConstraint(
+            "goal_group IN ('NEEDS', 'WANTS', 'SAVINGS')",
+            name="ck_savings_goals_group",
         ),
     )
 
