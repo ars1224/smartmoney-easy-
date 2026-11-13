@@ -1,3 +1,4 @@
+
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map, switchMap } from 'rxjs';
@@ -195,6 +196,31 @@ export class BankAccountsApiService {
           budgetGroupOverride:
             transaction.budget_group_override ?? null,
         }))
+      )
+    );
+  }
+
+  deleteImportedTransactions(): Observable<{
+    message: string;
+    deleted_count: number;
+  }> {
+    const url =
+      `${environment.apiUrl}/bank/transactions/imported`;
+
+    return this.auth.getCsrfToken().pipe(
+      switchMap(token =>
+        this.http.delete<{
+          message: string;
+          deleted_count: number;
+        }>(
+          url,
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
       )
     );
   }
