@@ -19,11 +19,44 @@ from app.services.mock_bank_authorized import (
 
 from datetime import datetime, timezone
 
+from app.services.transaction_categorizer import (
+    classify_budget_group,
+)
+from app.services.transaction_backfill import (
+    backfill_bank_categories,
+)
+
 bank_accounts_bp = Blueprint(
     "bank_accounts",
     __name__,
     url_prefix="/api/bank"
 )
+
+
+def effective_budget_group(transaction):
+    """Respect a manual override before automatic classification."""
+
+    override = transaction.budget_group_override
+
+    if override == "NONE":
+        return None
+
+    if override in ("NEEDS", "WANTS", "SAVINGS"):
+        return override
+
+    return classify_budget_group(transaction.category)
+
+def effective_budget_group(transaction):
+    override = transaction.budget_group_override
+
+    if override == "NONE":
+        return None
+
+    if override in ("NEEDS", "WANTS", "SAVINGS"):
+        return override
+
+    return classify_budget_group(transaction.category)
+
 
 
 @bank_accounts_bp.get("/connections/pending")
@@ -229,6 +262,8 @@ def get_all_bank_transactions():
                 "bank_account_id": transaction.bank_account_id,
                 "description": transaction.description,
                 "category": transaction.category,
+                "budget_group": effective_budget_group(transaction),
+                "budget_group_override": transaction.budget_group_override,
                 "amount": str(transaction.amount),
                 "currency": transaction.currency,
                 "transaction_type": transaction.transaction_type,
@@ -259,6 +294,92 @@ BANK_TRANSACTION_CATEGORIES = {
 }
 
 
+@bank_accounts_bp.get(
+    "/transactions/categories/backfill/preview"
+)
+def preview_bank_category_backfill():
+    user_id = get_authenticated_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Authentication required."
+        }), 401
+
+    result = backfill_bank_categories(
+        user_id,
+        include_legacy=True,
+        apply=False,
+    )
+
+    return jsonify(result), 200
+
+
+@bank_accounts_bp.post(
+    "/transactions/categories/backfill/apply"
+)
+@csrf_required
+def apply_bank_category_backfill():
+    user_id = get_authenticated_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Authentication required."
+        }), 401
+
+
+    data = request.get_json(silent=True)
+
+    if (
+        not isinstance(data, dict)
+        or "category" not in data
+        or not set(data).issubset({
+            "category",
+            "budget_group_override",
+        })
+    ):
+        return jsonify({
+            "error": (
+                "Only category and budget group "
+                "override may be updated."
+            )
+        }), 400
+
+    allowed_groups = {"NEEDS", "WANTS", "SAVINGS", "NONE"}
+
+    if "budget_group_override" in data:
+        requested_group = data["budget_group_override"]
+
+        if (
+            requested_group is not None
+            and requested_group not in allowed_groups
+        ):
+            return jsonify({
+                "error": "Invalid budget group."
+            }), 400
+
+
+    allowed_groups = ("NEEDS", "WANTS", "SAVINGS", "NONE")
+
+    if "budget_group_override" in data:
+        requested_group = data["budget_group_override"]
+
+        if (
+            requested_group is not None
+            and requested_group not in allowed_groups
+        ):
+            return jsonify({
+                "error": "Invalid budget group."
+            }), 400
+
+
+    result = backfill_bank_categories(
+        user_id,
+        include_legacy=True,
+        apply=True,
+    )
+
+    return jsonify(result), 200
+
 @bank_accounts_bp.patch("/transactions/<transaction_id>/category")
 @csrf_required
 def update_bank_transaction_category(transaction_id):
@@ -271,7 +392,14 @@ def update_bank_transaction_category(transaction_id):
 
     data = request.get_json(silent=True)
 
-    if not isinstance(data, dict) or set(data) != {"category"}:
+
+    if (
+        not isinstance(data, dict)
+        or "category" not in data
+        or not set(data).issubset(
+            {"category", "budget_group_override"}
+        )
+    ):
         return jsonify({
             "error": "Only the category field may be updated."
         }), 400
@@ -302,15 +430,31 @@ def update_bank_transaction_category(transaction_id):
 
             category = f"Other - {specific}"
 
-        else:
-            category = BANK_TRANSACTION_CATEGORIES.get(
-                cleaned.casefold()
-            )
 
-            if category is None:
-                return jsonify({
-                    "error": "Unsupported transaction category."
-                }), 400
+        else:
+            # Accept existing categories and future custom names.
+            # Match the database's 80-character category limit.
+                if (
+                    len(cleaned) > 80
+                    or any(
+                        ord(char) < 32 or ord(char) == 127
+                        for char in cleaned
+                    )
+                ):
+                    return jsonify({
+                        "error": (
+                            "Category must be at most 80 characters "
+                            "and cannot contain control characters."
+                        )
+                    }), 400
+
+                # Preserve canonical names for existing categories.
+                # Otherwise, accept the supplied category.
+                category = BANK_TRANSACTION_CATEGORIES.get(
+                    cleaned.casefold(),
+                    cleaned,
+                )
+
 
     else:
         return jsonify({
@@ -337,8 +481,15 @@ def update_bank_transaction_category(transaction_id):
             "error": "Bank transaction not found."
         }), 404
 
+
     # Preserve bank-provided amount, date and description.
     transaction.category = category
+    transaction.category_source = "MANUAL"
+
+    if "budget_group_override" in data:
+        transaction.budget_group_override = data[
+            "budget_group_override"
+        ]
 
     db.session.commit()
 
@@ -347,6 +498,8 @@ def update_bank_transaction_category(transaction_id):
         "transaction": {
             "id": transaction.id,
             "category": transaction.category,
+            "budget_group": effective_budget_group(transaction),
+            "budget_group_override": transaction.budget_group_override,
         },
     })
 

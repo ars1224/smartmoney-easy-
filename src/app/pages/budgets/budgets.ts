@@ -14,8 +14,13 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {
   BudgetRecord,
   BudgetsApiService,
+  type GroupSpending,
 } from '../../core/services/budgets-api.service';
 
+import {
+  BUDGET_CATEGORIES,
+  type BudgetGroup,
+} from '../../core/constants/financial-categories';
 
 import {
   MonthlyIncomeApiService,
@@ -23,10 +28,10 @@ import {
 } from '../../core/services/monthly-income-api.service';
 
 import { RouterLink } from '@angular/router';
-
 export type BudgetStatus = 'safe' | 'warning' | 'danger';
 
 interface BudgetForm {
+  budgetGroup: BudgetGroup | '';
   category: string;
   otherCategory: string;
   monthlyLimit: number | null;
@@ -49,17 +54,21 @@ export class BudgetsPage implements OnInit {
   @ViewChild('budgetDialog')
   private budgetDialog?: ElementRef<HTMLDialogElement>;
 
-  readonly categories = [
-    'Groceries',
-    'Transport',
-    'Entertainment',
-    'Shopping',
-    'Bills',
-    'Eating out',
-    'Other',
-  ];
+  get categories(): readonly string[] {
+    const group = this.budgetForm.budgetGroup;
+
+    return group
+      ? BUDGET_CATEGORIES[group]
+      : [];
+  }
+
+  onBudgetGroupChange(): void {
+    this.budgetForm.category = '';
+    this.budgetForm.otherCategory = '';
+  }
 
   budgets: BudgetRecord[] = [];
+  groupSpending: GroupSpending | null = null;
 
 
   incomeSummary: MonthlyIncomeSummary | null = null;
@@ -156,20 +165,22 @@ async loadBudgets(): Promise<void> {
   this.loadError = '';
 
   try {
-    const budgets = await firstValueFrom(
-      this.budgetsApi.getBudgets(month)
+    const overview = await firstValueFrom(
+      this.budgetsApi.getBudgetOverview(month)
     );
 
     if (requestId !== this.loadRequestId) {
       return;
     }
 
-    this.budgets = budgets;
+    this.budgets = overview.budgets;
+    this.groupSpending = overview.groupSpending;
 
   } catch {
     if (requestId !== this.loadRequestId) {
       return;
     }
+    this.groupSpending = null;
 
     this.loadError =
       'Unable to load budgets. Please try again.';
@@ -182,14 +193,14 @@ async loadBudgets(): Promise<void> {
   }
 }
 
-
-  private emptyForm(): BudgetForm {
-    return {
-      category: '',
-      otherCategory: '',
-      monthlyLimit: null,
-    };
-  }
+private emptyForm(): BudgetForm {
+  return {
+    budgetGroup: '',
+    category: '',
+    otherCategory: '',
+    monthlyLimit: null,
+  };
+}
 
   openCreateDialog(): void {
     if (this.saving) return;
@@ -201,25 +212,27 @@ async loadBudgets(): Promise<void> {
     this.budgetDialog?.nativeElement.showModal();
   }
 
-  openEditDialog(budget: BudgetRecord): void {
-    if (this.saving) return;
+openEditDialog(budget: BudgetRecord): void {
+  if (this.saving) return;
 
-    this.editingBudgetId = budget.id;
+  this.editingBudgetId = budget.id;
 
-    const isCustomOther = budget.category.startsWith('Other - ');
+  const isCustomOther =
+    budget.category.startsWith('Other - ');
 
-    this.budgetForm = {
-      category: isCustomOther ? 'Other' : budget.category,
-      otherCategory: isCustomOther
-        ? budget.category.slice('Other - '.length)
-        : '',
-      monthlyLimit: budget.monthlyLimit,
-    };
+  this.budgetForm = {
+    budgetGroup: budget.budgetGroup ?? '',
+    category: isCustomOther ? 'Other' : budget.category,
+    otherCategory: isCustomOther
+      ? budget.category.slice('Other - '.length)
+      : '',
+    monthlyLimit: budget.monthlyLimit,
+  };
 
-    this.formError = '';
+  this.formError = '';
 
-    this.budgetDialog?.nativeElement.showModal();
-  }
+  this.budgetDialog?.nativeElement.showModal();
+}
 
   closeBudgetDialog(): void {
     if (this.saving) return;
@@ -248,6 +261,11 @@ async loadBudgets(): Promise<void> {
 
     this.formError = '';
 
+  const budgetGroup = this.budgetForm.budgetGroup;
+    if (!budgetGroup) {
+      this.formError = 'Please select Needs or Wants.';
+      return;
+    }
   const selectedCategory = this.budgetForm.category;
   let category = selectedCategory;
   const monthlyLimit = this.budgetForm.monthlyLimit;
@@ -312,6 +330,7 @@ async loadBudgets(): Promise<void> {
       const payload = {
         category,
         monthlyLimit,
+        budgetGroup,
       };
 
     await firstValueFrom(

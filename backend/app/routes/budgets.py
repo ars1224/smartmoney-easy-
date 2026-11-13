@@ -15,6 +15,10 @@ from app.auth_security import (
 from app.extensions import db
 from app.models import Budget, BudgetMonthlyLimit, Transaction
 
+from app.services.transaction_categorizer import (
+    classify_budget_group,
+)
+
 
 budgets_bp = Blueprint(
     "budgets",
@@ -27,12 +31,50 @@ MAX_AMOUNT = Decimal("999999999999.99")
 NZ_TIMEZONE = ZoneInfo("Pacific/Auckland")
 
 CATEGORIES = (
+    # NEEDS
+    "Rent",
+    "Mortgage",
+    "Rates",
     "Groceries",
+    "Bills",
+    "Electricity",
+    "Gas",
+    "Water",
+    "Internet",
+    "Phone",
     "Transport",
+    "Fuel",
+    "Public Transport",
+    "Parking",
+    "Healthcare",
+    "Pharmacy",
+    "Dental",
+    "Insurance",
+    "Health Insurance",
+    "Car Insurance",
+    "Education",
+    "Childcare",
+    "Vehicle Maintenance",
+    "Home Maintenance",
+
+    # WANTS
+    "Eating out",
+    "Takeaways",
+    "Coffee & Cafes",
     "Entertainment",
     "Shopping",
-    "Bills",
-    "Eating out",
+    "Clothing",
+    "Electronics",
+    "Subscriptions",
+    "Travel",
+    "Personal Care",
+    "Hobbies",
+    "Gifts",
+    "Fitness",
+    "Pet Care",
+    "Donations",
+
+    # CUSTOM
     "Other",
 )
 
@@ -40,6 +82,21 @@ CATEGORY_LOOKUP = {
     category.casefold(): category
     for category in CATEGORIES
 }
+
+
+VALID_BUDGET_GROUPS = {"NEEDS", "WANTS"}
+
+
+def parse_budget_group(value):
+    if (
+        not isinstance(value, str)
+        or value not in VALID_BUDGET_GROUPS
+    ):
+        raise ValueError(
+            "Budget group must be NEEDS or WANTS."
+        )
+
+    return value
 
 
 def parse_category(value):
@@ -196,6 +253,90 @@ def get_monthly_spending(user_id, start, end):
     }
 
 
+# Repayments, income and transfers must not be
+# automatically counted as new spending.
+NON_SPENDING_CATEGORIES = {
+    "income",
+    "salary",
+    "business income",
+    "freelance income",
+    "interest income",
+    "dividends",
+    "refund",
+    "other income",
+    "savings transfer",
+    "internal transfer",
+    "transfer",
+    "investment",
+    "bnpl repayment",
+    "loan repayment",
+    "credit card payment",
+}
+
+
+def get_monthly_group_spending(user_id, start, end):
+    totals = {
+        "NEEDS": Decimal("0.00"),
+        "WANTS": Decimal("0.00"),
+    }
+
+    transactions = (
+        Transaction.query
+        .filter(
+            Transaction.user_id == user_id,
+            Transaction.currency == "NZD",
+            Transaction.amount < 0,
+            Transaction.transaction_date >= start,
+            Transaction.transaction_date < end,
+        )
+        .all()
+    )
+
+    for transaction in transactions:
+        category = (transaction.category or "").strip()
+        category_key = category.casefold()
+        source = (transaction.source or "").upper()
+        kind = (transaction.transaction_type or "").casefold()
+
+        if not category:
+            continue
+
+        if (
+            category_key in NON_SPENDING_CATEGORIES
+            or "transfer" in category_key
+        ):
+            continue
+
+        if source == "CASH":
+            if kind != "expense":
+                continue
+        elif source == "BANK":
+            if "transfer" in kind:
+                continue
+        else:
+            continue
+
+        override = transaction.budget_group_override
+
+        if override == "NONE":
+            continue
+
+        group = (
+            override
+            if override is not None
+            else classify_budget_group(category)
+        )
+
+        if group in totals:
+            totals[group] += -transaction.amount
+
+    return {
+        group: str(amount.quantize(CENT))
+        for group, amount in totals.items()
+    }
+
+
+
 def serialize_budget(budget, spending, monthly_limit=None):
     spent = spending.get(
         budget.category.casefold(),
@@ -215,6 +356,7 @@ def serialize_budget(budget, spending, monthly_limit=None):
         "spent": str(spent),
         "createdAt": budget.created_at.isoformat(),
         "updatedAt": budget.updated_at.isoformat(),
+        "budgetGroup": budget.budget_group,
     }
 
 
@@ -272,6 +414,9 @@ def list_budgets():
 
     return no_cache({
         "month": month,
+        "groupSpending": get_monthly_group_spending(
+            user_id, start, end
+        ),
         "budgets": [
             serialize_budget(
                 budget,
@@ -296,16 +441,25 @@ def create_budget():
 
     data = request.get_json(silent=True)
 
+    required_fields = {"category", "monthlyLimit"}
+    allowed_fields = required_fields | {"budgetGroup"}
+
     if (
         not isinstance(data, dict)
-        or set(data) != {"category", "monthlyLimit"}
+        or not required_fields.issubset(data)
+        or not set(data).issubset(allowed_fields)
     ):
         return jsonify({
-            "error": "Category and monthlyLimit are required."
+            "error": "Invalid budget details."
         }), 400
 
     try:
         category = parse_category(data["category"])
+        budget_group = (
+            parse_budget_group(data["budgetGroup"])
+            if "budgetGroup" in data
+            else None
+        )
         monthly_limit = parse_monthly_limit(
             data["monthlyLimit"]
         )
@@ -318,6 +472,7 @@ def create_budget():
     budget = Budget(
         user_id=user_id,
         category=category,
+        budget_group=budget_group,
         monthly_limit=monthly_limit,
     )
 
@@ -364,18 +519,24 @@ def update_budget(budget_id):
             "error": "Authentication required."
         }), 401
 
+
     data = request.get_json(silent=True)
+
+    allowed_fields = {
+        "category",
+        "monthlyLimit",
+        "budgetGroup",
+    }
 
     if (
         not isinstance(data, dict)
         or not data
-        or not set(data).issubset(
-            {"category", "monthlyLimit"}
-        )
+        or not set(data).issubset(allowed_fields)
     ):
         return jsonify({
-            "error": "Unsupported or empty budget update."
+            "error": "Invalid budget details."
         }), 400
+
 
     try:
         month, start, end = current_month(
@@ -391,6 +552,12 @@ def update_budget(budget_id):
         monthly_limit = (
             parse_monthly_limit(data["monthlyLimit"])
             if "monthlyLimit" in data
+            else None
+        )
+
+        budget_group = (
+            parse_budget_group(data["budgetGroup"])
+            if "budgetGroup" in data
             else None
         )
 
@@ -414,6 +581,9 @@ def update_budget(budget_id):
 
     if category is not None:
         budget.category = category
+
+    if "budgetGroup" in data:
+        budget.budget_group = budget_group
 
     monthly_record = (
         BudgetMonthlyLimit.query

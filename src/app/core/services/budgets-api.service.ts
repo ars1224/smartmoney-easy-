@@ -5,19 +5,34 @@ import { Observable, map, switchMap } from 'rxjs';
 
 import { AuthService } from '../auth/auth.service';
 import { environment } from '../../../environments/environment';
+import type {
+  BudgetGroup,
+} from '../constants/financial-categories';
 
 export interface BudgetRecord {
   id: string;
   category: string;
+  budgetGroup: BudgetGroup | null;
   monthlyLimit: number;
   spent: number;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface GroupSpending {
+  NEEDS: number;
+  WANTS: number;
+}
+
+export interface BudgetOverview {
+  budgets: BudgetRecord[];
+  groupSpending: GroupSpending;
+}
+
 interface BudgetDto {
   id: string;
   category: string;
+  budgetGroup?: BudgetGroup | null;
   monthlyLimit: string;
   spent: string;
   createdAt: string;
@@ -26,11 +41,13 @@ interface BudgetDto {
 
 export interface CreateBudgetPayload {
   category: string;
+  budgetGroup: BudgetGroup;
   monthlyLimit: number;
 }
 
 export interface UpdateBudgetPayload {
   category?: string;
+  budgetGroup?: BudgetGroup;
   monthlyLimit?: number;
 }
 
@@ -38,6 +55,10 @@ interface BudgetListResponse {
   month: string;
   budgets: BudgetDto[];
   count: number;
+  groupSpending?: {
+  NEEDS?: string;
+  WANTS?: string;
+};
 }
 
 interface BudgetResponse {
@@ -78,6 +99,7 @@ export class BudgetsApiService {
         this.apiUrl,
         {
           category: payload.category,
+          budgetGroup: payload.budgetGroup,
           monthlyLimit: payload.monthlyLimit.toFixed(2),
         },
         month
@@ -130,14 +152,37 @@ export class BudgetsApiService {
       );
     }
 
-  private mapBudget(dto: BudgetDto): BudgetRecord {
-    return {
-      id: dto.id,
-      category: dto.category,
-      monthlyLimit: Number(dto.monthlyLimit),
-      spent: Number(dto.spent),
-      createdAt: dto.createdAt,
-      updatedAt: dto.updatedAt,
-    };
+private mapBudget(dto: BudgetDto): BudgetRecord {
+  return {
+    id: dto.id,
+    category: dto.category,
+    budgetGroup: dto.budgetGroup ?? null,
+    monthlyLimit: Number(dto.monthlyLimit),
+    spent: Number(dto.spent),
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+  };
+}
+
+
+  getBudgetOverview(month?: string): Observable<BudgetOverview> {
+    return this.http.get<BudgetListResponse>(
+      this.apiUrl,
+      {
+        withCredentials: true,
+        params: month ? { month } : {},
+      }
+    ).pipe(
+      map(response => ({
+        budgets: response.budgets.map(
+          budget => this.mapBudget(budget)
+        ),
+        groupSpending: {
+          NEEDS: Number(response.groupSpending?.NEEDS ?? 0),
+          WANTS: Number(response.groupSpending?.WANTS ?? 0),
+        },
+      }))
+    );
   }
+
 }

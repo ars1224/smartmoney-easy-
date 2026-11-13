@@ -43,6 +43,7 @@
   <div class="budgets-layout">
 
 
+<!-- Monthly budget overview -->
 <section
   class="income-overview"
   aria-label="Monthly budget overview"
@@ -53,11 +54,14 @@
   </div>
 
   @if (incomeLoading) {
-    <p role="status">Loading budget overview...</p>
+    <p role="status">
+      Loading budget overview...
+    </p>
 
   } @else if (incomeError) {
     <div role="alert">
       <p>{{ incomeError }}</p>
+
       <button
         type="button"
         (click)="loadIncomeSummary()"
@@ -71,6 +75,7 @@
 
       <article class="income-overview-stat">
         <h3>Expected income</h3>
+
         <strong>
           @if (summary.expectedIncome === null) {
             Not set
@@ -82,6 +87,7 @@
 
       <article class="income-overview-stat">
         <h3>Allocated budget</h3>
+
         <strong>
           {{ formatCurrency(summary.allocatedBudget) }}
         </strong>
@@ -95,6 +101,7 @@
         "
       >
         <h3>Unallocated budget</h3>
+
         <strong>
           @if (summary.unallocatedBudget === null) {
             Not available
@@ -106,21 +113,22 @@
 
     </div>
 
-<div class="income-overview-actions">
-  <a
-    class="income-edit-btn"
-    routerLink="/app/profile/settings"
-    aria-label="Manage income settings in Profile Settings"
-  >
-    Manage income settings
-  </a>
-</div>
+    <div class="income-overview-actions">
+      <a
+        class="income-edit-btn"
+        routerLink="/app/profile/settings"
+        aria-label="Manage income settings in Profile Settings"
+      >
+        Manage income settings
+      </a>
+    </div>
 
     @if (summary.expectedIncome === null) {
       <p class="income-overview-note">
         Set your expected monthly income to calculate
         your unallocated budget.
       </p>
+
     } @else if (
       summary.unallocatedBudget !== null &&
       summary.unallocatedBudget < 0
@@ -128,12 +136,84 @@
       <p class="income-overview-note">
         Your planned allocations exceed expected income.
       </p>
+
     } @else {
       <p class="income-overview-note">
         Unallocated budget is a planning figure,
         not your available bank balance.
       </p>
     }
+  }
+</section>
+
+<!-- Actual classified spending -->
+<section
+  class="group-spending-panel"
+  aria-labelledby="group-spending-title"
+>
+  <div class="group-spending-heading">
+    <div>
+      <h2 id="group-spending-title">
+        Actual spending
+      </h2>
+
+      <p>{{ selectedMonthLabel }}</p>
+    </div>
+  </div>
+
+  @if (isLoading) {
+    <p role="status">
+      Loading spending summary...
+    </p>
+
+  } @else if (loadError) {
+    <p role="alert">
+      Spending summary unavailable.
+    </p>
+
+  } @else if (groupSpending; as spending) {
+    <div class="group-spending-grid">
+
+      <article class="group-spending-card">
+        <span>NEEDS</span>
+
+        <strong>
+          {{ formatCurrency(spending.NEEDS) }}
+        </strong>
+
+        <p>Essential spending</p>
+      </article>
+
+      <article class="group-spending-card">
+        <span>WANTS</span>
+
+        <strong>
+          {{ formatCurrency(spending.WANTS) }}
+        </strong>
+
+        <p>Discretionary spending</p>
+      </article>
+
+      <article class="group-spending-card">
+        <span>Total classified spending</span>
+
+        <strong>
+          {{
+            formatCurrency(
+              spending.NEEDS + spending.WANTS
+            )
+          }}
+        </strong>
+
+        <p>Excludes repayments and transfers</p>
+      </article>
+
+    </div>
+
+    <p class="group-spending-note">
+      Based on classified NZD transactions.
+      Savings movements are tracked separately.
+    </p>
   }
 </section>
 
@@ -306,6 +386,33 @@
   >
 
     <div class="budget-form-group">
+        <label for="budget-group">
+          Budget group
+        </label>
+
+        <select
+          id="budget-group"
+          name="budgetGroup"
+          [(ngModel)]="budgetForm.budgetGroup"
+          (ngModelChange)="onBudgetGroupChange()"
+          [disabled]="saving"
+          required
+        >
+          <option value="" disabled>
+            Select Needs or Wants
+          </option>
+
+          <option value="NEEDS">
+            Needs — Essential expenses
+          </option>
+
+          <option value="WANTS">
+            Wants — Lifestyle expenses
+          </option>
+        </select>
+    </div>
+
+    <div class="budget-form-group">
       <label for="budget-category">Category</label>
 
       <select
@@ -314,6 +421,7 @@
         [(ngModel)]="budgetForm.category"
         [disabled]="saving"
         required
+        [disabled]="saving || !budgetForm.budgetGroup"
       >
         <option value="" disabled>
           Select category
