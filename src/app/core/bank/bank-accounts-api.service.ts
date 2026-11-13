@@ -4,10 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, map, switchMap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-
 import { AuthService } from '../auth/auth.service';
-
-
 
 export interface ConnectedBankAccount {
   id: string;
@@ -21,7 +18,6 @@ export interface ConnectedBankAccount {
   lastSyncedAt: string | null;
 }
 
-
 export interface BankAccountTransaction {
   id: string;
   description: string;
@@ -31,8 +27,6 @@ export interface BankAccountTransaction {
   transactionType: string;
   transactionDate: string;
 }
-
-
 
 interface BankAccountTransactionDto {
   id: string;
@@ -50,7 +44,6 @@ interface BankTransactionsResponse {
   count: number;
 }
 
-
 interface BankAccountDto {
   id: string;
   connection_id: string;
@@ -67,7 +60,6 @@ interface BankAccountsResponse {
   accounts: BankAccountDto[];
   count: number;
 }
-
 
 export interface BankActivityTransaction {
   id: string;
@@ -95,7 +87,6 @@ interface AllBankTransactionsResponse {
   transactions: BankActivityTransactionDto[];
   count: number;
 }
-
 
 @Injectable({
   providedIn: 'root',
@@ -130,108 +121,103 @@ export class BankAccountsApiService {
     );
   }
 
-getTransactions(
-  accountId: string
-): Observable<BankAccountTransaction[]> {
-  const url =
-    `${environment.apiUrl}/bank/accounts/` +
-    `${encodeURIComponent(accountId)}/transactions`;
+  getTransactions(
+    accountId: string
+  ): Observable<BankAccountTransaction[]> {
+    const url =
+      `${environment.apiUrl}/bank/accounts/` +
+      `${encodeURIComponent(accountId)}/transactions`;
 
-  return this.http.get<BankTransactionsResponse>(
-    url,
-    { withCredentials: true }
-  ).pipe(
-    map(response =>
-      response.transactions.map(transaction => ({
-        id: transaction.id,
-        description: transaction.description,
-        amount: Number(transaction.amount),
-        balanceAfter:
-          transaction.balance_after === null
-            ? null
-            : Number(transaction.balance_after),
-        currency: transaction.currency,
-        transactionType: transaction.transaction_type,
-        transactionDate: transaction.transaction_date,
-      }))
-    )
-  );
-}
-
-
-getAllTransactions(): Observable<BankActivityTransaction[]> {
-  return this.http.get<AllBankTransactionsResponse>(
-    `${environment.apiUrl}/bank/transactions`,
-    { withCredentials: true }
-  ).pipe(
-    map(response =>
-      response.transactions.map(transaction => ({
-        id: transaction.id,
-        bankAccountId: transaction.bank_account_id,
-        description: transaction.description,
-        category: transaction.category,
-        amount: Number(transaction.amount),
-        currency: transaction.currency,
-        transactionType: transaction.transaction_type,
-        transactionDate: transaction.transaction_date,
-      }))
-    )
-  );
-}
-
-
-updateTransactionCategory(
-  transactionId: string,
-  category: string | null
-): Observable<{ id: string; category: string | null }> {
-  const url =
-    `${environment.apiUrl}/bank/transactions/` +
-    `${encodeURIComponent(transactionId)}/category`;
-
-  return this.auth.getCsrfToken().pipe(
-    switchMap(token =>
-      this.http.patch<{
-        message: string;
-        transaction: {
-          id: string;
-          category: string | null;
-        };
-      }>(
-        url,
-        { category },
-        {
-          withCredentials: true,
-          headers: {
-            'X-CSRF-Token': token,
-          },
-        }
+    return this.http.get<BankTransactionsResponse>(
+      url,
+      { withCredentials: true }
+    ).pipe(
+      map(response =>
+        response.transactions.map(transaction => ({
+          id: transaction.id,
+          description: transaction.description,
+          amount: Number(transaction.amount),
+          balanceAfter:
+            transaction.balance_after === null
+              ? null
+              : Number(transaction.balance_after),
+          currency: transaction.currency,
+          transactionType: transaction.transaction_type,
+          transactionDate: transaction.transaction_date,
+        }))
       )
-    ),
-    map(response => response.transaction)
-  );
-}
+    );
+  }
 
-syncConnection(connectionId: string): Observable<unknown> {
-  const url =
-    `${environment.apiUrl}/bank/connections/` +
-    `${encodeURIComponent(connectionId)}/sync`;
-
-  return this.auth.getCsrfToken().pipe(
-    switchMap(token =>
-      this.http.post<unknown>(
-        url,
-        {},
-        {
-          withCredentials: true,
-          headers: {
-            'X-CSRF-Token': token,
-          },
-        }
+  getAllTransactions(): Observable<BankActivityTransaction[]> {
+    return this.http.get<AllBankTransactionsResponse>(
+      `${environment.apiUrl}/bank/transactions`,
+      { withCredentials: true }
+    ).pipe(
+      map(response =>
+        response.transactions.map(transaction => ({
+          id: transaction.id,
+          bankAccountId: transaction.bank_account_id,
+          description: transaction.description,
+          category: transaction.category,
+          amount: Number(transaction.amount),
+          currency: transaction.currency,
+          transactionType: transaction.transaction_type,
+          transactionDate: transaction.transaction_date,
+        }))
       )
-    )
-  );
-}
+    );
+  }
 
+  updateTransactionCategory(
+    transactionId: string,
+    category: string | null
+  ): Observable<{ id: string; category: string | null }> {
+    const url =
+      `${environment.apiUrl}/bank/transactions/` +
+      `${encodeURIComponent(transactionId)}/category`;
 
+    return this.auth.getCsrfToken().pipe(
+      switchMap(token =>
+        this.http.patch<{
+          message: string;
+          transaction: {
+            id: string;
+            category: string | null;
+          };
+        }>(
+          url,
+          { category },
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
+      ),
+      map(response => response.transaction)
+    );
+  }
 
+  syncConnection(connectionId: string): Observable<unknown> {
+    const url =
+      `${environment.apiUrl}/bank/connections/` +
+      `${encodeURIComponent(connectionId)}/sync`;
+
+    return this.auth.getCsrfToken().pipe(
+      switchMap(token =>
+        this.http.post<unknown>(
+          url,
+          {},
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
+      )
+    );
+  }
 }

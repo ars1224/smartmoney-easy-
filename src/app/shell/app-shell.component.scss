@@ -381,3 +381,109 @@
     }
   }
 }
+
+/* Logout confirmation modal */
+.settings-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.55);
+  animation: modal-fade-in 180ms ease-out;
+}
+
+.settings-modal {
+  width: min(100%, 440px);
+  padding: 1.75rem;
+  border-radius: 1rem;
+  background: #ffffff;
+  color: #1f2937;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: modal-slide-in 220ms ease-out;
+}
+
+.settings-modal h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.settings-modal__description {
+  margin: 1rem 0 1.5rem;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.settings-modal__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-modal__actions button {
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  border-radius: 0.75rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-modal__primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.settings-modal__primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settings-modal__secondary {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.settings-modal__actions button:focus {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 3px;
+}
+
+@keyframes modal-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .settings-modal {
+    padding: 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-modal-backdrop,
+  .settings-modal {
+    animation: none;
+  }
+}

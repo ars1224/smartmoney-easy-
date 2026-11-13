@@ -1,4 +1,3 @@
-
 from flask import Flask
 from flask_cors import CORS
 
@@ -23,7 +22,6 @@ from app.routes.regular_income import regular_income_bp
 
 def create_app():
     app = Flask(__name__)
-
     app.config.from_object(Config)
 
     CORS(
@@ -60,6 +58,5 @@ def create_app():
     app.register_blueprint(budgets_bp)
     app.register_blueprint(monthly_income_bp)
     app.register_blueprint(regular_income_bp)
-
 
     return app
