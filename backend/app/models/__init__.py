@@ -7,6 +7,12 @@ from app.extensions import db
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
+from app.models.budget import Budget
+from app.models.budget_monthly_limit import BudgetMonthlyLimit
+from app.models.monthly_income_plan import MonthlyIncomePlan
+from app.models.regular_income_profile import RegularIncomeProfile
+from app.models.budget_plans import BudgetAllocationPlan
+
 def utc_now():
     return datetime.now(timezone.utc)
 
@@ -223,6 +229,21 @@ class Transaction(db.Model):
     db.String(80),
     nullable=True
     )
+
+    category_source = db.Column(
+        db.String(12),
+        nullable=False,
+        default="LEGACY",
+        server_default="LEGACY",
+    )
+
+
+    budget_group_override = db.Column(
+        db.String(10),
+        nullable=True,
+        default=None,
+    )
+
 
     note = db.Column(
         db.String(250),

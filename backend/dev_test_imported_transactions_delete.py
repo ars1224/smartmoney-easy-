@@ -1,4 +1,3 @@
-
 import uuid
 import secrets
 from datetime import datetime, timezone
@@ -9,7 +8,13 @@ from sqlalchemy.engine import make_url
 
 from app import create_app
 from app.extensions import db
-from app.models import User, BankConnection, BankAccount, Transaction, CashWallet
+from app.models import (
+    User,
+    BankConnection,
+    BankAccount,
+    Transaction,
+    CashWallet,
+)
 
 
 app = create_app()
@@ -51,10 +56,46 @@ def run_tests():
         )
 
     with app.app_context():
+
+        # 1. Authentication and CSRF security tests.
+        with app.test_client() as client:
+            print("\nTesting unauthenticated DELETE with valid CSRF token...")
+
+            response = client.get("/api/auth/csrf")
+            verify(response, 200, "Obtain CSRF token")
+
+            csrf_token = response.get_json()["csrf_token"]
+
+            response = client.delete(
+                "/api/bank/transactions/imported",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            verify(
+                response,
+                401,
+                "Unauthenticated DELETE request rejected",
+            )
+
+            print("\nTesting DELETE request without CSRF token...")
+
+            response = client.delete(
+                "/api/bank/transactions/imported"
+            )
+            verify(
+                response,
+                403,
+                "DELETE request without CSRF token rejected",
+            )
+
+        # 2. Imported transaction deletion regression tests.
         suffix = uuid.uuid4().hex
 
-        owner = User(email=f"delete-owner-{suffix}@example.test")
-        other = User(email=f"delete-other-{suffix}@example.test")
+        owner = User(
+            email=f"delete-owner-{suffix}@example.test"
+        )
+        other = User(
+            email=f"delete-other-{suffix}@example.test"
+        )
 
         db.session.add_all([owner, other])
         db.session.flush()
@@ -129,6 +170,8 @@ def run_tests():
         db.session.commit()
 
         owner_id = owner.id
+        other_id = other.id
+        connection_id = connection.id
         other_transaction_id = other_bank_transaction.id
         cash_transaction_id = cash_transaction.id
         bank_account_id = bank_account.id
@@ -138,12 +181,16 @@ def run_tests():
         try:
             client, headers = authenticated_client(owner_id)
 
-            # 1. Delete only the authenticated user's imported bank transactions.
+            # 3. Delete only the authenticated user's imported bank transactions.
             response = client.delete(
                 "/api/bank/transactions/imported",
                 headers=headers,
             )
-            verify(response, 200, "Delete imported bank transactions")
+            verify(
+                response,
+                200,
+                "Delete imported bank transactions",
+            )
 
             assert response.get_json()["deleted_count"] == 1
 
@@ -159,7 +206,7 @@ def run_tests():
 
             print("PASS: Other user's bank transaction preserved")
 
-            # 2. Cash transactions and bank accounts must remain.
+            # 4. Cash transactions and bank accounts must remain.
             assert db.session.get(
                 Transaction, cash_transaction_id
             ) is not None
@@ -172,20 +219,26 @@ def run_tests():
                 CashWallet, cash_wallet_id
             ) is not None
 
-            print("PASS: Cash transaction, wallet and bank account preserved")
+            print(
+                "PASS: Cash transaction, wallet and bank account preserved"
+            )
 
-            # 3. Repeating the request must succeed with zero deletions.
+            # 5. Repeating the request must succeed with zero deletions.
             response = client.delete(
                 "/api/bank/transactions/imported",
                 headers=headers,
             )
-            verify(response, 200, "Repeat imported transaction deletion")
+            verify(
+                response,
+                200,
+                "Repeat imported transaction deletion",
+            )
 
             assert response.get_json()["deleted_count"] == 0
 
             print("PASS: Repeat deletion returns zero")
 
-            # 4. A commit failure must trigger rollback.
+            # 6. A commit failure must trigger rollback.
             rollback_transaction = Transaction(
                 user_id=owner_id,
                 bank_account_id=bank_account_id,
@@ -196,6 +249,7 @@ def run_tests():
                 transaction_type="expense",
                 transaction_date=datetime.now(timezone.utc),
             )
+
             db.session.add(rollback_transaction)
             db.session.commit()
 
@@ -211,7 +265,11 @@ def run_tests():
                     headers=headers,
                 )
 
-            verify(response, 500, "Commit failure returns server error")
+            verify(
+                response,
+                500,
+                "Commit failure returns server error",
+            )
 
             db.session.expire_all()
 
@@ -227,7 +285,7 @@ def run_tests():
             db.session.rollback()
 
             db.session.query(Transaction).filter(
-                Transaction.user_id.in_([owner_id, other.id])
+                Transaction.user_id.in_([owner_id, other_id])
             ).delete(synchronize_session=False)
 
             db.session.query(BankAccount).filter_by(
@@ -239,7 +297,7 @@ def run_tests():
             ).delete(synchronize_session=False)
 
             db.session.query(BankConnection).filter_by(
-                id=connection.id
+                id=connection_id
             ).delete(synchronize_session=False)
 
             db.session.delete(owner)

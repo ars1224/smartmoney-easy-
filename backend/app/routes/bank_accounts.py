@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, current_app
+from flask import Blueprint, jsonify, current_app, request
 
 from app.extensions import db
 from app.models import BankConnection, BankAccount, Transaction
@@ -19,11 +19,44 @@ from app.services.mock_bank_authorized import (
 
 from datetime import datetime, timezone
 
+from app.services.transaction_categorizer import (
+    classify_budget_group,
+)
+from app.services.transaction_backfill import (
+    backfill_bank_categories,
+)
+
 bank_accounts_bp = Blueprint(
     "bank_accounts",
     __name__,
     url_prefix="/api/bank"
 )
+
+
+def effective_budget_group(transaction):
+    """Respect a manual override before automatic classification."""
+
+    override = transaction.budget_group_override
+
+    if override == "NONE":
+        return None
+
+    if override in ("NEEDS", "WANTS", "SAVINGS"):
+        return override
+
+    return classify_budget_group(transaction.category)
+
+def effective_budget_group(transaction):
+    override = transaction.budget_group_override
+
+    if override == "NONE":
+        return None
+
+    if override in ("NEEDS", "WANTS", "SAVINGS"):
+        return override
+
+    return classify_budget_group(transaction.category)
+
 
 
 @bank_accounts_bp.get("/connections/pending")
@@ -229,6 +262,8 @@ def get_all_bank_transactions():
                 "bank_account_id": transaction.bank_account_id,
                 "description": transaction.description,
                 "category": transaction.category,
+                "budget_group": effective_budget_group(transaction),
+                "budget_group_override": transaction.budget_group_override,
                 "amount": str(transaction.amount),
                 "currency": transaction.currency,
                 "transaction_type": transaction.transaction_type,
@@ -287,6 +322,234 @@ def delete_imported_bank_transactions():
     response.headers["Cache-Control"] = "no-store"
 
     return response, 200
+
+# Supported categories for bank transactions.
+BANK_TRANSACTION_CATEGORIES = {
+    "groceries": "Groceries",
+    "transport": "Transport",
+    "entertainment": "Entertainment",
+    "shopping": "Shopping",
+    "bills": "Bills",
+    "eating out": "Eating out",
+    "other": "Other",
+    "income": "Income",
+}
+
+
+@bank_accounts_bp.get(
+    "/transactions/categories/backfill/preview"
+)
+def preview_bank_category_backfill():
+    user_id = get_authenticated_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Authentication required."
+        }), 401
+
+    result = backfill_bank_categories(
+        user_id,
+        include_legacy=True,
+        apply=False,
+    )
+
+    return jsonify(result), 200
+
+
+@bank_accounts_bp.post(
+    "/transactions/categories/backfill/apply"
+)
+@csrf_required
+def apply_bank_category_backfill():
+    user_id = get_authenticated_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Authentication required."
+        }), 401
+
+
+    data = request.get_json(silent=True)
+
+    if (
+        not isinstance(data, dict)
+        or "category" not in data
+        or not set(data).issubset({
+            "category",
+            "budget_group_override",
+        })
+    ):
+        return jsonify({
+            "error": (
+                "Only category and budget group "
+                "override may be updated."
+            )
+        }), 400
+
+    allowed_groups = {"NEEDS", "WANTS", "SAVINGS", "NONE"}
+
+    if "budget_group_override" in data:
+        requested_group = data["budget_group_override"]
+
+        if (
+            requested_group is not None
+            and requested_group not in allowed_groups
+        ):
+            return jsonify({
+                "error": "Invalid budget group."
+            }), 400
+
+
+    allowed_groups = ("NEEDS", "WANTS", "SAVINGS", "NONE")
+
+    if "budget_group_override" in data:
+        requested_group = data["budget_group_override"]
+
+        if (
+            requested_group is not None
+            and requested_group not in allowed_groups
+        ):
+            return jsonify({
+                "error": "Invalid budget group."
+            }), 400
+
+
+    result = backfill_bank_categories(
+        user_id,
+        include_legacy=True,
+        apply=True,
+    )
+
+    return jsonify(result), 200
+
+@bank_accounts_bp.patch("/transactions/<transaction_id>/category")
+@csrf_required
+def update_bank_transaction_category(transaction_id):
+    user_id = get_authenticated_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Authentication required."
+        }), 401
+
+    data = request.get_json(silent=True)
+
+
+    if (
+        not isinstance(data, dict)
+        or "category" not in data
+        or not set(data).issubset(
+            {"category", "budget_group_override"}
+        )
+    ):
+        return jsonify({
+            "error": "Only the category field may be updated."
+        }), 400
+
+    requested_category = data["category"]
+
+    if requested_category is None:
+        category = None
+
+    elif isinstance(requested_category, str):
+        cleaned = requested_category.strip()
+
+
+        if not cleaned:
+            category = None
+
+        elif cleaned.casefold().startswith("other - "):
+            specific = cleaned[len("other - "):].strip()
+
+            if (
+                not specific
+                or len(specific) > 72
+                or any(ord(char) < 32 or ord(char) == 127 for char in specific)
+            ):
+                return jsonify({
+                    "error": "Please provide a valid custom category (1–72 characters)."
+                }), 400
+
+            category = f"Other - {specific}"
+
+
+        else:
+            # Accept existing categories and future custom names.
+            # Match the database's 80-character category limit.
+                if (
+                    len(cleaned) > 80
+                    or any(
+                        ord(char) < 32 or ord(char) == 127
+                        for char in cleaned
+                    )
+                ):
+                    return jsonify({
+                        "error": (
+                            "Category must be at most 80 characters "
+                            "and cannot contain control characters."
+                        )
+                    }), 400
+
+                # Preserve canonical names for existing categories.
+                # Otherwise, accept the supplied category.
+                category = BANK_TRANSACTION_CATEGORIES.get(
+                    cleaned.casefold(),
+                    cleaned,
+                )
+
+
+    else:
+        return jsonify({
+            "error": "Category must be text or null."
+        }), 400
+
+    # Only the transaction owner can update the category.
+    # Historical transactions remain editable after bank
+    # disconnection because their records are retained.
+    transaction = (
+        Transaction.query
+        .filter(
+            Transaction.id == transaction_id,
+            Transaction.user_id == user_id,
+            Transaction.source == "BANK",
+            Transaction.bank_account_id.isnot(None),
+        )
+        .with_for_update()
+        .first()
+    )
+
+    if transaction is None:
+        return jsonify({
+            "error": "Bank transaction not found."
+        }), 404
+
+
+    # Preserve bank-provided amount, date and description.
+    transaction.category = category
+    transaction.category_source = "MANUAL"
+
+    if "budget_group_override" in data:
+        transaction.budget_group_override = data[
+            "budget_group_override"
+        ]
+
+    db.session.commit()
+
+    response = jsonify({
+        "message": "Transaction category updated.",
+        "transaction": {
+            "id": transaction.id,
+            "category": transaction.category,
+            "budget_group": effective_budget_group(transaction),
+            "budget_group_override": transaction.budget_group_override,
+        },
+    })
+
+    response.headers["Cache-Control"] = "no-store"
+
+    return response, 200
+
+
 
 @bank_accounts_bp.post("/connections/<connection_id>/sync")
 @csrf_required

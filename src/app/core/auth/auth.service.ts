@@ -6,8 +6,10 @@ import {
 import {
   Observable,
   catchError,
+  finalize,
   map,
   of,
+  shareReplay,
   switchMap,
   tap,
   throwError,
@@ -57,7 +59,15 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
   private readonly currentUserSignal =
     signal<SmartMoneyUser | null>(null);
 
+  private readonly sessionExpiredSignal = signal(false);
+
+  readonly sessionExpired = this.sessionExpiredSignal.asReadonly();
+
+  private sessionExpiryRedirected = false;
+
   private csrfToken: string | null = null;
+
+  private sessionVerification$: Observable<boolean> | null = null;
 
   readonly currentUser = this.currentUserSignal.asReadonly();
 
@@ -111,6 +121,10 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
 
         const user = this.mapUser(response.user);
         this.currentUserSignal.set(user);
+        this.sessionExpiredSignal.set(false);
+        this.sessionExpiryRedirected = false;
+
+        sessionStorage.setItem('smartmoney-had-session','true');
 
         return user;
       }),
@@ -147,6 +161,10 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
 
         const user = this.mapUser(response.user);
         this.currentUserSignal.set(user);
+        this.sessionExpiredSignal.set(false);
+        this.sessionExpiryRedirected = false;
+
+        sessionStorage.setItem('smartmoney-had-session','true');
 
         return user;
       }),
@@ -157,7 +175,11 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
   }
 
   verifySession(): Observable<boolean> {
-    return this.http.get<SessionResponse>(
+    if (this.sessionVerification$) {
+      return this.sessionVerification$;
+    }
+
+    this.sessionVerification$ = this.http.get<SessionResponse>(
       `${this.apiBase}/me`,
       { withCredentials: true }
     ).pipe(
@@ -165,17 +187,39 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
         this.currentUserSignal.set(
           this.mapUser(response.user)
         );
+
+        this.sessionExpiredSignal.set(false);
+        this.sessionExpiryRedirected = false;
       }),
       map(() => true),
-      catchError(() => {
-        this.clearLocalSession();
-        return of(false);
-      })
+      catchError((error: unknown) => {
+        if (
+          error instanceof HttpErrorResponse &&
+          error.status === 401
+        ) {
+          const hadSession =
+            sessionStorage.getItem('smartmoney-had-session') === 'true';
+
+          this.clearLocalSession();
+          this.sessionExpiredSignal.set(hadSession);
+
+          return of(false);
+        }
+
+        return throwError(() => error);
+      }),
+      finalize(() => {
+        this.sessionVerification$ = null;
+      }),
+      shareReplay(1)
     );
+
+    return this.sessionVerification$;
   }
 
+
   logout(): Observable<void> {
-    return this.getCsrfToken().pipe(
+    return this.fetchCsrfToken().pipe(
       switchMap(token =>
         this.http.post<void>(
           `${this.apiBase}/logout`,
@@ -188,7 +232,11 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
           }
         )
       ),
-      tap(() => this.clearLocalSession()),
+      tap(() => {
+        this.clearLocalSession();
+        this.sessionExpiryRedirected = false;
+        sessionStorage.removeItem('smartmoney-had-session');
+      }),
       map(() => undefined),
       catchError(error =>
         throwError(() => this.toError(error))
@@ -196,7 +244,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
     );
   }
 
-  
+
   updateProfile(
     name: string,
     email: string
@@ -255,10 +303,28 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
     );
   }
 
+  handleSessionExpired(): boolean {
+    const hadSession =
+      sessionStorage.getItem('smartmoney-had-session') === 'true';
+
+    if (!hadSession || this.sessionExpiryRedirected) {
+      return false;
+    }
+
+    this.sessionExpiryRedirected = true;
+
+    this.currentUserSignal.set(null);
+    this.csrfToken = null;
+    this.sessionExpiredSignal.set(true);
+
+    return true;
+  }
+
 
   private clearLocalSession(): void {
     this.currentUserSignal.set(null);
     this.csrfToken = null;
+    this.sessionExpiredSignal.set(false);
   }
 
   private mapUser(user: BackendUser): SmartMoneyUser {

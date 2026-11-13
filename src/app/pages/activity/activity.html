@@ -8,29 +8,42 @@
     </div>
   </header>
 
-  <!-- Transaction Controls -->
-  <div class="activity-controls">
-    <select
+
+<div class="activity-extra-filters">
+  <select
     class="source-filter"
-    aria-label="Filter transactions by source"
-    [value]="selectedSource"
-    (change)="changeSource($event)"
-    >
-    <option value="all">All sources</option>
-    <option value="cash">Cash</option>
-    <option value="bank">Bank</option>
-    </select>
+    aria-label="Filter by budget group"
+    [(ngModel)]="selectedBudgetGroup"
+  >
+    <option value="all">All budget groups</option>
+    <option value="NEEDS">NEEDS</option>
+    <option value="WANTS">WANTS</option>
+    <option value="SAVINGS">SAVINGS</option>
+  </select>
 
+  <select
+    class="source-filter"
+    aria-label="Filter by category"
+    [(ngModel)]="selectedCategory"
+  >
+    <option value="all">All categories</option>
 
-    <button
-    class="add-transaction-btn"
+    @for (category of availableCategories; track category) {
+      <option [value]="category">
+        {{ category }}
+      </option>
+    }
+  </select>
+
+  <button
     type="button"
-    routerLink="/app/activity/add"
-    >
-    + Add manual transaction
-    </button>
+    class="filter-clear-btn"
+    (click)="clearFilters()"
+  >
+    Clear filters
+  </button>
+</div>
 
-  </div>
 
     @if (deleteError) {
     <p class="delete-error" role="alert">
@@ -57,78 +70,237 @@
   </div>
 }
 
-  <!-- Transactions Table -->
-  <section class="transaction-card">
+@if (
+  legacyLoading ||
+  legacySuggestions.length > 0 ||
+  legacyError ||
+  legacySuccess
+) {
+  <section
+    class="legacy-review"
+    aria-labelledby="legacy-review-title"
+  >
+    <h2 id="legacy-review-title">
+      Automatic Categorisation
+    </h2>
+
+    @if (legacyLoading) {
+      <p role="status">
+        Checking existing transactions...
+      </p>
+    }
+
+    @if (legacyError) {
+      <p role="alert">{{ legacyError }}</p>
+
+      <button
+        type="button"
+        (click)="loadLegacyCategories()"
+        [disabled]="legacyLoading || legacyApplying"
+      >
+        Try again
+      </button>
+    }
+
+    @if (legacySuccess) {
+      <p role="status">
+        {{ legacySuccess }}
+      </p>
+    }
+
+    @if (legacySuggestions.length > 0) {
+      <p>
+        SmartMoney! found
+        <strong>{{ legacySuggestions.length }}</strong>
+        previously imported transactions that can
+        be categorised.
+      </p>
+
+      <ul class="legacy-suggestion-list">
+        @for (
+          suggestion of legacySuggestions;
+          track suggestion.transaction_id
+        ) {
+          <li>
+            <strong>{{ suggestion.description }}</strong>
+
+            <span>
+              {{ suggestion.category }}
+              @if (suggestion.budget_group) {
+                · {{ suggestion.budget_group }}
+              }
+            </span>
+          </li>
+        }
+      </ul>
+
+      <label class="legacy-confirm">
+        <input
+          type="checkbox"
+          [(ngModel)]="legacyConfirmed"
+          [disabled]="legacyApplying"
+        />
+
+        I approve applying these suggested categories.
+      </label>
+
+      <button
+        class="legacy-apply-btn"
+        type="button"
+        [disabled]="
+          !legacyConfirmed ||
+          legacyApplying ||
+          legacyLoading
+        "
+        (click)="applyLegacyCategories()"
+      >
+        {{
+          legacyApplying
+            ? 'Applying categories...'
+            : 'Apply suggested categories'
+        }}
+      </button>
+
+      <p class="legacy-note">
+        Existing manual categorisations are protected.
+        Future recognised bank transactions are
+        categorised automatically.
+      </p>
+    }
+  </section>
+}
+
+
+<!-- Transactions Table -->
+<section
+  class="transaction-card"
+  aria-labelledby="transactions-heading"
+>
+  <div class="transaction-card__header">
+    <div>
+      <h2 id="transactions-heading">Transactions</h2>
+      <p>Track and organise your financial activity.</p>
+    </div>
+
+
+  <div class="transaction-card__tools">
+    <input
+      class="transaction-search"
+      type="search"
+      name="transactionSearch"
+      [(ngModel)]="searchTerm"
+      placeholder="Search transactions..."
+      aria-label="Search transactions"
+      autocomplete="off"
+    />
+
+    <span class="transaction-count">
+      {{ filteredTransactions.length }} transactions
+    </span>
+  </div>
+
+  </div>
+
+  <div class="transaction-table-scroll">
     <table class="transaction-table">
+      <thead>
+        <tr>
+          <th scope="col">Transaction</th>
+          <th scope="col">Source</th>
+          <th scope="col">Category</th>
+          <th scope="col" class="amount-column">Amount</th>
+          <th scope="col" class="actions-column">Actions</th>
+        </tr>
+      </thead>
 
-    <thead>
-    <tr>
-        <th>Description</th>
-        <th>Source</th>
-        <th>Category</th>
-        <th class="amount-column">Amount</th>
-        <th class="actions-column">Actions</th>
-    </tr>
-    </thead>
-        <tbody>
-        @for (transaction of filteredTransactions; track transaction.id) {
-            <tr>
-            <td>{{ transaction.description }}</td>
+      <tbody>
+        @for (
+          transaction of filteredTransactions;
+          track transaction.source + ':' + transaction.id
+        ) {
+          <tr>
+            <td class="transaction-main">
+              <span class="transaction-title">
+                {{ transaction.description }}
+              </span>
 
-            <td>
-                {{ transaction.source === 'cash' ? 'Cash' : 'Bank' }}
+              <span class="transaction-date">
+                {{ transaction.date | date:'dd MMM yyyy' }}
+              </span>
             </td>
 
             <td>
-                <span class="category-badge">
-                {{ transaction.category }}
+              <span
+                class="source-pill"
+                [class.source-pill--cash]="transaction.source === 'cash'"
+              >
+                {{ transaction.source === 'cash' ? 'Cash' : 'Bank' }}
+              </span>
+            </td>
+
+            <td>
+              <div class="category-cell">
+                <span
+                  class="category-pill"
+                  [class.category-pill--uncategorised]="
+                    transaction.category === 'Uncategorised'
+                  "
+                >
+                  {{ transaction.category }}
                 </span>
+
+                @if (transaction.budgetGroup) {
+                  <span class="budget-pill">
+                    {{ transaction.budgetGroup }}
+                  </span>
+                }
+              </div>
             </td>
 
             <td
-                class="amount-column"
-                [class.income]="transaction.amount >= 0"
-                [class.expense]="transaction.amount < 0"
+              class="amount-column"
+              [class.income]="transaction.amount >= 0"
+              [class.expense]="transaction.amount < 0"
             >
-            {{ formatAmount(transaction.amount, transaction.currency) }}
-
-            </td>   
+              <span class="amount-value">
+                {{ formatAmount(transaction.amount, transaction.currency) }}
+              </span>
+            </td>
 
             <td class="actions-column">
-            @if (transaction.source === 'cash') {
-
-                <div class="transaction-actions">
-
-                <!-- Edit Transaction -->
-                <a
+              <div class="transaction-actions">
+                @if (transaction.source === 'cash') {
+                  <a
                     class="edit-transaction-btn"
                     [routerLink]="['/app/activity/edit', transaction.id]"
                     [attr.aria-label]="'Edit ' + transaction.description"
-                >
+                  >
                     Edit
-                </a>
+                  </a>
 
-                <!-- Delete Transaction -->
-                <button
-                  class="delete-transaction-btn"
-                  type="button"
-                  (click)="openDeleteModal(transaction, $event)"
-                >
-                  Delete
-                </button>
-
-                </div>
-
-            } @else {
-
-                <span class="read-only-label">
-                Read-only
-                </span>
-
-            }
+                  <button
+                    class="delete-transaction-btn"
+                    type="button"
+                    [attr.aria-label]="'Delete ' + transaction.description"
+                    (click)="openDeleteModal(transaction, $event)"
+                  >
+                    Delete
+                  </button>
+                } @else {
+                  <button
+                    class="edit-transaction-btn"
+                    type="button"
+                    [attr.aria-label]="
+                      'Edit category for ' + transaction.description
+                    "
+                    (click)="openBankCategoryDialog(transaction, $event)"
+                  >
+                    Edit category
+                  </button>
+                }
+              </div>
             </td>
-
-            </tr>
+          </tr>
         } @empty {
           <tr>
             <td colspan="5" class="empty-state">
@@ -144,7 +316,9 @@
         }
       </tbody>
     </table>
-  </section>
+  </div>
+</section>
+
 
 
   <!-- Information Notice -->
@@ -215,5 +389,145 @@
     </div>
   </div>
 }
+
+
+<dialog
+  #bankCategoryDialog
+  class="confirm-modal category-dialog"
+  aria-labelledby="bank-category-dialog-title"
+  (cancel)="onBankCategoryDialogCancel($event)"
+  (close)="onBankCategoryDialogClosed()"
+>
+  <h2 id="bank-category-dialog-title">
+    Edit bank transaction category
+  </h2>
+
+  @if (categoryTransaction) {
+    <p class="modal-text">
+      <strong>{{ categoryTransaction.description }}</strong>
+    </p>
+
+    <p class="modal-subtext">
+      Only the category can be changed.
+      The original bank transaction remains unchanged.
+    </p>
+  }
+
+  <form (ngSubmit)="saveBankCategory()">
+    <div class="category-field">
+      <label for="bank-category-select">
+        Transaction category
+      </label>
+
+      <select
+        id="bank-category-select"
+        name="bankCategory"
+        class="category-select"
+        [(ngModel)]="selectedBankCategory"
+        [disabled]="savingCategory"
+      >
+        <option value="" disabled>Select a category</option>
+
+        @for (group of bankCategoryGroups; track group.label) {
+          <optgroup [label]="group.label">
+            @for (category of group.categories; track category) {
+              <option [value]="category">
+                {{ category }}
+              </option>
+            }
+          </optgroup>
+        }
+
+      </select>
+    </div>
+
+    @if (selectedBankCategory === 'Other') {
+      <div class="category-field">
+        <label for="bank-other-category">
+          Please specify
+        </label>
+
+        <input
+          id="bank-other-category"
+          name="otherBankCategory"
+          type="text"
+          class="category-select"
+          [(ngModel)]="otherBankCategory"
+          placeholder="e.g. Medical, Subscription"
+          maxlength="72"
+          [required]="selectedBankCategory === 'Other'"
+          [disabled]="savingCategory"
+        />
+      </div>
+    }
+
+
+<div class="category-field">
+  <label for="bank-budget-group-select">
+    Budget group
+  </label>
+
+  <select
+    id="bank-budget-group-select"
+    name="bankBudgetGroup"
+    class="category-select"
+    [(ngModel)]="selectedBankGroupOverride"
+    [disabled]="savingCategory"
+  >
+    <option value="AUTO">
+      Automatic (recommended)
+    </option>
+
+    <option value="NEEDS">
+      NEEDS — Essential spending
+    </option>
+
+    <option value="WANTS">
+      WANTS — Discretionary spending
+    </option>
+
+    <option value="SAVINGS">
+      SAVINGS — Money set aside
+    </option>
+
+    <option value="NONE">
+      Not assigned
+    </option>
+  </select>
+
+  <p class="budget-group-help">
+    Automatic uses the transaction category.
+    Manual selections are saved and preserved
+    when your bank transactions sync.
+  </p>
+</div>
+
+    @if (categoryError) {
+      <p class="modal-error" role="alert">
+        {{ categoryError }}
+      </p>
+    }
+
+    <div class="modal-actions">
+      <button
+        type="button"
+        class="modal-cancel-btn"
+        [disabled]="savingCategory"
+        (click)="closeBankCategoryDialog()"
+      >
+        Cancel
+      </button>
+
+      <button
+        type="submit"
+        class="category-save-btn"
+        [disabled]="savingCategory"
+      >
+        {{ savingCategory ? 'Saving...' : 'Save category' }}
+      </button>
+    </div>
+  </form>
+</dialog>
+
 
 </main>

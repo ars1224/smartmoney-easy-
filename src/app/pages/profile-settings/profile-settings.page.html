@@ -40,6 +40,273 @@
       }
     </section>
 
+
+<!-- Expected Income Modal -->
+@if (activeModal === 'expected-income') {
+  <div
+    class="settings-modal-backdrop"
+    (click)="closeModal()"
+  >
+    <section
+      #settingsModal
+      class="settings-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="expected-income-title"
+      tabindex="-1"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="expected-income-title">
+        Expected monthly income
+      </h2>
+
+      <p class="settings-modal__description">
+        Set how much income you expect to receive.
+        Each month has its own saved amount.
+      </p>
+
+
+<!-- Regular Income Settings -->
+<section class="regular-income-section">
+  <h3>Regular pay</h3>
+
+  <p>
+    Set your usual take-home pay once.
+    SmartMoney uses this to estimate your monthly income.
+  </p>
+
+  @if (regularIncomeLoading) {
+    <p role="status">Loading regular income...</p>
+  } @else {
+    <form (ngSubmit)="saveRegularIncome()">
+
+      <div class="regular-income-field">
+        <label for="regular-income-type">
+          Income type
+        </label>
+
+        <select
+          id="regular-income-type"
+          name="regularIncomeType"
+          [(ngModel)]="regularIncomeType"
+          [disabled]="regularIncomeSaving"
+        >
+          <option value="SALARY">Fixed salary</option>
+          <option value="HOURLY">Hourly pay</option>
+        </select>
+      </div>
+
+      <div class="regular-income-field">
+        <label for="regular-income-amount">
+          {{ regularIncomeType === 'SALARY'
+            ? 'Take-home pay per period (NZD)'
+            : 'Estimated take-home hourly rate (NZD)' }}
+        </label>
+
+        <input
+          id="regular-income-amount"
+          name="regularIncomeAmount"
+          type="number"
+          [(ngModel)]="regularIncomeAmount"
+          min="0"
+          max="999999999999.99"
+          step="0.01"
+          placeholder="0.00"
+          [disabled]="regularIncomeSaving"
+          required
+        />
+      </div>
+
+      @if (regularIncomeType === 'SALARY') {
+        <div class="regular-income-field">
+          <label for="regular-pay-frequency">
+            Pay frequency
+          </label>
+
+          <select
+            id="regular-pay-frequency"
+            name="regularPayFrequency"
+            [(ngModel)]="regularPayFrequency"
+            [disabled]="regularIncomeSaving"
+          >
+            <option value="WEEKLY">Weekly</option>
+            <option value="FORTNIGHTLY">Fortnightly</option>
+            <option value="MONTHLY">Monthly</option>
+            <option value="YEARLY">Yearly</option>
+          </select>
+        </div>
+      }
+
+      @if (regularIncomeType === 'HOURLY') {
+        <div class="regular-income-field">
+          <label for="regular-hours">
+            Usual hours per week
+          </label>
+
+          <input
+            id="regular-hours"
+            name="regularHoursPerWeek"
+            type="number"
+            [(ngModel)]="regularHoursPerWeek"
+            min="0"
+            max="168"
+            step="0.01"
+            placeholder="40"
+            [disabled]="regularIncomeSaving"
+            required
+          />
+        </div>
+      }
+
+      @if (regularIncomeError) {
+        <p role="alert" class="settings-modal__error">
+          {{ regularIncomeError }}
+        </p>
+      }
+
+      @if (regularIncomeMessage) {
+        <p role="status" class="settings-modal__message">
+          {{ regularIncomeMessage }}
+        </p>
+      }
+
+      @if (regularIncomeProfile) {
+        <div class="regular-income-estimate">
+          <span>Estimated monthly income</span>
+          <strong>
+            NZ${{ regularIncomeProfile.monthlyEstimate.toFixed(2) }}
+          </strong>
+        </div>
+      }
+
+      <div class="settings-modal__actions">
+        <button
+          type="submit"
+          class="settings-modal__primary"
+          [disabled]="
+            regularIncomeLoading ||
+            regularIncomeSaving ||
+            regularIncomeAmount === null
+          "
+        >
+          {{ regularIncomeSaving
+            ? 'Saving regular pay...'
+            : 'Save regular pay' }}
+        </button>
+      </div>
+
+    </form>
+  }
+</section>
+
+<hr class="income-section-divider" />
+
+<h3>Monthly income adjustment</h3>
+<p>
+  Optional: override your regular pay estimate
+  for a particular month.
+</p>
+
+<form (ngSubmit)="saveExpectedIncome()">
+
+
+        <label for="income-month">
+          Select month
+        </label>
+
+        <input
+          id="income-month"
+          name="incomeMonth"
+          type="month"
+          [(ngModel)]="incomeMonth"
+          (change)="loadExpectedIncome()"
+          [disabled]="incomeSaving"
+          required
+        />
+
+        <label for="income-amount">
+          Expected income (NZD)
+        </label>
+
+        <input
+          id="income-amount"
+          name="incomeAmount"
+          type="number"
+          [(ngModel)]="incomeAmount"
+          min="0"
+          max="999999999999.99"
+          step="0.01"
+          placeholder="0.00"
+          inputmode="decimal"
+          [disabled]="incomeLoading || incomeSaving"
+          required
+        />
+
+        @if (incomeLoading) {
+          <p role="status">
+            Loading expected income...
+          </p>
+        }
+
+        @if (incomeError) {
+          <p
+            class="settings-modal__error"
+            role="alert"
+          >
+            {{ incomeError }}
+          </p>
+
+          @if (!incomeSaving && !incomeLoading) {
+            <button
+              type="button"
+              class="settings-modal__secondary"
+              (click)="loadExpectedIncome()"
+            >
+              Reload income
+            </button>
+          }
+        }
+
+        @if (incomeMessage) {
+          <p
+            class="settings-modal__message"
+            role="status"
+          >
+            {{ incomeMessage }}
+          </p>
+        }
+
+        <div class="settings-modal__actions">
+
+          <button
+            type="submit"
+            class="settings-modal__primary"
+            [disabled]="
+              incomeSaving ||
+              incomeLoading ||
+              incomeAmount === null
+            "
+          >
+            {{ incomeSaving ? 'Saving...' : 'Save income' }}
+          </button>
+
+          <button
+            type="button"
+            class="settings-modal__secondary"
+            [disabled]="incomeSaving"
+            (click)="closeModal()"
+          >
+            Close
+          </button>
+
+        </div>
+
+      </form>
+    </section>
+  </div>
+}
+
+
     <!-- Personal Details Modal -->
     @if (activeModal === 'personal-details') {
       <div
