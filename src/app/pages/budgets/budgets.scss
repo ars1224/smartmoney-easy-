@@ -1059,3 +1059,12 @@
 
   margin: 4px 0 16px;
 }
+
+/* Allocation validation */
+
+.allocation-total-error {
+  grid-column: 1 / -1;
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #dc2626;
+}
