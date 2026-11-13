@@ -65,7 +65,7 @@ class Budget(db.Model):
             name="ck_budget_monthly_limit_positive",
         ),
         db.CheckConstraint(
-            "budget_group IN ('NEEDS', 'WANTS')",
+            "budget_group IN ('NEEDS', 'WANTS', 'SAVINGS')",
             name="ck_budget_group",
         ),
     )

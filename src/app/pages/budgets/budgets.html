@@ -18,7 +18,7 @@
     type="button"
     class="budget-month-btn"
     aria-label="Previous month"
-    [disabled]="isLoading || saving"
+    [disabled]="isLoading || saving || allocationSaving"
     (click)="changeMonth(-1)"
   >
     <span aria-hidden="true">&#8249;</span>
@@ -33,12 +33,166 @@
     type="button"
     class="budget-month-btn"
     aria-label="Next month"
-    [disabled]="isCurrentMonth || isLoading || saving"
+    [disabled]="isCurrentMonth || isLoading || saving || allocationSaving"
     (click)="changeMonth(1)"
   >
     <span aria-hidden="true">&#8250;</span>
   </button>
 </nav>
+
+<section
+  class="allocation-plan-panel"
+  aria-labelledby="allocation-plan-title"
+>
+  <div class="allocation-plan-heading">
+    <div>
+      <h2 id="allocation-plan-title">
+        Monthly allocation plan
+      </h2>
+
+      <p>
+        Available money:
+        <strong>{{ availableMoneyDisplay }}</strong>
+      </p>
+    </div>
+
+  @if (showAllocationEditor) {
+    <button
+      type="button"
+      class="allocation-close-btn"
+      aria-label="Close allocation editor"
+      [disabled]="allocationSaving"
+      (click)="cancelAllocationEditor()"
+    >
+      <span aria-hidden="true">&times;</span>
+    </button>
+  } @else {
+    <button
+      type="button"
+      class="allocation-edit-btn"
+      [disabled]="isLoading || allocationSaving"
+      (click)="openAllocationEditor()"
+    >
+      {{
+        allocation?.configured
+          ? 'Edit allocation'
+          : 'Set allocation'
+      }}
+    </button>
+  }
+  </div>
+
+  @if (showAllocationEditor) {
+    <form
+      class="allocation-plan-form"
+      (ngSubmit)="saveAllocation()"
+    >
+      <label>
+        Available money (NZD)
+
+        <input
+          type="number"
+          name="availableMoney"
+          [(ngModel)]="allocationForm.availableMoney"
+          min="0"
+          max="999999999999.99"
+          step="0.01"
+          [disabled]="allocationSaving"
+          required
+        />
+      </label>
+
+      <label>
+        Needs (%)
+
+        <input
+          type="number"
+          name="needsPercent"
+          [(ngModel)]="allocationForm.needsPercent"
+          min="0"
+          max="100"
+          step="1"
+          [disabled]="allocationSaving"
+          required
+        />
+      </label>
+
+      <label>
+        Wants (%)
+
+        <input
+          type="number"
+          name="wantsPercent"
+          [(ngModel)]="allocationForm.wantsPercent"
+          min="0"
+          max="100"
+          step="1"
+          [disabled]="allocationSaving"
+          required
+        />
+      </label>
+
+      <label>
+        Savings (%)
+
+        <input
+          type="number"
+          name="savingsPercent"
+          [(ngModel)]="allocationForm.savingsPercent"
+          min="0"
+          max="100"
+          step="1"
+          [disabled]="allocationSaving"
+          required
+        />
+      </label>
+
+      <div class="allocation-plan-actions">
+
+        <output
+          class="allocation-percentage-total"
+          [class.allocation-percentage-total--invalid]="
+            allocationPercentageTotal !== 100
+          "
+          aria-live="polite"
+        >
+          Total:
+          <strong>
+            {{ allocationPercentageTotal ?? '—' }}% / 100%
+          </strong>
+        </output>
+
+        <button
+          type="submit"
+          [disabled]="
+            allocationSaving ||
+            allocationPercentageTotal !== 100
+          "
+        >
+          {{
+            allocationSaving
+              ? 'Saving...'
+              : 'Save allocation'
+          }}
+        </button>
+
+      </div>
+
+      @if (allocationFormError) {
+        <p class="allocation-warning" role="alert">
+          {{ allocationFormError }}
+        </p>
+      }
+    </form>
+  }
+
+  @if (getOverallOverAllocation() > 0) {
+    <p class="allocation-warning" role="alert">
+      Your planned budgets exceed your available money by
+      {{ formatCurrency(getOverallOverAllocation()) }}.
+    </p>
+  }
+</section>
 
   <div class="budgets-layout">
 
@@ -98,135 +252,261 @@
   }
 </section>
 
+<!-- Create Budget action -->
+<div class="budget-create-action">
+  <button
+    type="button"
+    class="allocation-edit-btn"
+    [disabled]="isLoading || !!loadError"
+    (click)="openCreateDialog()"
+  >
+    + Create a budget
+  </button>
+</div>
 
-    <section
-      class="budget-list"
-      aria-label="Monthly budget categories"
-      [attr.aria-busy]="isLoading"
-    >
+<section
+  class="budget-list"
+  aria-label="Budget allocations"
+  [attr.aria-busy]="isLoading"
+>
+  @if (isLoading) {
+    <div class="budget-empty" role="status">
+      <h2>Loading budgets...</h2>
+      <p>Retrieving your budget allocations.</p>
+    </div>
 
-      @if (isLoading) {
-        <div class="budget-empty" role="status">
-          <h2>Loading budgets...</h2>
-          <p>Retrieving your monthly spending limits.</p>
-        </div>
-
-      } @else if (loadError) {
-        <div class="budget-empty" role="alert">
-          <h2>Unable to load budgets</h2>
-          <p>{{ loadError }}</p>
-
-          <button
-            type="button"
-            class="budget-cancel-btn"
-            (click)="loadBudgets()"
-          >
-            Try again
-          </button>
-        </div>
-
-      } @else {
-
-        @for (budget of budgets; track budget.id) {
-          <article class="budget-card">
-
-            <div class="budget-card-header">
-              <h2>{{ budget.category }}</h2>
-
-              <span>
-                {{ formatCurrency(budget.spent) }}
-                of
-                {{ formatCurrency(budget.monthlyLimit) }}
-              </span>
-            </div>
-
-            <div
-              class="budget-progress"
-              role="progressbar"
-              [attr.aria-label]="budget.category + ' budget used'"
-              [attr.aria-valuenow]="getProgressWidth(budget)"
-              aria-valuemin="0"
-              aria-valuemax="100"
-            >
-              <div
-                [class]="'budget-progress-fill progress-' + getBudgetStatus(budget)"
-                [style.width.%]="getProgressWidth(budget)"
-              ></div>
-            </div>
-
-            <div class="budget-card-details">
-              <span>
-                {{ getPercentage(budget).toFixed(0) }}% used
-              </span>
-
-              @if (budget.spent > budget.monthlyLimit) {
-                <span class="budget-over">
-                  {{ formatCurrency(budget.spent - budget.monthlyLimit) }}
-                  over budget
-                </span>
-              } @else {
-                <span>
-                  {{ formatCurrency(getRemainingAmount(budget)) }}
-                  remaining
-                </span>
-              }
-
-              <button
-                type="button"
-                class="budget-edit-btn"
-                [attr.aria-label]="'Edit ' + budget.category + ' budget'"
-                (click)="openEditDialog(budget)"
-              >
-                Edit budget
-              </button>
-            </div>
-
-          </article>
-
-        } @empty {
-          <div class="budget-empty">
-            <h2>No budgets yet</h2>
-
-            <p>
-              Create your first monthly budget to
-              start tracking your spending.
-            </p>
-          </div>
-        }
-
-      }
-
-    </section>
-
-    <aside class="budget-sidebar">
-
-      <div class="budget-alert">
-        @if (loadError) {
-          <h3>Budget status unavailable</h3>
-          <p>Refresh the budgets list to see your status.</p>
-
-        } @else if (isLoading) {
-          <h3>Budget status</h3>
-          <p>Loading your spending information...</p>
-
-        } @else {
-          <h3>
-            {{ alertBudget ? 'Budget alert' : 'Budget status' }}
-          </h3>
-          <p>{{ alertMessage }}</p>
-        }
-      </div>
+  } @else if (loadError) {
+    <div class="budget-empty" role="alert">
+      <h2>Unable to load budgets</h2>
+      <p>{{ loadError }}</p>
 
       <button
         type="button"
-        class="create-budget-btn"
-        [disabled]="isLoading || !!loadError"
-        (click)="openCreateDialog()"
+        class="budget-cancel-btn"
+        (click)="loadBudgets()"
       >
-        + Create a budget
+        Try again
       </button>
+    </div>
 
-    </aside>
+} @else {
+
+  @for (group of budgetColumns; track group.id) {
+    @if (getGroupOverAllocation(group.id) > 0) {
+      <p class="allocation-warning" role="alert">
+        {{ group.title }} exceeds its
+        {{ getAllocationPercentage(group.id) }}%
+        allocation by
+        {{ formatCurrency(getGroupOverAllocation(group.id)) }}.
+      </p>
+    }
+  }
+
+  <div class="budget-columns">
+
+      @for (group of budgetColumns; track group.id) {
+
+        <section
+          class="budget-column"
+          [class.budget-column--savings]="group.id === 'SAVINGS'"
+          [attr.aria-label]="group.title + ' allocations'"
+        >
+
+        <header
+          class="budget-column-heading"
+          [class.budget-column-heading--over]="
+            getGroupOverAllocation(group.id) > 0
+          "
+        >
+          <h2>{{ group.title }}</h2>
+
+          @if (allocation?.targets) {
+            <p class="budget-column-allocation">
+              <strong>
+                {{ formatCurrency(getTotalForGroup(group.id)) }}
+              </strong>
+
+              <span> / </span>
+
+              <span>
+                {{ formatCurrency(getTargetForGroup(group.id) ?? 0) }}
+              </span>
+            </p>
+
+            <small class="budget-column-target-label">
+              {{ getAllocationPercentage(group.id) }}% allocation target
+            </small>
+          } @else {
+            <p>
+              {{
+                allocationError
+                  ? 'Target unavailable'
+                  : 'Target not configured'
+              }}
+            </p>
+          }
+        </header>
+
+          <div class="budget-column-cards">
+
+          @if (group.id === 'SAVINGS') {
+
+            @for (
+              budget of getBudgetsForGroup('SAVINGS');
+              track budget.id
+            ) {
+
+            <article class="budget-card savings-budget-card">
+
+              <div class="budget-card-header">
+                <h2>Savings allocation</h2>
+
+                <span>
+                  {{ formatCurrency(budget.monthlyLimit) }}
+                </span>
+              </div>
+
+              <div class="budget-card-details">
+                <span>
+                  Planned for {{ selectedMonthLabel }}
+                </span>
+
+                <button
+                  type="button"
+                  class="budget-edit-btn"
+                  (click)="openEditDialog(budget)"
+                >
+                  Edit savings
+                </button>
+              </div>
+
+            </article>
+
+            } @empty {
+
+              <article class="budget-card savings-budget-card">
+                <div class="budget-card-header">
+                  <h2>Savings allocation</h2>
+                </div>
+
+                <p>
+                  No savings allocation has been set for this month.
+                </p>
+
+                <p>
+                  Select Savings when creating a budget
+                  to set aside money.
+                </p>
+              </article>
+
+            }
+
+          } @else {
+
+              @for (
+                budget of getBudgetsForGroup(group.id);
+                track budget.id
+              ) {
+
+                <article class="budget-card">
+
+                  <div class="budget-card-header">
+                    <h2>{{ budget.category }}</h2>
+
+                    <span>
+                      {{ formatCurrency(budget.spent) }}
+                      of
+                      {{ formatCurrency(budget.monthlyLimit) }}
+                    </span>
+                  </div>
+
+                  <div
+                    class="budget-progress"
+                    role="progressbar"
+                    [attr.aria-label]="budget.category + ' budget used'"
+                    [attr.aria-valuenow]="getProgressWidth(budget)"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                  >
+                    <div
+                      [class]="'budget-progress-fill progress-' + getBudgetStatus(budget)"
+                      [style.width.%]="getProgressWidth(budget)"
+                    ></div>
+                  </div>
+
+                  <div class="budget-card-details">
+                    <span>
+                      {{ getPercentage(budget).toFixed(0) }}% used
+                    </span>
+
+                    @if (budget.spent > budget.monthlyLimit) {
+                      <span class="budget-over">
+                        {{ formatCurrency(budget.spent - budget.monthlyLimit) }}
+                        over budget
+                      </span>
+                    } @else {
+                      <span>
+                        {{ formatCurrency(getRemainingAmount(budget)) }}
+                        remaining
+                      </span>
+                    }
+
+                    <button
+                      type="button"
+                      class="budget-edit-btn"
+                      [attr.aria-label]="'Edit ' + budget.category + ' budget'"
+                      (click)="openEditDialog(budget)"
+                    >
+                      Edit budget
+                    </button>
+                  </div>
+
+                </article>
+
+              } @empty {
+
+                <div class="budget-empty">
+                  <p>
+                    No {{ group.title.toLowerCase() }}
+                    budgets yet.
+                  </p>
+                </div>
+
+              }
+
+            }
+
+          </div>
+        </section>
+
+      }
+
+    </div>
+
+    @if (unassignedBudgets.length > 0) {
+      <section class="budget-unassigned" aria-label="Unassigned budgets">
+        <h2>Budgets needing classification</h2>
+        <p>
+          These existing budgets need to be assigned to
+          Needs or Wants. Your saved amounts are preserved.
+        </p>
+
+        <div class="budget-unassigned-actions">
+          @for (budget of unassignedBudgets; track budget.id) {
+            <button
+              type="button"
+              class="budget-edit-btn"
+              (click)="openEditDialog(budget)"
+            >
+              Assign {{ budget.category }}
+            </button>
+          }
+        </div>
+      </section>
+    }
+
+    }
+  </section>
 
   </div>
 
@@ -280,7 +560,7 @@
           required
         >
           <option value="" disabled>
-            Select Needs or Wants
+            Select Needs, Wants or Savings
           </option>
 
           <option value="NEEDS">
@@ -290,9 +570,14 @@
           <option value="WANTS">
             Wants — Lifestyle expenses
           </option>
+          <option value="SAVINGS">
+            Savings - Money set aside
+          </option>
         </select>
     </div>
 
+    @if (budgetForm.budgetGroup !== 'SAVINGS') {
+  <!-- Your existing Category form-group goes here -->
     <div class="budget-form-group">
       <label for="budget-category">Category</label>
 
@@ -300,9 +585,8 @@
         id="budget-category"
         name="category"
         [(ngModel)]="budgetForm.category"
-        [disabled]="saving"
-        required
         [disabled]="saving || !budgetForm.budgetGroup"
+        required
       >
         <option value="" disabled>
           Select category
@@ -315,6 +599,7 @@
         }
       </select>
     </div>
+  }
 
     @if (budgetForm.category === 'Other') {
       <div class="budget-form-group">
@@ -337,7 +622,11 @@
 
     <div class="budget-form-group">
       <label for="budget-limit">
-        Monthly limit (NZD)
+        {{
+          budgetForm.budgetGroup === 'SAVINGS'
+            ? 'Monthly savings allocation (NZD)'
+            : 'Monthly limit (NZD)'
+        }}
       </label>
 
       <input

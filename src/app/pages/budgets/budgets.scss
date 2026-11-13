@@ -68,8 +68,7 @@
 
 .budget-month-nav {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 0.75rem;
   margin-bottom: 1.25rem;
 }
@@ -234,7 +233,7 @@
 
 .budgets-layout {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 1.25rem;
 }
@@ -245,6 +244,48 @@
   flex-direction: column;
   min-width: 0;
   gap: 1rem;
+}
+
+.budget-list {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.budget-column-heading p {
+  margin: 0.5rem 0 0;
+  color: var(--sm-color-text-muted);
+  font-size: 0.875rem;
+}
+
+.budget-column-cards .budget-card {
+  width: 100%;
+}
+
+.savings-budget-card p {
+  color: var(--sm-color-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.budget-unassigned {
+  margin-top: 1.25rem;
+  padding: 1.25rem;
+  background: var(--sm-color-surface);
+  border: 1px solid var(--sm-color-border);
+  border-radius: var(--sm-radius-lg);
+}
+
+.budget-unassigned h2 {
+  margin-top: 0;
+  color: var(--sm-color-navy);
+  font-size: 1rem;
+}
+
+.budget-unassigned-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 /* =========================================
@@ -322,29 +363,6 @@
   background: #dc4c50;
 }
 
-/* =========================================
-   BUDGET STATUS
-========================================= */
-
-.budget-alert {
-  background: #fff5d6;
-  border: 1px solid #f4e9bb;
-  border-radius: var(--sm-radius-lg);
-}
-
-.budget-alert h3 {
-  margin: 0 0 0.75rem;
-  color: var(--sm-color-navy);
-  font-size: 1rem;
-  font-weight: 800;
-}
-
-.budget-alert p {
-  margin: 0;
-  color: var(--sm-color-text-muted);
-  font-size: 0.825rem;
-  line-height: 1.6;
-}
 
 /* =========================================
    EMPTY STATE
@@ -758,4 +776,270 @@
   .group-spending-grid {
     grid-template-columns: 1fr;
   }
+}
+
+
+.budget-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.budget-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1rem;
+}
+
+.budget-column-heading {
+  padding: 1rem;
+  border-radius: 12px;
+  background: #eaf4f5;
+  color: #142a47;
+  text-align: center;
+}
+
+.budget-column-heading h2 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.budget-column-cards {
+  display: grid;
+  gap: 1rem;
+}
+
+/* Tablet */
+@media (max-width: 900px) {
+  .budget-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .budget-column--savings {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .budget-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .budget-column--savings {
+    grid-column: auto;
+  }
+}
+
+.savings-budget-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 145px;
+}
+
+.savings-budget-card .budget-card-details {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.allocation-plan-panel {
+  margin: 20px 0;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #d7e3eb;
+  border-radius: 16px;
+}
+
+.allocation-plan-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+
+  h2 {
+    margin: 0 0 6px;
+    font-size: 1.15rem;
+  }
+
+  p {
+    margin: 0;
+    color: #526780;
+  }
+}
+
+.allocation-edit-btn {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: #087f83;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.allocation-plan-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  input {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 12px;
+
+    background-color: #ffffff;
+    color: #142a43;
+    color-scheme: light;
+
+    border: 1px solid #ccd9e3;
+    border-radius: 9px;
+
+    font-size: 0.95rem;
+
+    &:focus {
+      outline: 2px solid #087f83;
+      outline-offset: 1px;
+      border-color: #087f83;
+    }
+
+    &:disabled {
+      background-color: #f1f5f9;
+      color: #64748b;
+    }
+  }
+}
+
+.allocation-plan-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+
+  button {
+    padding: 10px 16px;
+    border-radius: 9px;
+    border: 1px solid #ccd9e3;
+    cursor: pointer;
+  }
+
+  button[type='submit'] {
+    background: #087f83;
+    color: #fff;
+    border-color: #087f83;
+  }
+}
+
+.allocation-warning {
+  padding: 12px 14px;
+  margin-top: 12px;
+  border: 1px solid #f1c37b;
+  border-radius: 10px;
+  background: #fff4df;
+  color: #87500d;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .allocation-plan-form {
+    grid-template-columns: 1fr;
+  }
+
+  .allocation-plan-actions {
+    grid-column: 1;
+  }
+}
+
+.allocation-close-btn {
+  display: grid;
+  place-items: center;
+
+  width: 38px;
+  height: 38px;
+
+  background: #f8fafc;
+  color: #334155;
+
+  border: 1px solid #d7e3eb;
+  border-radius: 10px;
+
+  font-size: 1.6rem;
+  line-height: 1;
+
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: #e6f2f3;
+    color: #087f83;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+.budget-column-allocation {
+  margin: 6px 0 2px;
+  color: #225a4c;
+}
+
+.budget-column-target-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #54736e;
+}
+
+.budget-column-heading.budget-column-heading--over {
+  background-color: #fee2e2;
+  box-shadow: inset 0 0 0 1px #fca5a5;
+
+  h2,
+  .budget-column-allocation,
+  .budget-column-target-label {
+    color: #991b1b;
+  }
+}
+
+
+.allocation-percentage-total {
+  margin-right: auto;
+  padding: 9px 14px;
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.allocation-percentage-total--invalid {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.budget-create-action {
+  grid-column: 1 / -1;
+  width: 100%;
+
+  display: flex;
+  justify-content: flex-end;
+
+  margin: 4px 0 16px;
 }

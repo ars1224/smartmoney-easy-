@@ -1,7 +1,7 @@
 
 import re
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, jsonify, request
@@ -13,7 +13,13 @@ from app.auth_security import (
     get_authenticated_user_id,
 )
 from app.extensions import db
-from app.models import Budget, BudgetMonthlyLimit, Transaction
+from app.models import (
+    Budget,
+    BudgetMonthlyLimit,
+    Transaction,
+    MonthlyIncomePlan,
+    BudgetAllocationPlan,
+)
 
 from app.services.transaction_categorizer import (
     classify_budget_group,
@@ -76,6 +82,9 @@ CATEGORIES = (
 
     # CUSTOM
     "Other",
+
+    # SAVINGS
+    "Savings",
 )
 
 CATEGORY_LOOKUP = {
@@ -84,7 +93,124 @@ CATEGORY_LOOKUP = {
 }
 
 
-VALID_BUDGET_GROUPS = {"NEEDS", "WANTS"}
+VALID_BUDGET_GROUPS = {"NEEDS", "WANTS", "SAVINGS"}
+
+DEFAULT_ALLOCATION = {
+    "NEEDS": 55,
+    "WANTS": 20,
+    "SAVINGS": 25,
+}
+
+
+def parse_available_money(value):
+    if (
+        value is None
+        or isinstance(value, bool)
+        or not isinstance(value, (str, int, float))
+    ):
+        raise ValueError("Enter a valid available-money amount.")
+
+    try:
+        amount = Decimal(str(value))
+
+        if not amount.is_finite():
+            raise ValueError("Amount must be finite.")
+
+        if amount < 0 or amount > MAX_AMOUNT:
+            raise ValueError(
+                "Available money must be within the permitted range."
+            )
+
+        if amount != amount.quantize(CENT):
+            raise ValueError(
+                "Amount cannot exceed two decimal places."
+            )
+
+        return amount.quantize(CENT)
+
+    except InvalidOperation:
+        raise ValueError("Invalid available-money amount.")
+
+
+def parse_allocation_percentage(value):
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or not 0 <= value <= 100
+    ):
+        raise ValueError(
+            "Allocation percentages must be whole numbers from 0 to 100."
+        )
+
+    return value
+
+def get_allocation_payload(user_id, month):
+    income_plan = MonthlyIncomePlan.query.filter_by(
+        user_id=user_id,
+        month=month,
+    ).first()
+
+    allocation_plan = BudgetAllocationPlan.query.filter_by(
+        user_id=user_id,
+        month=month,
+    ).first()
+
+    percentages = (
+        {
+            "NEEDS": allocation_plan.needs_percent,
+            "WANTS": allocation_plan.wants_percent,
+            "SAVINGS": allocation_plan.savings_percent,
+        }
+        if allocation_plan
+        else DEFAULT_ALLOCATION.copy()
+    )
+
+    available_money = (
+        income_plan.expected_income
+        if income_plan is not None
+        else None
+    )
+
+    targets = None
+
+    if available_money is not None:
+        needs_target = (
+            available_money
+            * Decimal(percentages["NEEDS"])
+            / Decimal("100")
+        ).quantize(CENT, rounding=ROUND_HALF_UP)
+
+        wants_target = (
+            available_money
+            * Decimal(percentages["WANTS"])
+            / Decimal("100")
+        ).quantize(CENT, rounding=ROUND_HALF_UP)
+
+        # Assign any rounding remainder to Savings so the
+        # three targets always equal available money.
+        savings_target = (
+            available_money
+            - needs_target
+            - wants_target
+        )
+
+        targets = {
+            "NEEDS": str(needs_target),
+            "WANTS": str(wants_target),
+            "SAVINGS": str(savings_target),
+        }
+
+    return {
+        "month": month,
+        "configured": available_money is not None,
+        "availableMoney": (
+            str(available_money)
+            if available_money is not None
+            else None
+        ),
+        "percentages": percentages,
+        "targets": targets,
+    }
 
 
 def parse_budget_group(value):
@@ -93,10 +219,22 @@ def parse_budget_group(value):
         or value not in VALID_BUDGET_GROUPS
     ):
         raise ValueError(
-            "Budget group must be NEEDS or WANTS."
+            "Budget group must be NEEDS, WANTS or SAVINGS."
         )
 
     return value
+
+def validate_budget_category_group(category, budget_group):
+    if budget_group == "SAVINGS":
+        if category != "Savings":
+            raise ValueError(
+                "Savings budgets must use the Savings category."
+            )
+
+    elif category == "Savings":
+        raise ValueError(
+            "The Savings category requires the SAVINGS budget group."
+        )
 
 
 def parse_category(value):
@@ -338,10 +476,13 @@ def get_monthly_group_spending(user_id, start, end):
 
 
 def serialize_budget(budget, spending, monthly_limit=None):
-    spent = spending.get(
-        budget.category.casefold(),
-        Decimal("0.00"),
-    )
+    if budget.budget_group == "SAVINGS":
+        spent = Decimal("0.00")
+    else:
+        spent = spending.get(
+            budget.category.casefold(),
+            Decimal("0.00"),
+        )
 
     effective_limit = (
         monthly_limit
@@ -459,6 +600,10 @@ def create_budget():
             parse_budget_group(data["budgetGroup"])
             if "budgetGroup" in data
             else None
+        )
+        validate_budget_category_group(
+            category,
+            budget_group,
         )
         monthly_limit = parse_monthly_limit(
             data["monthlyLimit"]
@@ -579,6 +724,26 @@ def update_budget(budget_id):
             "error": "Budget not found."
         }), 404
 
+    effective_category = (
+    category
+    if category is not None
+    else budget.category
+    )
+
+    effective_group = (
+        budget_group
+        if "budgetGroup" in data
+        else budget.budget_group
+    )
+
+    try:
+        validate_budget_category_group(
+            effective_category,
+            effective_group,
+        )
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
     if category is not None:
         budget.category = category
 
@@ -632,3 +797,129 @@ def update_budget(budget_id):
             effective_limit,
         ),
     })
+
+@budgets_bp.get("/allocation")
+def get_budget_allocation():
+    user_id = get_authenticated_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Authentication required."
+        }), 401
+
+    try:
+        month, _, _ = current_month(
+            request.args.get("month")
+        )
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+    return no_cache(
+        get_allocation_payload(user_id, month)
+    )
+
+@budgets_bp.put("/allocation")
+@csrf_required
+def save_budget_allocation():
+    user_id = get_authenticated_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Authentication required."
+        }), 401
+
+    data = request.get_json(silent=True)
+
+    required_fields = {
+        "availableMoney",
+        "needsPercent",
+        "wantsPercent",
+        "savingsPercent",
+    }
+
+    if (
+        not isinstance(data, dict)
+        or set(data) != required_fields
+    ):
+        return jsonify({
+            "error": "Invalid allocation details."
+        }), 400
+
+    try:
+        month, _, _ = current_month(
+            request.args.get("month")
+        )
+
+        available_money = parse_available_money(
+            data["availableMoney"]
+        )
+
+        needs = parse_allocation_percentage(
+            data["needsPercent"]
+        )
+
+        wants = parse_allocation_percentage(
+            data["wantsPercent"]
+        )
+
+        savings = parse_allocation_percentage(
+            data["savingsPercent"]
+        )
+
+        if needs + wants + savings != 100:
+            raise ValueError(
+                "Allocation percentages must total 100%."
+            )
+
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+    income_plan = (
+        MonthlyIncomePlan.query
+        .filter_by(user_id=user_id, month=month)
+        .with_for_update()
+        .first()
+    )
+
+    if income_plan is None:
+        income_plan = MonthlyIncomePlan(
+            user_id=user_id,
+            month=month,
+            expected_income=available_money,
+        )
+        db.session.add(income_plan)
+    else:
+        income_plan.expected_income = available_money
+
+    allocation_plan = (
+        BudgetAllocationPlan.query
+        .filter_by(user_id=user_id, month=month)
+        .with_for_update()
+        .first()
+    )
+
+    if allocation_plan is None:
+        allocation_plan = BudgetAllocationPlan(
+            user_id=user_id,
+            month=month,
+            needs_percent=needs,
+            wants_percent=wants,
+            savings_percent=savings,
+        )
+        db.session.add(allocation_plan)
+    else:
+        allocation_plan.needs_percent = needs
+        allocation_plan.wants_percent = wants
+        allocation_plan.savings_percent = savings
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({
+            "error": "Allocation changed concurrently. Please retry."
+        }), 409
+
+    return no_cache(
+        get_allocation_payload(user_id, month)
+    )
