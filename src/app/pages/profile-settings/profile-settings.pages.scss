@@ -386,3 +386,37 @@ ion-content {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.bank-delete-modal {
+  width: min(100%, 540px);
+}
+
+.bank-delete-modal__warning {
+  padding: 16px;
+  margin-top: 8px;
+  border: 1px solid #f0d6d6;
+  border-radius: 10px;
+  background: #fff7f7;
+  color: #142a47;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.bank-delete-modal__warning strong {
+  color: #d94747;
+}
+
+.bank-delete-modal__warning ul {
+  padding-left: 20px;
+  margin: 10px 0 0;
+}
+
+.bank-delete-modal__warning li + li {
+  margin-top: 7px;
+}
+
+.settings-modal__primary--danger:disabled,
+.settings-modal__secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -179,6 +179,30 @@ getAllTransactions(): Observable<BankActivityTransaction[]> {
   );
 }
 
+deleteImportedTransactions(): Observable<{
+  message: string;
+  deleted_count: number;
+}> {
+  const url =
+    `${environment.apiUrl}/bank/transactions/imported`;
+
+  return this.auth.getCsrfToken().pipe(
+    switchMap(token =>
+      this.http.delete<{
+        message: string;
+        deleted_count: number;
+      }>(
+        url,
+        {
+          withCredentials: true,
+          headers: {
+            'X-CSRF-Token': token,
+          },
+        }
+      )
+    )
+  );
+}
 
 syncConnection(connectionId: string): Observable<unknown> {
   const url =

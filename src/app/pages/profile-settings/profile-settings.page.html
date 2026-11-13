@@ -279,6 +279,76 @@
         </section>
       </div>
     }
+
+    <!-- Confirm Bank Data Removal Modal -->
+    @if (activeModal === 'confirm-remove-bank-data') {
+      <div
+        class="settings-modal-backdrop"
+        (click)="cancelBankDeleteConfirmation()"
+      >
+        <section
+          #settingsModal
+          class="settings-modal bank-delete-modal"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="bank-delete-title"
+          aria-describedby="bank-delete-description"
+          tabindex="-1"
+          (click)="$event.stopPropagation()"
+        >
+          <h2 id="bank-delete-title">
+            Remove stored bank data?
+          </h2>
+
+          <p
+            id="bank-delete-description"
+            class="settings-modal__description"
+          >
+            Are you sure you want to remove all imported bank transactions?
+          </p>
+
+          <div class="bank-delete-modal__warning">
+            <strong>Please note:</strong>
+            <ul>
+              <li>
+                Your connected bank accounts will remain unchanged.
+              </li>
+              <li>
+                Cash transactions will not be deleted.
+              </li>
+              <li>
+                Deleted transactions may reappear during the next bank sync
+                while your bank connection remains active.
+              </li>
+            </ul>
+          </div>
+          <div class="settings-modal__actions">
+            <button
+              type="button"
+              class="settings-modal__secondary"
+              [disabled]="bankDeleteLoading"
+              (click)="cancelBankDeleteConfirmation()"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              class="settings-modal__primary settings-modal__primary--danger"
+              [disabled]="bankDeleteLoading"
+              (click)="confirmRemoveBankData()"
+            >
+              {{
+                bankDeleteLoading
+                  ? 'Removing...'
+                  : 'Confirm deletion'
+              }}
+            </button>
+          </div>
+        </section>
+      </div>
+    }
+
     @if (activeModal === 'logout') {
       <div
         class="settings-modal-backdrop"

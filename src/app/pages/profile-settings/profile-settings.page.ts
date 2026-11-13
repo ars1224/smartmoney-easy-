@@ -1,4 +1,13 @@
-import { Component, ElementRef, HostListener, ViewChild, ChangeDetectorRef, inject } from '@angular/core';
+
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  ViewChild,
+  ChangeDetectorRef,
+  inject,
+} from '@angular/core';
+
 import { IonContent } from '@ionic/angular';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -6,11 +15,13 @@ import { Router } from '@angular/router';
 import { SmCardComponent } from '../../shared/ui/sm-card/sm-card.component';
 import { SmButtonComponent } from '../../shared/ui/sm-button/sm-button.component';
 import { AuthService } from '../../core/auth/auth.service';
+import { BankAccountsApiService } from '../../core/bank/bank-accounts-api.service';
 
 type SettingsModal =
   | 'personal-details'
   | 'change-password'
   | 'privacy-data'
+  | 'confirm-remove-bank-data'
   | 'logout'
   | 'delete-account'
   | null;
@@ -29,6 +40,7 @@ type SettingsModal =
 })
 export class ProfileSettingsPage {
   private readonly auth = inject(AuthService);
+  private readonly bankApi = inject(BankAccountsApiService);
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -153,6 +165,7 @@ export class ProfileSettingsPage {
 
   // Privacy and stored data
   privacyMessage = '';
+  bankDeleteLoading = false;
 
   // Delete account
   deleteConfirmation = '';
@@ -259,7 +272,8 @@ export class ProfileSettingsPage {
     if (
       this.personalDetailsLoading ||
       this.passwordLoading ||
-      this.logoutLoading
+      this.logoutLoading ||
+      this.bankDeleteLoading
     ) {
       return;
     }
@@ -295,14 +309,14 @@ export class ProfileSettingsPage {
   savePersonalDetails(): void {
     const name = this.personalName.trim();
     const email = this.personalEmail.trim();
-    
+
     if (!name || name.length < 2 || name.length > 100) {
       this.personalDetailsError =
         'Name must be between 2 and 100 characters.';
-        this.personalDetailsMessage = '';
+      this.personalDetailsMessage = '';
       return;
     }
-    
+
     if (
       !email ||
       email.length > 255 ||
@@ -325,11 +339,11 @@ export class ProfileSettingsPage {
     this.auth.updateProfile(name, email).subscribe({
       next: (user) => {
         this.personalName = user.name;
-        this.personalEmail = user.email;     
-      
+        this.personalEmail = user.email;
+
         this.personalDetailsMessage =
           'Your personal details have been updated successfully.';
-        
+
         this.personalDetailsLoading = false;
 
         this.cdr.detectChanges();
@@ -342,7 +356,6 @@ export class ProfileSettingsPage {
       },
     });
   }
-
 
   // Validate password fields
   updatePassword(): void {
@@ -392,7 +405,7 @@ export class ProfileSettingsPage {
       next: () => {
         this.passwordMessage =
           'Your password has been updated successfully.';
-          
+
         this.currentPassword = '';
         this.newPassword = '';
         this.confirmPassword = '';
@@ -410,7 +423,6 @@ export class ProfileSettingsPage {
     });
   }
 
-
   // Show privacy-related status messages
   showPrivacyMessage(action: string): void {
     if (action === 'export-data') {
@@ -420,9 +432,52 @@ export class ProfileSettingsPage {
     }
 
     if (action === 'remove-bank-data') {
-      this.privacyMessage =
-        'Bank data removal will be available after backend integration.';
+      if (this.bankDeleteLoading) {
+        return;
+      }
+
+      this.activeModal = 'confirm-remove-bank-data';
     }
+  }
+
+  // Return to the privacy modal without deleting data
+  cancelBankDeleteConfirmation(): void {
+    if (this.bankDeleteLoading) {
+      return;
+    }
+
+    this.activeModal = 'privacy-data';
+  }
+
+  // Confirm and remove imported bank transactions
+  confirmRemoveBankData(): void {
+    if (this.bankDeleteLoading) {
+      return;
+    }
+
+    this.bankDeleteLoading = true;
+
+    this.bankApi.deleteImportedTransactions().subscribe({
+      next: (response) => {
+        this.privacyMessage =
+          `${response.deleted_count} imported bank transactions removed. ` +
+          'Your connected accounts and cash transactions remain unchanged. ' +
+          'Deleted transactions may reappear during the next bank sync while your bank connection remains active.';
+
+        this.bankDeleteLoading = false;
+        this.activeModal = 'privacy-data';
+        this.cdr.detectChanges();
+      },
+
+      error: () => {
+        this.privacyMessage =
+          'Unable to remove imported bank transactions. Please try again.';
+
+        this.bankDeleteLoading = false;
+        this.activeModal = 'privacy-data';
+        this.cdr.detectChanges();
+      },
+    });
   }
 
   // Log out using Flask session-based authentication
@@ -440,6 +495,7 @@ export class ProfileSettingsPage {
         this.closeModal();
         void this.router.navigateByUrl('/auth/login');
       },
+
       error: (error: Error) => {
         this.logoutLoading = false;
         this.logoutError =
