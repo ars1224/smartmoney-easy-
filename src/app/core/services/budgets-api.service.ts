@@ -66,6 +66,33 @@ interface BudgetResponse {
   budget: BudgetDto;
 }
 
+export interface AllocationOverview {
+  month: string;
+  configured: boolean;
+  availableMoney: number | null;
+
+  percentages: Record<BudgetGroup, number>;
+
+  targets: Record<BudgetGroup, number> | null;
+}
+
+interface AllocationDto {
+  month: string;
+  configured: boolean;
+  availableMoney: string | null;
+
+  percentages: Record<BudgetGroup, number>;
+
+  targets: Record<BudgetGroup, string> | null;
+}
+
+export interface SaveAllocationPayload {
+  availableMoney: number;
+  needsPercent: number;
+  wantsPercent: number;
+  savingsPercent: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BudgetsApiService {
   private readonly http = inject(HttpClient);
@@ -151,6 +178,77 @@ export class BudgetsApiService {
         )
       );
     }
+
+private mapAllocation(
+  dto: AllocationDto
+): AllocationOverview {
+  return {
+    month: dto.month,
+    configured: dto.configured,
+
+    availableMoney:
+      dto.availableMoney === null
+        ? null
+        : Number(dto.availableMoney),
+
+    percentages: {
+      NEEDS: dto.percentages.NEEDS,
+      WANTS: dto.percentages.WANTS,
+      SAVINGS: dto.percentages.SAVINGS,
+    },
+
+    targets: dto.targets
+      ? {
+          NEEDS: Number(dto.targets.NEEDS),
+          WANTS: Number(dto.targets.WANTS),
+          SAVINGS: Number(dto.targets.SAVINGS),
+        }
+      : null,
+  };
+}
+
+getAllocation(
+  month?: string
+): Observable<AllocationOverview> {
+  return this.http.get<AllocationDto>(
+    `${this.apiUrl}/allocation`,
+    {
+      withCredentials: true,
+      params: month ? { month } : {},
+    }
+  ).pipe(
+    map(response => this.mapAllocation(response))
+  );
+}
+
+saveAllocation(
+  payload: SaveAllocationPayload,
+  month?: string
+): Observable<AllocationOverview> {
+  return this.auth.getCsrfToken().pipe(
+    switchMap(token =>
+      this.http.put<AllocationDto>(
+        `${this.apiUrl}/allocation`,
+        {
+          availableMoney:
+            payload.availableMoney.toFixed(2),
+
+          needsPercent: payload.needsPercent,
+          wantsPercent: payload.wantsPercent,
+          savingsPercent: payload.savingsPercent,
+        },
+        {
+          withCredentials: true,
+          params: month ? { month } : {},
+          headers: {
+            'X-CSRF-Token': token,
+          },
+        }
+      )
+    ),
+    map(response => this.mapAllocation(response))
+  );
+}
 
 private mapBudget(dto: BudgetDto): BudgetRecord {
   return {

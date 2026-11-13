@@ -11,6 +11,7 @@ from app.models.budget import Budget
 from app.models.budget_monthly_limit import BudgetMonthlyLimit
 from app.models.monthly_income_plan import MonthlyIncomePlan
 from app.models.regular_income_profile import RegularIncomeProfile
+from app.models.budget_plans import BudgetAllocationPlan
 
 def utc_now():
     return datetime.now(timezone.utc)

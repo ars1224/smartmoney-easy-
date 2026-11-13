@@ -1,5 +1,7 @@
-
-export type BudgetGroup = 'NEEDS' | 'WANTS';
+export type BudgetGroup =
+  | 'NEEDS'
+  | 'WANTS'
+  | 'SAVINGS';
 
 export type GoalGroup =
   | 'NEEDS'
@@ -53,6 +55,9 @@ export const BUDGET_CATEGORIES: Record<
     'Pet Care',
     'Donations',
     'Other',
+  ],
+    SAVINGS: [
+    'Savings',
   ],
 };
 
