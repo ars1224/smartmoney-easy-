@@ -30,6 +30,12 @@ class Budget(db.Model):
         nullable=False,
     )
 
+    budget_group = db.Column(
+        db.String(10),
+        nullable=True,
+    )
+
+
     monthly_limit = db.Column(
         db.Numeric(18, 2),
         nullable=False,
@@ -57,5 +63,9 @@ class Budget(db.Model):
         db.CheckConstraint(
             "monthly_limit > 0",
             name="ck_budget_monthly_limit_positive",
+        ),
+        db.CheckConstraint(
+            "budget_group IN ('NEEDS', 'WANTS')",
+            name="ck_budget_group",
         ),
     )

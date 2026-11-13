@@ -42,6 +42,63 @@
 
   <div class="budgets-layout">
 
+
+<section
+  class="group-spending-panel"
+  aria-labelledby="group-spending-title"
+>
+  <div class="group-spending-heading">
+    <div>
+      <h2 id="group-spending-title">Actual spending</h2>
+      <p>{{ selectedMonthLabel }}</p>
+    </div>
+  </div>
+
+  @if (isLoading) {
+    <p role="status">Loading spending summary...</p>
+  } @else if (loadError) {
+    <p role="alert">
+      Spending summary unavailable.
+    </p>
+  } @else if (groupSpending; as spending) {
+    <div class="group-spending-grid">
+      <article class="group-spending-card">
+        <span>NEEDS</span>
+        <strong>
+          {{ formatCurrency(spending.NEEDS) }}
+        </strong>
+        <p>Essential spending</p>
+      </article>
+
+      <article class="group-spending-card">
+        <span>WANTS</span>
+        <strong>
+          {{ formatCurrency(spending.WANTS) }}
+        </strong>
+        <p>Discretionary spending</p>
+      </article>
+
+      <article class="group-spending-card">
+        <span>Total classified spending</span>
+        <strong>
+          {{
+            formatCurrency(
+              spending.NEEDS + spending.WANTS
+            )
+          }}
+        </strong>
+        <p>Excludes repayments and transfers</p>
+      </article>
+    </div>
+
+    <p class="group-spending-note">
+      Based on classified NZD transactions.
+      Savings movements are tracked separately.
+    </p>
+  }
+</section>
+
+
     <section
       class="budget-list"
       aria-label="Monthly budget categories"
@@ -210,6 +267,33 @@
   >
 
     <div class="budget-form-group">
+        <label for="budget-group">
+          Budget group
+        </label>
+
+        <select
+          id="budget-group"
+          name="budgetGroup"
+          [(ngModel)]="budgetForm.budgetGroup"
+          (ngModelChange)="onBudgetGroupChange()"
+          [disabled]="saving"
+          required
+        >
+          <option value="" disabled>
+            Select Needs or Wants
+          </option>
+
+          <option value="NEEDS">
+            Needs — Essential expenses
+          </option>
+
+          <option value="WANTS">
+            Wants — Lifestyle expenses
+          </option>
+        </select>
+    </div>
+
+    <div class="budget-form-group">
       <label for="budget-category">Category</label>
 
       <select
@@ -218,6 +302,7 @@
         [(ngModel)]="budgetForm.category"
         [disabled]="saving"
         required
+        [disabled]="saving || !budgetForm.budgetGroup"
       >
         <option value="" disabled>
           Select category

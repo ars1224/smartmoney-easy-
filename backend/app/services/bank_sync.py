@@ -10,6 +10,14 @@ from app.services.bank_crypto import decrypt_secret
 from app.services.mock_bank import MockBankError
 from app.services.mock_bank_authorized import MockBankAuthorizedClient
 
+from app.services.transaction_categorizer import (
+    classify_bank_transaction,
+)
+
+from app.services.transaction_backfill import (
+    backfill_bank_categories,
+)
+
 class BankReauthorizationRequired(Exception):
     """Bank connection requires reauthorisation."""
     pass
@@ -18,7 +26,6 @@ def parse_bank_date(value):
     return datetime.fromisoformat(
         value.replace("Z", "+00:00")
     )
-
 
 def sync_bank_connection(connection_id):
     connection = db.session.get(
@@ -69,6 +76,7 @@ def sync_bank_connection(connection_id):
     accounts_synced = 0
     transactions_imported = 0
     failed_account_ids = []
+    successful_account_ids = []
 
     try:
         for account in accounts:
@@ -134,13 +142,29 @@ def sync_bank_connection(connection_id):
                         if external_id in existing_ids:
                             continue
 
+                        amount = Decimal(str(item["amount"]))
+
+                        suggested_category = classify_bank_transaction(
+                            item["description"],
+                            amount,
+                            item["transaction_type"],
+                        )
+
+                        category_source = (
+                            "AUTO"
+                            if suggested_category is not None
+                            else "UNCLASSIFIED"
+                        )
+
                         transaction = Transaction(
                             user_id=connection.user_id,
                             bank_account_id=account.id,
                             external_transaction_id=external_id,
                             source="BANK",
                             description=item["description"],
-                            amount=Decimal(str(item["amount"])),
+                            category=suggested_category,
+                            category_source=category_source,
+                            amount=amount,
                             balance_after=(
                                 Decimal(str(item["balance_after"]))
                                 if item.get("balance_after") is not None
@@ -150,16 +174,18 @@ def sync_bank_connection(connection_id):
                             transaction_type=item["transaction_type"],
                             transaction_date=parse_bank_date(
                                 item["transaction_date"]
-                            )
+                            ),
                         )
 
                         db.session.add(transaction)
                         existing_ids.add(external_id)
                         imported_for_account += 1
 
-                    # Surface database errors inside this
-                    # account's savepoint.
+                    # Flush after processing all transactions.
+                    # Remain inside the account savepoint.
                     db.session.flush()
+
+
 
             except MockBankError as error:
                 if error.status_code in (401, 403):
@@ -195,6 +221,7 @@ def sync_bank_connection(connection_id):
 
             accounts_synced += 1
             transactions_imported += imported_for_account
+            successful_account_ids.append(account.id)
 
         if accounts_synced == 0:
             raise MockBankError(
@@ -211,6 +238,16 @@ def sync_bank_connection(connection_id):
             raise BankReauthorizationRequired(
                 "Bank connection was disconnected during synchronisation."
             )
+        # Reclassify eligible existing transactions from
+        # successfully synced accounts.
+        # Never override MANUAL or automatically process LEGACY.
+        backfill_result = backfill_bank_categories(
+            connection.user_id,
+            account_ids=successful_account_ids,
+            include_legacy=False,
+            apply=True,
+            commit=False,
+        )
 
         sync_time = datetime.now(timezone.utc)
         connection.last_synced_at = sync_time
@@ -228,6 +265,7 @@ def sync_bank_connection(connection_id):
             "failed_account_ids": failed_account_ids,
             "transactions_imported": transactions_imported,
             "last_synced_at": sync_time.isoformat(),
+            "transactions_categorised": backfill_result["count"],
         }
 
     except Exception:

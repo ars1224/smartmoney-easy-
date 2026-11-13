@@ -227,6 +227,21 @@ class Transaction(db.Model):
     nullable=True
     )
 
+    category_source = db.Column(
+        db.String(12),
+        nullable=False,
+        default="LEGACY",
+        server_default="LEGACY",
+    )
+
+
+    budget_group_override = db.Column(
+        db.String(10),
+        nullable=True,
+        default=None,
+    )
+
+
     note = db.Column(
         db.String(250),
         nullable=True
