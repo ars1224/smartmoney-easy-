@@ -18,6 +18,32 @@ export interface ConnectedBankAccount {
   lastSyncedAt: string | null;
 }
 
+export interface BankAccountTransaction {
+  id: string;
+  description: string;
+  amount: number;
+  balanceAfter: number | null;
+  currency: string;
+  transactionType: string;
+  transactionDate: string;
+}
+
+interface BankAccountTransactionDto {
+  id: string;
+  description: string;
+  amount: string;
+  balance_after: string | null;
+  currency: string;
+  transaction_type: string;
+  transaction_date: string;
+}
+
+interface BankTransactionsResponse {
+  account_id: string;
+  transactions: BankAccountTransactionDto[];
+  count: number;
+}
+
 interface BankAccountDto {
   id: string;
   connection_id: string;
@@ -35,12 +61,38 @@ interface BankAccountsResponse {
   count: number;
 }
 
+export interface BankActivityTransaction {
+  id: string;
+  bankAccountId: string;
+  description: string;
+  category: string | null;
+  amount: number;
+  currency: string;
+  transactionType: string;
+  transactionDate: string;
+}
+
+interface BankActivityTransactionDto {
+  id: string;
+  bank_account_id: string;
+  description: string;
+  category: string | null;
+  amount: string;
+  currency: string;
+  transaction_type: string;
+  transaction_date: string;
+}
+
+interface AllBankTransactionsResponse {
+  transactions: BankActivityTransactionDto[];
+  count: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
 export class BankAccountsApiService {
   private readonly http = inject(HttpClient);
-
   private readonly auth = inject(AuthService);
 
   private readonly apiUrl =
@@ -68,6 +120,86 @@ export class BankAccountsApiService {
       )
     );
   }
+
+  getTransactions(
+    accountId: string
+  ): Observable<BankAccountTransaction[]> {
+    const url =
+      `${environment.apiUrl}/bank/accounts/` +
+      `${encodeURIComponent(accountId)}/transactions`;
+
+    return this.http.get<BankTransactionsResponse>(
+      url,
+      { withCredentials: true }
+    ).pipe(
+      map(response =>
+        response.transactions.map(transaction => ({
+          id: transaction.id,
+          description: transaction.description,
+          amount: Number(transaction.amount),
+          balanceAfter:
+            transaction.balance_after === null
+              ? null
+              : Number(transaction.balance_after),
+          currency: transaction.currency,
+          transactionType: transaction.transaction_type,
+          transactionDate: transaction.transaction_date,
+        }))
+      )
+    );
+  }
+
+  getAllTransactions(): Observable<BankActivityTransaction[]> {
+    return this.http.get<AllBankTransactionsResponse>(
+      `${environment.apiUrl}/bank/transactions`,
+      { withCredentials: true }
+    ).pipe(
+      map(response =>
+        response.transactions.map(transaction => ({
+          id: transaction.id,
+          bankAccountId: transaction.bank_account_id,
+          description: transaction.description,
+          category: transaction.category,
+          amount: Number(transaction.amount),
+          currency: transaction.currency,
+          transactionType: transaction.transaction_type,
+          transactionDate: transaction.transaction_date,
+        }))
+      )
+    );
+  }
+
+  updateTransactionCategory(
+    transactionId: string,
+    category: string | null
+  ): Observable<{ id: string; category: string | null }> {
+    const url =
+      `${environment.apiUrl}/bank/transactions/` +
+      `${encodeURIComponent(transactionId)}/category`;
+
+    return this.auth.getCsrfToken().pipe(
+      switchMap(token =>
+        this.http.patch<{
+          message: string;
+          transaction: {
+            id: string;
+            category: string | null;
+          };
+        }>(
+          url,
+          { category },
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
+      ),
+      map(response => response.transaction)
+    );
+  }
+
   syncConnection(connectionId: string): Observable<unknown> {
     const url =
       `${environment.apiUrl}/bank/connections/` +

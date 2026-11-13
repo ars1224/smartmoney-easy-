@@ -1,139 +1,404 @@
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  OnInit,
+  ViewChild,
+  inject,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
+
+import { HttpErrorResponse } from '@angular/common/http';
+
+import {
+  BudgetRecord,
+  BudgetsApiService,
+} from '../../core/services/budgets-api.service';
 
 export type BudgetStatus = 'safe' | 'warning' | 'danger';
 
-export interface Budget {
-  id: string;
+interface BudgetForm {
   category: string;
-  limit: number;
-  spent: number;
+  otherCategory: string;
+  monthlyLimit: number | null;
 }
-
-
 
 @Component({
   selector: 'app-budgets',
   standalone: true,
-  imports: [],
+  imports: [FormsModule],
   templateUrl: './budgets.html',
   styleUrl: './budgets.scss',
 })
-export class BudgetsPage {
+export class BudgetsPage implements OnInit {
+  private readonly budgetsApi = inject(BudgetsApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
-  // Temporary budgets for frontend development.
-  // These will eventually come from the Flask API.
-  readonly budgets: Budget[] = [
-    {
-      id: 'budget-1',
-      category: 'Groceries',
-      limit: 500,
-      spent: 420
-    },
-    {
-      id: 'budget-2',
-      category: 'Transport',
-      limit: 250,
-      spent: 160
-    },
-    {
-      id: 'budget-3',
-      category: 'Entertainment',
-      limit: 160,
-      spent: 145
-    }
+  @ViewChild('budgetDialog')
+  private budgetDialog?: ElementRef<HTMLDialogElement>;
+
+  readonly categories = [
+    'Groceries',
+    'Transport',
+    'Entertainment',
+    'Shopping',
+    'Bills',
+    'Eating out',
+    'Other',
   ];
 
-  // Calculate the percentage of the budget used.
-  getPercentage(budget: Budget): number {
-    if (budget.limit <= 0) {
-      return 0;
+  budgets: BudgetRecord[] = [];
+
+
+  selectedMonth = this.getCurrentNzMonth();
+
+  private loadRequestId = 0;
+
+  get selectedMonthLabel(): string {
+    const [year, month] = this.selectedMonth
+      .split('-')
+      .map(Number);
+
+    return new Intl.DateTimeFormat('en-NZ', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(
+      new Date(Date.UTC(year, month - 1, 15))
+    );
+  }
+
+  get isCurrentMonth(): boolean {
+    return this.selectedMonth >= this.getCurrentNzMonth();
+  }
+
+
+  isLoading = true;
+  loadError = '';
+  formError = '';
+  saving = false;
+
+  editingBudgetId: string | null = null;
+
+  budgetForm: BudgetForm = this.emptyForm();
+
+  ngOnInit(): void {
+    void this.loadBudgets();
+  }
+
+
+private getCurrentNzMonth(): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date());
+
+  const year = parts.find(
+    part => part.type === 'year'
+  )?.value;
+
+  const month = parts.find(
+    part => part.type === 'month'
+  )?.value;
+
+  return `${year}-${month}`;
+}
+
+changeMonth(direction: -1 | 1): void {
+  if (this.isLoading || this.saving) return;
+
+  const [year, month] = this.selectedMonth
+    .split('-')
+    .map(Number);
+
+  const targetDate = new Date(
+    Date.UTC(year, month - 1 + direction, 1)
+  );
+
+  const targetMonth =
+    `${targetDate.getUTCFullYear()}-` +
+    `${String(targetDate.getUTCMonth() + 1).padStart(2, '0')}`;
+
+  if (
+    targetMonth > this.getCurrentNzMonth() ||
+    targetDate.getUTCFullYear() < 1
+  ) {
+    return;
+  }
+
+  this.selectedMonth = targetMonth;
+  void this.loadBudgets();
+}
+
+
+
+
+async loadBudgets(): Promise<void> {
+  const requestId = ++this.loadRequestId;
+  const month = this.selectedMonth;
+
+  this.isLoading = true;
+  this.loadError = '';
+
+  try {
+    const budgets = await firstValueFrom(
+      this.budgetsApi.getBudgets(month)
+    );
+
+    if (requestId !== this.loadRequestId) {
+      return;
     }
+
+    this.budgets = budgets;
+
+  } catch {
+    if (requestId !== this.loadRequestId) {
+      return;
+    }
+
+    this.loadError =
+      'Unable to load budgets. Please try again.';
+
+  } finally {
+    if (requestId === this.loadRequestId) {
+      this.isLoading = false;
+      this.cdr.markForCheck();
+    }
+  }
+}
+
+
+  private emptyForm(): BudgetForm {
+    return {
+      category: '',
+      otherCategory: '',
+      monthlyLimit: null,
+    };
+  }
+
+  openCreateDialog(): void {
+    if (this.saving) return;
+
+    this.editingBudgetId = null;
+    this.budgetForm = this.emptyForm();
+    this.formError = '';
+
+    this.budgetDialog?.nativeElement.showModal();
+  }
+
+  openEditDialog(budget: BudgetRecord): void {
+    if (this.saving) return;
+
+    this.editingBudgetId = budget.id;
+
+    const isCustomOther = budget.category.startsWith('Other - ');
+
+    this.budgetForm = {
+      category: isCustomOther ? 'Other' : budget.category,
+      otherCategory: isCustomOther
+        ? budget.category.slice('Other - '.length)
+        : '',
+      monthlyLimit: budget.monthlyLimit,
+    };
+
+    this.formError = '';
+
+    this.budgetDialog?.nativeElement.showModal();
+  }
+
+  closeBudgetDialog(): void {
+    if (this.saving) return;
+
+    this.budgetDialog?.nativeElement.close();
+    this.editingBudgetId = null;
+    this.formError = '';
+    this.budgetForm = this.emptyForm();
+  }
+
+  onDialogCancel(event: Event): void {
+    if (this.saving) {
+      event.preventDefault();
+      return;
+    }
+
+    this.closeBudgetDialog();
+  }
+
+  get isEditing(): boolean {
+    return this.editingBudgetId !== null;
+  }
+
+  async saveBudget(): Promise<void> {
+    if (this.saving) return;
+
+    this.formError = '';
+
+  const selectedCategory = this.budgetForm.category;
+  let category = selectedCategory;
+  const monthlyLimit = this.budgetForm.monthlyLimit;
+
+  if (!this.categories.includes(selectedCategory)) {
+    this.formError = 'Please select a valid category.';
+    return;
+  }
+
+  if (selectedCategory === 'Other') {
+    const specific = this.budgetForm.otherCategory.trim();
+
+    if (
+      !specific ||
+      specific.length > 72 ||
+      /[\x00-\x1f\x7f]/.test(specific)
+    ) {
+      this.formError =
+        'Please specify a valid category (1–72 characters).';
+      return;
+    }
+
+    category = `Other - ${specific}`;
+  }
+
+    if (
+      monthlyLimit === null ||
+      !Number.isFinite(monthlyLimit) ||
+      monthlyLimit <= 0 ||
+      monthlyLimit > 999999999999.99
+    ) {
+      this.formError =
+        'Enter a valid monthly limit greater than zero.';
+      return;
+    }
+
+    if (
+      Math.abs(
+        monthlyLimit - Number(monthlyLimit.toFixed(2))
+      ) > 1e-9
+    ) {
+      this.formError =
+        'Monthly limits cannot exceed two decimal places.';
+      return;
+    }
+
+    const duplicate = this.budgets.some(
+      budget =>
+        budget.category === category &&
+        budget.id !== this.editingBudgetId
+    );
+
+    if (duplicate) {
+      this.formError =
+        'A budget for this category already exists.';
+      return;
+    }
+
+    this.saving = true;
+
+    try {
+      const payload = {
+        category,
+        monthlyLimit,
+      };
+
+    await firstValueFrom(
+      this.editingBudgetId
+        ? this.budgetsApi.updateBudget(
+            this.editingBudgetId,
+            payload,
+            this.selectedMonth
+          )
+        : this.budgetsApi.createBudget(
+            payload,
+            this.selectedMonth
+          )
+    );
+
+      this.budgetDialog?.nativeElement.close();
+      this.editingBudgetId = null;
+      this.budgetForm = this.emptyForm();
+
+      // Reload budgets for the currently selected month.
+      await this.loadBudgets();
+
+    } catch (error: unknown) {
+      this.formError =
+        error instanceof HttpErrorResponse &&
+        typeof error.error?.error === 'string'
+          ? error.error.error
+          : 'Unable to save budget. Please try again.';
+
+    } finally {
+      this.saving = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  getPercentage(budget: BudgetRecord): number {
+    if (budget.monthlyLimit <= 0) return 0;
 
     return Math.max(
       0,
-      (budget.spent / budget.limit) * 100
+      (budget.spent / budget.monthlyLimit) * 100
     );
   }
 
-  // Prevent progress bars from extending past 100%.
-  getProgressWidth(budget: Budget): number {
-    return Math.min(
-      this.getPercentage(budget),
-      100
-    );
+  getProgressWidth(budget: BudgetRecord): number {
+    return Math.min(this.getPercentage(budget), 100);
   }
 
-  // Determine the budget's status.
-  getBudgetStatus(budget: Budget): BudgetStatus {
+  getBudgetStatus(budget: BudgetRecord): BudgetStatus {
     const percentage = this.getPercentage(budget);
 
-    if (percentage >= 90) {
-      return 'danger';
-    }
-
-    if (percentage >= 75) {
-      return 'warning';
-    }
+    if (percentage >= 90) return 'danger';
+    if (percentage >= 75) return 'warning';
 
     return 'safe';
   }
 
-  // Calculate the remaining amount.
-  getRemainingAmount(budget: Budget): number {
+  getRemainingAmount(budget: BudgetRecord): number {
     return Math.max(
       0,
-      budget.limit - budget.spent
+      budget.monthlyLimit - budget.spent
     );
   }
 
-  // Identify the budget that needs most attention.
-  get alertBudget(): Budget | null {
-    const budgetsNeedingAttention = this.budgets
+  get alertBudget(): BudgetRecord | null {
+    const attention = this.budgets
       .filter(budget => this.getPercentage(budget) >= 90)
       .sort(
         (a, b) =>
           this.getPercentage(b) - this.getPercentage(a)
       );
 
-    return budgetsNeedingAttention[0] ?? null;
+    return attention[0] ?? null;
   }
 
-  // Generate an automatic budget alert.
   get alertMessage(): string {
     const budget = this.alertBudget;
 
     if (!budget) {
-      return 'Your budgets are currently within their limits.';
+      return this.budgets.length === 0
+        ? 'Create your first budget to track spending.'
+        : 'Your budgets are currently within their limits.';
     }
 
-    if (budget.spent >= budget.limit) {
+    if (budget.spent >= budget.monthlyLimit) {
       return `${budget.category} has reached or exceeded its monthly limit. Review your spending.`;
     }
 
     return `${budget.category} is close to its monthly limit. Review your spending before making another purchase.`;
   }
 
-  // Format monetary values in NZD.
   formatCurrency(amount: number): string {
     return new Intl.NumberFormat('en-NZ', {
       style: 'currency',
       currency: 'NZD',
       currencyDisplay: 'narrowSymbol',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(amount);
   }
 
-
-@ViewChild('budgetDialog')
-private budgetDialog?: ElementRef<HTMLDialogElement>;
-
-openBudgetDialog(): void {
-  this.budgetDialog?.nativeElement.showModal();
-}
-
-closeBudgetDialog(): void {
-  this.budgetDialog?.nativeElement.close();
-}
 
 }
