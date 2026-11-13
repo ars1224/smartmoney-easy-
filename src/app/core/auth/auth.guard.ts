@@ -1,6 +1,7 @@
+
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { map } from 'rxjs';
+import { catchError, map, of } from 'rxjs';
 
 import { AuthService } from './auth.service';
 
@@ -18,7 +19,8 @@ export const authGuard: CanActivateFn = (_route, state) => {
               sessionExpired: auth.sessionExpired() ? true : null,
             },
           })
-    )
+    ),
+    catchError(() => of(false))
   );
 };
 
@@ -31,6 +33,7 @@ export const guestGuard: CanActivateFn = () => {
       isAuthenticated
         ? router.createUrlTree(['/app/dashboard'])
         : true
-    )
+    ),
+    catchError(() => of(false))
   );
 };

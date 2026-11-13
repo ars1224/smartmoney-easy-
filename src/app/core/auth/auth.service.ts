@@ -193,18 +193,20 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
       }),
       map(() => true),
       catchError((error: unknown) => {
-        const hadSession =
-          sessionStorage.getItem('smartmoney-had-session') === 'true';
-
-        const isSessionExpired =
+        if (
           error instanceof HttpErrorResponse &&
-          error.status === 401 &&
-          hadSession;
+          error.status === 401
+        ) {
+          const hadSession =
+            sessionStorage.getItem('smartmoney-had-session') === 'true';
 
-        this.clearLocalSession();
-        this.sessionExpiredSignal.set(isSessionExpired);
+          this.clearLocalSession();
+          this.sessionExpiredSignal.set(hadSession);
 
-        return of(false);
+          return of(false);
+        }
+
+        return throwError(() => error);
       }),
       finalize(() => {
         this.sessionVerification$ = null;
@@ -242,7 +244,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
     );
   }
 
-  
+
   updateProfile(
     name: string,
     email: string
@@ -308,9 +310,9 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
     if (!hadSession || this.sessionExpiryRedirected) {
       return false;
     }
-    
+
     this.sessionExpiryRedirected = true;
-    
+
     this.currentUserSignal.set(null);
     this.csrfToken = null;
     this.sessionExpiredSignal.set(true);

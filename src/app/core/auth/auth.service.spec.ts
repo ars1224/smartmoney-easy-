@@ -1,3 +1,4 @@
+
 import { TestBed } from '@angular/core/testing';
 import {
   afterEach,
@@ -7,10 +8,13 @@ import {
   it,
 } from 'vitest';
 import {
+  HttpErrorResponse,
+  provideHttpClient,
+} from '@angular/common/http';
+import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
 
 import { AuthService } from './auth.service';
 import { environment } from '../../../environments/environment';
@@ -22,9 +26,9 @@ describe('AuthService', () => {
   const sessionUrl = `${environment.apiUrl}/auth/me`;
 
   const mockUser = {
-    id: 'user-1',
-    name: 'Han Yoo',
-    email: 'han@example.com',
+    id: 'test-user-1',
+    name: 'Test User',
+    email: 'test@example.com',
   };
 
   beforeEach(() => {
@@ -100,16 +104,29 @@ describe('AuthService', () => {
     expect(service.isAuthenticated()).toBe(false);
   });
 
-  it('should not mark the session as expired when the server returns 500', () => {
+  it('should preserve the existing session when the server returns 500', () => {
     sessionStorage.setItem(
       'smartmoney-had-session',
       'true'
     );
 
-    let result: boolean | undefined;
+    // Establish an authenticated session first.
+    service.verifySession().subscribe();
 
-    service.verifySession().subscribe(value => {
-      result = value;
+    const initialRequest =
+      httpTestingController.expectOne(sessionUrl);
+
+    initialRequest.flush({
+      user: mockUser,
+    });
+
+    let receivedError: unknown;
+
+    // Verify the session again and simulate a server error.
+    service.verifySession().subscribe({
+      error: error => {
+        receivedError = error;
+      },
     });
 
     const request =
@@ -123,8 +140,19 @@ describe('AuthService', () => {
       }
     );
 
-    expect(result).toBe(false);
+    expect(receivedError).toBeInstanceOf(HttpErrorResponse);
+
+    expect(
+      (receivedError as HttpErrorResponse).status
+    ).toBe(500);
+
     expect(service.sessionExpired()).toBe(false);
+    expect(service.isAuthenticated()).toBe(true);
+
+    expect(service.currentUser()).toEqual({
+      name: 'Test User',
+      email: 'test@example.com',
+    });
   });
 
   it('should share one session verification request between concurrent subscribers', () => {
@@ -152,8 +180,8 @@ describe('AuthService', () => {
     expect(secondResult).toBe(true);
     expect(service.isAuthenticated()).toBe(true);
     expect(service.currentUser()).toEqual({
-      name: 'Han Yoo',
-      email: 'han@example.com',
+      name: 'Test User',
+      email: 'test@example.com',
     });
   });
 });

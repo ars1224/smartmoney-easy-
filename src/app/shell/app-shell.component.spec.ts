@@ -4,6 +4,7 @@ import { ElementRef } from '@angular/core';
 import { Router } from '@angular/router';
 import { of, throwError, Subject } from 'rxjs';
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { BankAutoSyncService } from '../core/bank/bank-auto-sync.service';
 
 import { AppShellComponent } from './app-shell.component';
 import { AuthService } from '../core/auth/auth.service';
@@ -11,6 +12,9 @@ import { AuthService } from '../core/auth/auth.service';
 describe('AppShellComponent', () => {
   let component: AppShellComponent;
   let fixture: ComponentFixture<AppShellComponent>;
+  let bankAutoSyncService: {
+    syncOnAppOpen: ReturnType<typeof vi.fn>;
+  };
 
   let authService: {
     logout: ReturnType<typeof vi.fn>;
@@ -31,6 +35,10 @@ describe('AppShellComponent', () => {
       navigateByUrl: vi.fn().mockResolvedValue(true),
     };
 
+    bankAutoSyncService = {
+      syncOnAppOpen: vi.fn().mockResolvedValue(undefined),
+    };
+
     await TestBed.configureTestingModule({
       imports: [AppShellComponent],
       providers: [
@@ -41,6 +49,10 @@ describe('AppShellComponent', () => {
         {
           provide: Router,
           useValue: router,
+        },
+        {
+          provide: BankAutoSyncService,
+          useValue: bankAutoSyncService,
         },
       ],
     })
@@ -89,6 +101,11 @@ describe('AppShellComponent', () => {
       expect(component.isLogoutModalOpen).toBe(false);
       expect(component.logoutLoading).toBe(false);
     });
+
+    it('should trigger automatic bank sync on initialization', () => {
+      expect(bankAutoSyncService.syncOnAppOpen)
+        .toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Logout Modal', () => {
@@ -113,6 +130,22 @@ describe('AppShellComponent', () => {
       component.closeLogoutModal();
 
       expect(component.isLogoutModalOpen).toBe(true);
+    });
+
+    it('should restore focus to the trigger when the logout modal closes', async () => {
+      const trigger = document.createElement('button');
+      document.body.appendChild(trigger);
+      trigger.focus();
+
+      component.openLogoutModal();
+      component.closeLogoutModal();
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(component.isLogoutModalOpen).toBe(false);
+      expect(document.activeElement).toBe(trigger);
+
+      trigger.remove();
     });
   });
 

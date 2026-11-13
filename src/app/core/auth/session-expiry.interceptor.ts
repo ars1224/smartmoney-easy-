@@ -1,3 +1,4 @@
+
 import { inject } from '@angular/core';
 import {
   HttpErrorResponse,
@@ -63,7 +64,8 @@ export const sessionExpiryInterceptor: HttpInterceptorFn = (
           }
 
           return throwError(() => error);
-        })
+        }),
+        catchError(() => throwError(() => error))
       );
     })
   );
