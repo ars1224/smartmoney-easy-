@@ -61,6 +61,16 @@ def run_tests():
     ]
 
     with app.app_context():
+        # Verify the test database schema before creating records.
+        revision = db.session.execute(
+            text("SELECT version_num FROM alembic_version")
+        ).scalar_one()
+
+        if revision != "66222b499d5a":
+            raise RuntimeError(
+                f"STOP: Unexpected test database revision: {revision}"
+            )
+
         try:
 
             # 1. Create the temporary test user.
@@ -615,15 +625,6 @@ def run_tests():
 
 
                 print("\nALL BANK SYNC INTEGRATION TESTS PASSED")
-
-                revision = db.session.execute(
-                    text("SELECT version_num FROM alembic_version")
-                ).scalar_one()
-
-                if revision != "4b64fa121502":
-                    raise RuntimeError(
-                        f"STOP: Unexpected migration revision: {revision}"
-                    )
 
         finally:
             db.session.rollback()
