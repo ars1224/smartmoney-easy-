@@ -87,6 +87,25 @@
       class="allocation-plan-form"
       (ngSubmit)="saveAllocation()"
     >
+
+      @if (allocationPercentageTotal !== 100) {
+    <div
+      id="allocation-percentage-error"
+      class="allocation-warning allocation-total-error"
+      role="status"
+    >
+      <strong>Invalid allocation percentages</strong>
+
+      <p>
+        Needs, Wants and Savings must add up to exactly
+        100% before you can save your allocation plan.
+        Your current total is
+        <strong>{{ allocationPercentageTotal ?? '—' }}%</strong>.
+        Please adjust the percentage fields below.
+      </p>
+    </div>
+    }
+
       <label>
         Available money (NZD)
 
@@ -114,6 +133,20 @@
           step="1"
           [disabled]="allocationSaving"
           required
+          [style.border-color]="
+            allocationPercentageTotal !== 100 ? '#dc2626' : null
+          "
+          [style.background-color]="
+            allocationPercentageTotal !== 100 ? '#fff5f5' : null
+          "
+          [attr.aria-invalid]="
+            allocationPercentageTotal !== 100 ? 'true' : null
+          "
+          [attr.aria-describedby]="
+            allocationPercentageTotal !== 100
+              ? 'allocation-percentage-error'
+              : null
+          "
         />
       </label>
 
@@ -128,6 +161,20 @@
           max="100"
           step="1"
           [disabled]="allocationSaving"
+          [style.border-color]="
+            allocationPercentageTotal !== 100 ? '#dc2626' : null
+          "
+          [style.background-color]="
+            allocationPercentageTotal !== 100 ? '#fff5f5' : null
+          "
+          [attr.aria-invalid]="
+            allocationPercentageTotal !== 100 ? 'true' : null
+          "
+          [attr.aria-describedby]="
+            allocationPercentageTotal !== 100
+              ? 'allocation-percentage-error'
+              : null
+          "
           required
         />
       </label>
@@ -143,6 +190,20 @@
           max="100"
           step="1"
           [disabled]="allocationSaving"
+          [style.border-color]="
+            allocationPercentageTotal !== 100 ? '#dc2626' : null
+          "
+          [style.background-color]="
+            allocationPercentageTotal !== 100 ? '#fff5f5' : null
+          "
+          [attr.aria-invalid]="
+            allocationPercentageTotal !== 100 ? 'true' : null
+          "
+          [attr.aria-describedby]="
+            allocationPercentageTotal !== 100
+              ? 'allocation-percentage-error'
+              : null
+          "
           required
         />
       </label>
@@ -164,9 +225,16 @@
 
         <button
           type="submit"
-          [disabled]="
-            allocationSaving ||
-            allocationPercentageTotal !== 100
+          [disabled]="allocationSaving || allocationPercentageTotal !== 100"
+          [style.opacity]="
+            allocationSaving || allocationPercentageTotal !== 100
+              ? 0.5
+              : null
+          "
+          [style.cursor]="
+            allocationSaving || allocationPercentageTotal !== 100
+              ? 'not-allowed'
+              : null
           "
         >
           {{
