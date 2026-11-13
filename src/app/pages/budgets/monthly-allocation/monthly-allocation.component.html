@@ -1,0 +1,120 @@
+
+<section
+  class="monthly-allocation"
+  aria-label="Monthly income allocation"
+>
+  <div class="income-overview-heading">
+    <h2>Monthly allocation</h2>
+    <p>{{ monthLabel }}</p>
+  </div>
+
+  @if (loading) {
+    <p role="status">
+      Loading your saved allocation...
+    </p>
+
+  } @else if (error) {
+    <p role="alert">{{ error }}</p>
+
+    <button
+      type="button"
+      class="income-edit-btn"
+      (click)="retryLoading()"
+    >
+      Try again
+    </button>
+
+  } @else if (allocation; as plan) {
+
+    <p class="allocation-description">
+      Your saved Needs, Savings and Wants plan.
+    </p>
+
+    <div
+      class="allocation-bar"
+      role="img"
+      [attr.aria-label]="
+        'Needs ' + plan.needsPercent +
+        '%, Savings ' + plan.savingsPercent +
+        '%, Wants ' + plan.wantsPercent + '%'
+      "
+    >
+      <span
+        class="allocation-needs"
+        [style.width.%]="plan.needsPercent"
+      ></span>
+
+      <span
+        class="allocation-savings"
+        [style.width.%]="plan.savingsPercent"
+      ></span>
+
+      <span
+        class="allocation-wants"
+        [style.width.%]="plan.wantsPercent"
+      ></span>
+    </div>
+
+    @if (incomeLoading) {
+      <p role="status">
+        Calculating allocation amounts...
+      </p>
+
+    } @else if (amounts; as values) {
+
+      <div class="allocation-cards">
+
+        <article class="allocation-card">
+          <span class="allocation-label">
+            <span class="allocation-dot allocation-needs"></span>
+            Needs &middot; {{ plan.needsPercent }}%
+          </span>
+
+          <strong>
+            {{ formatCurrency(values.needs) }}
+          </strong>
+        </article>
+
+        <article class="allocation-card">
+          <span class="allocation-label">
+            <span class="allocation-dot allocation-savings"></span>
+            Savings &middot; {{ plan.savingsPercent }}%
+          </span>
+
+          <strong>
+            {{ formatCurrency(values.savings) }}
+          </strong>
+        </article>
+
+        <article class="allocation-card">
+          <span class="allocation-label">
+            <span class="allocation-dot allocation-wants"></span>
+            Wants &middot; {{ plan.wantsPercent }}%
+          </span>
+
+          <strong>
+            {{ formatCurrency(values.wants) }}
+          </strong>
+        </article>
+
+      </div>
+
+    } @else {
+      <p class="allocation-description">
+        Set your expected income to see the NZD
+        amounts for this saved allocation.
+      </p>
+    }
+
+    <p class="allocation-description">
+      This is your income distribution plan.
+      Savings are not counted as spending
+      or transferred automatically.
+    </p>
+
+  } @else {
+    <p class="allocation-description">
+      No allocation has been saved for this month.
+    </p>
+  }
+</section>

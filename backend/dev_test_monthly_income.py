@@ -15,8 +15,13 @@ from app.models import (
     MonthlyIncomePlan,
     RegularIncomeProfile,
     User,
+    PayrollSettings,
 )
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from app.services.nz_payroll import estimate_nz_payroll
 
 
 
@@ -60,7 +65,7 @@ def run_tests():
         revisions = db.session.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalars().all()
-        assert revisions == ["bc62f914d8ae"], revisions
+        assert revisions == ["feb2ecaa323e"], revisions
 
         suffix = uuid.uuid4().hex
 
@@ -399,8 +404,143 @@ def run_tests():
             print("PASS: Regular income remains private")
 
 
+            # Test onboarding payroll as an income fallback.
+            # User B currently has no income configuration.
+            payroll = PayrollSettings(
+                user_id=user_ids[1],
+                income_type="SALARY",
+                gross_amount=Decimal("1300.00"),
+                pay_frequency="WEEKLY",
+                hours_per_week=None,
+                tax_code="M",
+                kiwisaver_rate=Decimal("0.0350"),
+                has_student_loan=False,
+            )
+
+            db.session.add(payroll)
+            db.session.commit()
+
+            response = other.get(
+                "/api/monthly-income",
+                query_string=fallback_month,
+            )
+
+            check(response, 200, "Payroll income fallback")
+
+            data = response.get_json()
+
+            assert data["incomeSource"] == "PAYROLL"
+            assert data["expectedIncome"] is not None
+
+            pay_date = datetime.now(
+                ZoneInfo("Pacific/Auckland")
+            ).date()
+
+            estimate = estimate_nz_payroll(
+                income_type=payroll.income_type,
+                gross_amount=payroll.gross_amount,
+                pay_frequency=payroll.pay_frequency,
+                hours_per_week=payroll.hours_per_week,
+                tax_code=payroll.tax_code,
+                kiwisaver_rate=payroll.kiwisaver_rate,
+                has_student_loan=payroll.has_student_loan,
+                pay_date=pay_date,
+            )
+
+            expected_net = Decimal(
+                str(estimate["estimatedMonthlyNet"])
+            )
+
+            assert Decimal(
+                data["expectedIncome"]
+            ) == expected_net
+
+            # Expected income must be net, not gross.
+            gross_monthly = (
+                Decimal("1300.00")
+                * Decimal("52")
+                / Decimal("12")
+            )
+
+            assert expected_net < gross_monthly
+
+            print("PASS: Payroll uses monthly take-home pay")
+
+            # Existing regular-income settings take priority
+            # over onboarding payroll settings.
+            other_profile = RegularIncomeProfile(
+                user_id=user_ids[1],
+                income_type="SALARY",
+                amount=Decimal("900.00"),
+                pay_frequency="WEEKLY",
+                hours_per_week=None,
+            )
+
+            db.session.add(other_profile)
+            db.session.commit()
+
+            response = other.get(
+                "/api/monthly-income",
+                query_string=fallback_month,
+            )
+
+            check(response, 200, "Regular income priority")
+
+            data = response.get_json()
+
+            assert data["incomeSource"] == "REGULAR"
+            assert Decimal(
+                data["expectedIncome"]
+            ) == Decimal("3900.00")
+
+            print("PASS: Regular profile overrides payroll")
+
+            # A month-specific override has highest priority.
+            response = other.put(
+                "/api/monthly-income",
+                query_string=fallback_month,
+                json={"expectedIncome": "2500.00"},
+                headers=other_headers,
+            )
+
+            check(response, 200, "Save income override")
+
+            response = other.get(
+                "/api/monthly-income",
+                query_string=fallback_month,
+            )
+
+            check(response, 200, "Monthly override priority")
+
+            data = response.get_json()
+
+            assert data["incomeSource"] == "MONTHLY_OVERRIDE"
+            assert Decimal(
+                data["expectedIncome"]
+            ) == Decimal("2500.00")
+
+            print("PASS: Monthly override takes priority")
+
+            # Changes to User B must not affect User A.
+            response = owner.get(
+                "/api/monthly-income",
+                query_string=fallback_month,
+            )
+
+            check(response, 200, "Income user isolation")
+
+            assert response.get_json()["incomeSource"] == "REGULAR"
+
+            print("PASS: Payroll data remains isolated by user")
+
+
+
         finally:
             db.session.rollback()
+
+            db.session.query(PayrollSettings).filter(
+                PayrollSettings.user_id.in_(user_ids)
+            ).delete(synchronize_session=False)
 
             db.session.query(RegularIncomeProfile).filter(
                 RegularIncomeProfile.user_id.in_(user_ids)

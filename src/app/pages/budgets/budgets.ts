@@ -22,7 +22,15 @@ import {
   MonthlyIncomeSummary,
 } from '../../core/services/monthly-income-api.service';
 
+import {
+  BudgetAllocation,
+  BudgetAllocationsApiService,
+} from '../../core/services/budget-allocations-api.service';
+
 import { RouterLink } from '@angular/router';
+
+import { MonthlyAllocationComponent } from
+  './monthly-allocation/monthly-allocation.component';
 
 export type BudgetStatus = 'safe' | 'warning' | 'danger';
 
@@ -36,7 +44,11 @@ interface BudgetForm {
 @Component({
   selector: 'app-budgets',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [
+  FormsModule,
+  RouterLink,
+  MonthlyAllocationComponent,
+],
   templateUrl: './budgets.html',
   styleUrl: './budgets.scss',
 })
@@ -45,6 +57,8 @@ export class BudgetsPage implements OnInit {
   private readonly budgetsApi = inject(BudgetsApiService);
   private readonly monthlyIncomeApi = inject(MonthlyIncomeApiService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly allocationsApi =
+  inject(BudgetAllocationsApiService);
 
   @ViewChild('budgetDialog')
   private budgetDialog?: ElementRef<HTMLDialogElement>;
@@ -65,6 +79,11 @@ export class BudgetsPage implements OnInit {
   incomeSummary: MonthlyIncomeSummary | null = null;
   incomeLoading = false;
   incomeError = '';
+  budgetAllocation: BudgetAllocation | null = null;
+allocationLoading = false;
+allocationError = '';
+
+private allocationRequestId = 0;
 
   private incomeRequestId = 0;
 
@@ -103,6 +122,7 @@ export class BudgetsPage implements OnInit {
   ngOnInit(): void {
     void this.loadBudgets();
     void this.loadIncomeSummary();
+    void this.loadAllocation();
   }
 
 private getCurrentNzMonth(): string {
@@ -147,6 +167,7 @@ changeMonth(direction: -1 | 1): void {
   this.selectedMonth = targetMonth;
   void this.loadBudgets();
   void this.loadIncomeSummary();
+  void this.loadAllocation();
 }
 async loadBudgets(): Promise<void> {
   const requestId = ++this.loadRequestId;
@@ -409,7 +430,7 @@ async loadBudgets(): Promise<void> {
       style: 'currency',
       currency: 'NZD',
       currencyDisplay: 'narrowSymbol',
-      minimumFractionDigits: 0,
+      minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);
   }
@@ -433,10 +454,15 @@ async loadIncomeSummary(): Promise<void> {
     }
 
     this.incomeSummary = summary;
+
+
   } catch {
     if (requestId !== this.incomeRequestId) {
       return;
     }
+
+
+
 
     this.incomeError =
       'Unable to load your income overview.';
@@ -447,4 +473,82 @@ async loadIncomeSummary(): Promise<void> {
     }
   }
 }
+
+
+async loadAllocation(): Promise<void> {
+  const requestId = ++this.allocationRequestId;
+  const month = this.selectedMonth;
+
+  this.allocationLoading = true;
+  this.allocationError = '';
+  this.budgetAllocation = null;
+  this.cdr.markForCheck();
+
+  try {
+    const response = await firstValueFrom(
+      this.allocationsApi.getAllocation(month)
+    );
+
+    if (requestId !== this.allocationRequestId) {
+      return;
+    }
+
+    this.budgetAllocation = response.allocation;
+
+  } catch {
+    if (requestId !== this.allocationRequestId) {
+      return;
+    }
+
+    this.allocationError =
+      'Unable to load your monthly allocation.';
+
+  } finally {
+    if (requestId === this.allocationRequestId) {
+      this.allocationLoading = false;
+      this.cdr.markForCheck();
+    }
+  }
+}
+
+
+get allocationAmounts(): {
+  needs: number;
+  savings: number;
+  wants: number;
+} | null {
+  const income = this.incomeSummary?.expectedIncome;
+  const allocation = this.budgetAllocation;
+
+  if (
+    income === null ||
+    income === undefined ||
+    allocation === null
+  ) {
+    return null;
+  }
+
+  // Calculate in cents so the three displayed
+  // amounts always add up to the monthly total.
+  const totalCents = Math.round(income * 100);
+
+  const needsCents = Math.round(
+    totalCents * allocation.needsPercent / 100
+  );
+
+  const savingsCents = Math.round(
+    totalCents * allocation.savingsPercent / 100
+  );
+
+  const wantsCents =
+    totalCents - needsCents - savingsCents;
+
+  return {
+    needs: needsCents / 100,
+    savings: savingsCents / 100,
+    wants: wantsCents / 100,
+  };
+}
+
+
 }

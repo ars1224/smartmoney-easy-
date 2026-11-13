@@ -1,0 +1,843 @@
+
+<ion-content [fullscreen]="true">
+  <main class="onboarding-page">
+
+    <header class="onboarding-header">
+      <p class="eyebrow">SmartMoney! Easy</p>
+
+      <h1>Let's set up your money plan</h1>
+
+      <p class="description">
+        Tell us a little about how you earn money.
+        We'll help estimate your take-home pay and
+        plan your monthly budget.
+      </p>
+    </header>
+
+    <section class="onboarding-card" aria-live="polite">
+
+      <!-- Loading -->
+      @if (loading()) {
+        <p role="status">
+          Loading your setup progress...
+        </p>
+
+      <!-- Error -->
+      } @else if (error()) {
+        <h2>Couldn't load your setup</h2>
+
+        <p role="alert">{{ error() }}</p>
+
+        <button
+          type="button"
+          class="onboarding-action"
+          (click)="loadProgress()"
+        >
+          Try again
+        </button>
+
+      <!-- Loaded progress -->
+      } @else if (progress(); as state) {
+
+        <!-- Existing users -->
+        @if (state.status === 'LEGACY') {
+          <h2>Your account is ready</h2>
+
+          <p>
+            Your account was created before the new
+            onboarding process was introduced.
+            You can continue using SmartMoney.
+          </p>
+
+          <a
+            class="onboarding-action"
+            routerLink="/app/dashboard"
+          >
+            Go to Dashboard
+          </a>
+
+        <!-- Completed onboarding -->
+        } @else if (state.status === 'COMPLETED') {
+          <h2>Setup completed!</h2>
+
+          <p>
+            Your initial money setup is complete.
+          </p>
+
+          <a
+            class="onboarding-action"
+            routerLink="/app/dashboard"
+          >
+            Go to Dashboard
+          </a>
+
+        <!-- New users: onboarding wizard -->
+        } @else {
+
+          <h2>Your setup journey</h2>
+
+          <p class="setup-note">
+            Your saved onboarding progress has been loaded.
+          </p>
+
+          <!-- Step indicators -->
+          <ol class="onboarding-steps">
+            @for (step of steps; track step.id) {
+              <li
+                [class.active]="viewedStep() === step.id"
+                [attr.aria-current]="
+                  viewedStep() === step.id
+                    ? 'step'
+                    : null
+                "
+              >
+                {{ step.label }}
+
+                @if (viewedStep() === step.id) {
+                  <span class="current-label">
+                    — Current step
+                  </span>
+                }
+              </li>
+            }
+          </ol>
+
+          <!-- STEP 1: Employment -->
+          @if (viewedStep() === 'EMPLOYMENT') {
+            <section class="employment-step">
+              <h3>How do you earn your main income?</h3>
+
+              <p>
+                Select how you're normally paid.
+                You'll enter your gross income
+                in the next step.
+              </p>
+
+              <div class="employment-options">
+
+                <button
+                  type="button"
+                  class="employment-option"
+                  [class.selected]="selectedIncomeType() === 'SALARY'"
+                  [attr.aria-pressed]="
+                    selectedIncomeType() === 'SALARY'
+                  "
+                  (click)="chooseIncomeType('SALARY')"
+                >
+                  <strong>Salary</strong>
+
+                  <span>
+                    I'm paid a fixed amount
+                    per pay period.
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  class="employment-option"
+                  [class.selected]="selectedIncomeType() === 'HOURLY'"
+                  [attr.aria-pressed]="
+                    selectedIncomeType() === 'HOURLY'
+                  "
+                  (click)="chooseIncomeType('HOURLY')"
+                >
+                  <strong>Hourly pay</strong>
+
+                  <span>
+                    I'm paid based on the
+                    hours I work.
+                  </span>
+                </button>
+
+              </div>
+
+              <button
+                type="button"
+                class="onboarding-action"
+                [disabled]="!selectedIncomeType()"
+                (click)="continueToPayroll()"
+              >
+                Continue to pay setup
+              </button>
+            </section>
+
+          <!-- STEP 2: Payroll -->
+
+} @else if (viewedStep() === 'PAYROLL') {
+  <section class="payroll-step">
+    <h3>Let's set up your pay</h3>
+
+    <p>
+      Enter your gross pay and deduction details.
+      SmartMoney will estimate your take-home income.
+    </p>
+
+
+    <form
+    [formGroup]="payrollForm"
+    (ngSubmit)="savePayroll()"
+    (input)="payrollEstimate.set(null)"
+    (change)="payrollEstimate.set(null)"
+    class="payroll-form"
+    >
+
+      <div class="payroll-fields">
+
+        <div class="payroll-field">
+          <label for="grossAmount">
+            @if (selectedIncomeType() === 'HOURLY') {
+              Gross hourly rate (NZD)
+            } @else {
+              Gross pay per pay period (NZD)
+            }
+          </label>
+
+          <input
+            id="grossAmount"
+            type="text"
+            inputmode="decimal"
+            formControlName="grossAmount"
+            placeholder="e.g. 1300.00"
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="payroll-field">
+          <label for="payFrequency">
+            How often are you paid?
+          </label>
+
+          <select
+            id="payFrequency"
+            formControlName="payFrequency"
+          >
+            <option value="WEEKLY">Weekly</option>
+            <option value="FORTNIGHTLY">Fortnightly</option>
+            <option value="FOUR_WEEKLY">
+              Every four weeks
+            </option>
+            <option value="MONTHLY">Monthly</option>
+          </select>
+        </div>
+
+        @if (selectedIncomeType() === 'HOURLY') {
+          <div class="payroll-field">
+            <label for="hoursPerWeek">
+              Usual hours per week
+            </label>
+
+            <input
+              id="hoursPerWeek"
+              type="text"
+              inputmode="decimal"
+              formControlName="hoursPerWeek"
+              placeholder="e.g. 40"
+              autocomplete="off"
+            />
+          </div>
+        }
+
+        <div class="payroll-field">
+          <label for="taxCode">
+            Tax code
+          </label>
+
+          <select
+            id="taxCode"
+            formControlName="taxCode"
+          >
+            <option value="M">
+              M — Main employment
+            </option>
+            <option value="M SL">
+              M SL — Main employment with student loan
+            </option>
+          </select>
+
+          <small>
+            Currently supports M and M SL only.
+          </small>
+        </div>
+
+        <div class="payroll-field">
+          <label for="kiwiSaverRate">
+            KiwiSaver employee contribution
+          </label>
+
+          <select
+            id="kiwiSaverRate"
+            formControlName="kiwiSaverRate"
+          >
+            <option value="">
+              Not contributing
+            </option>
+            <option value="0.0350">3.5%</option>
+            <option value="0.0400">4%</option>
+            <option value="0.0600">6%</option>
+            <option value="0.0800">8%</option>
+            <option value="0.1000">10%</option>
+          </select>
+        </div>
+
+      </div>
+
+      @if (payrollForm.controls.taxCode.value === 'M SL') {
+        <p class="payroll-notice">
+          Student loan deductions will be included
+          automatically in your estimate.
+        </p>
+      }
+
+      @if (payrollError()) {
+        <p class="payroll-error" role="alert">
+          {{ payrollError() }}
+        </p>
+      }
+
+      <div class="payroll-actions">
+        <button
+          type="button"
+          class="onboarding-action"
+          [disabled]="payrollSaving()"
+          (click)="backToEmployment()"
+        >
+          Back
+        </button>
+
+        <button
+          type="submit"
+          class="onboarding-action"
+          [disabled]="payrollSaving()"
+        >
+          @if (payrollSaving()) {
+            Calculating...
+          } @else {
+            Save and calculate take-home pay
+          }
+        </button>
+      </div>
+    </form>
+
+    @if (payrollEstimate(); as estimate) {
+      <section
+        class="payroll-estimate"
+        aria-label="Estimated take-home pay"
+      >
+        <h3>Your estimated take-home pay</h3>
+
+        <dl>
+          <div>
+            <dt>Gross pay</dt>
+            <dd>NZ${{ estimate.grossPerPay }}</dd>
+          </div>
+
+          <div>
+            <dt>PAYE (including ACC)</dt>
+            <dd>−NZ${{ estimate.payeIncludingAcc }}</dd>
+          </div>
+
+          <div>
+            <dt>KiwiSaver</dt>
+            <dd>−NZ${{ estimate.kiwiSaver }}</dd>
+          </div>
+
+          <div>
+            <dt>Student loan</dt>
+            <dd>−NZ${{ estimate.studentLoan }}</dd>
+          </div>
+
+          <div class="estimate-total">
+            <dt>Estimated take-home per pay</dt>
+            <dd>NZ${{ estimate.netPerPay }}</dd>
+          </div>
+
+          <div class="estimate-total">
+            <dt>Estimated monthly take-home</dt>
+            <dd>NZ${{ estimate.estimatedMonthlyNet }}</dd>
+          </div>
+        </dl>
+
+        <p class="setup-note">
+          Estimate for the 2026–27 NZ tax year.
+          Actual payslip deductions may differ.
+          ACC is already included in PAYE.
+        </p>
+      </section>
+
+    <button
+    type="button"
+    class="onboarding-action"
+    [disabled]="progressSaving()"
+    (click)="continueToBudget()"
+    >
+    @if (progressSaving()) {
+        Saving progress...
+    } @else {
+        Continue to Budget
+    }
+    </button>
+
+    }
+  </section>
+
+<!-- STEP 3: Budget -->
+
+} @else if (viewedStep() === 'BUDGET') {
+  <section class="budget-step">
+    <h3>Plan your monthly budget</h3>
+
+
+@if (allocationLoading()) {
+  <p role="status">
+    Loading your budget allocation...
+  </p>
+}
+
+@if (allocationLoadError()) {
+  <p class="budget-error" role="alert">
+    {{ allocationLoadError() }}
+  </p>
+
+  <button
+    type="button"
+    class="onboarding-action"
+    (click)="loadBudgetAllocation()"
+  >
+    Retry loading allocation
+  </button>
+}
+
+@if (allocationSaved() && !allocationLoading()) {
+  <p class="setup-note">
+    Your saved monthly allocation has been restored.
+  </p>
+}
+
+
+    <p>
+      Start by deciding how to divide your estimated
+      monthly take-home income.
+    </p>
+
+    @if (budgetMonthlyNet() === null) {
+      <p class="budget-error" role="alert">
+        Your take-home estimate is unavailable.
+        Please return to Payroll and calculate it first.
+      </p>
+
+    } @else {
+      <div class="budget-income-summary">
+        <span>Estimated monthly take-home</span>
+
+        <strong>
+          NZ${{ budgetMonthlyNet()!.toFixed(2) }}
+        </strong>
+      </div>
+
+      <div class="budget-allocation-fields">
+
+        <div class="budget-allocation-field">
+          <label for="needsShare">Needs (%)</label>
+
+          <input
+            id="needsShare"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            inputmode="numeric"
+            [value]="budgetShares().needs"
+            (input)="updateBudgetShare(
+              'needs',
+              $any($event.target).value
+            )"
+            [disabled]="allocationLoading() || budgetSaving() || !!allocationLoadError()"
+          />
+
+          <small>Essentials, groceries, bills and transport</small>
+        </div>
+
+        <div class="budget-allocation-field">
+          <label for="savingsShare">Savings (%)</label>
+
+          <input
+            id="savingsShare"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            inputmode="numeric"
+            [value]="budgetShares().savings"
+            (input)="updateBudgetShare(
+              'savings',
+              $any($event.target).value
+            )"
+            [disabled]="allocationLoading() || budgetSaving() || !!allocationLoadError()"
+          />
+
+          <small>Money set aside for savings</small>
+        </div>
+
+        <div class="budget-allocation-field">
+          <label for="wantsShare">Wants (%)</label>
+
+          <input
+            id="wantsShare"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            inputmode="numeric"
+            [value]="budgetShares().wants"
+            (input)="updateBudgetShare(
+              'wants',
+              $any($event.target).value
+            )"
+            [disabled]="allocationLoading() || budgetSaving() || !!allocationLoadError()"
+          />
+
+          <small>Shopping, entertainment and eating out</small>
+        </div>
+
+      </div>
+
+      <p
+        class="budget-percentage-total"
+        [class.invalid]="budgetTotalPercent() !== 100"
+      >
+        Total allocation:
+        <strong>{{ budgetTotalPercent() }}%</strong>
+      </p>
+
+      @if (budgetError()) {
+        <p class="budget-error" role="alert">
+          {{ budgetError() }}
+        </p>
+      }
+
+      @if (budgetPreview(); as preview) {
+        @if (!budgetError()) {
+          <section
+            class="budget-preview"
+            aria-label="Monthly allocation preview"
+          >
+            <h4>Your monthly allocation</h4>
+
+            <dl>
+              <div>
+                <dt>Needs — {{ budgetShares().needs }}%</dt>
+                <dd>NZ${{ preview.needs.toFixed(2) }}</dd>
+              </div>
+
+              <div>
+                <dt>Savings — {{ budgetShares().savings }}%</dt>
+                <dd>NZ${{ preview.savings.toFixed(2) }}</dd>
+              </div>
+
+              <div>
+                <dt>Wants — {{ budgetShares().wants }}%</dt>
+                <dd>NZ${{ preview.wants.toFixed(2) }}</dd>
+              </div>
+
+              <div class="budget-preview-total">
+                <dt>Total monthly income</dt>
+                <dd>NZ${{ preview.monthlyNet.toFixed(2) }}</dd>
+              </div>
+            </dl>
+          </section>
+        }
+      }
+
+      <p class="setup-note">
+        These percentages are suggestions and can be changed.
+        This is a preview; your allocation has not been saved yet.
+      </p>
+    }
+
+
+<div class="budget-save-actions">
+  <button
+    type="button"
+    class="onboarding-action"
+    [disabled]="
+      budgetSaving() ||
+      allocationLoading() ||
+      !!allocationLoadError() ||
+      budgetTotalPercent() !== 100 ||
+      budgetPreview() === null ||
+      !!budgetError()
+    "
+    (click)="saveBudgetAllocation()"
+  >
+    @if (budgetSaving()) {
+      Saving allocation...
+    } @else {
+      Save monthly allocation
+    }
+  </button>
+</div>
+
+
+@if (allocationSaved() && !allocationLoadError()) {
+  <button
+    type="button"
+    class="onboarding-action"
+    [disabled]="
+      budgetSaving() ||
+      progressSaving() ||
+      allocationLoading() ||
+      budgetPreview() === null ||
+      !!budgetError()
+    "
+    (click)="continueToReview()"
+  >
+    @if (progressSaving()) {
+      Saving your progress...
+    } @else {
+      Continue to Review
+    }
+  </button>
+}
+
+
+@if (budgetSaveMessage()) {
+  <p class="budget-save-message" role="status">
+    {{ budgetSaveMessage() }}
+  </p>
+}
+
+
+    <button
+      type="button"
+      class="onboarding-action onboarding-action--secondary"
+      (click)="viewedStep.set('PAYROLL')"
+    >
+      Back to Payroll
+    </button>
+  </section>
+
+
+          <!-- STEP 4: Review -->
+
+} @else if (viewedStep() === 'REVIEW') {
+  <section class="review-step">
+    <h3>Review your money setup</h3>
+
+    <p>
+      Check your employment, estimated take-home pay,
+      and monthly budget allocation.
+    </p>
+
+    @if (
+      payrollEstimate();
+      as estimate
+    ) {
+      @if (
+        budgetPreview();
+        as preview
+      ) {
+        @if (
+          allocationSaved() &&
+          !allocationLoading() &&
+          !allocationLoadError()
+        ) {
+          <div class="review-section">
+            <h4>Employment and pay</h4>
+
+            <dl>
+              <div>
+                <dt>Income type</dt>
+                <dd>
+                  {{
+                    selectedIncomeType() === 'HOURLY'
+                      ? 'Hourly employee'
+                      : 'Salaried employee'
+                  }}
+                </dd>
+              </div>
+
+              <div>
+                <dt>
+                  {{
+                    selectedIncomeType() === 'HOURLY'
+                      ? 'Gross hourly rate'
+                      : 'Gross pay per period'
+                  }}
+                </dt>
+                <dd>
+                  NZ${{ payrollForm.controls.grossAmount.value }}
+                </dd>
+              </div>
+
+              @if (selectedIncomeType() === 'HOURLY') {
+                <div>
+                  <dt>Usual weekly hours</dt>
+                  <dd>
+                    {{ payrollForm.controls.hoursPerWeek.value }}
+                  </dd>
+                </div>
+              }
+
+              <div>
+                <dt>Pay frequency</dt>
+                <dd>
+                  {{ payrollForm.controls.payFrequency.value }}
+                </dd>
+              </div>
+
+              <div>
+                <dt>Tax code</dt>
+                <dd>{{ estimate.effectiveTaxCode }}</dd>
+              </div>
+
+              <div>
+                <dt>KiwiSaver contribution</dt>
+                <dd>
+                  @if (payrollForm.controls.kiwiSaverRate.value) {
+                    {{
+                      (
+                        Number(payrollForm.controls.kiwiSaverRate.value)
+                        * 100
+                      ).toFixed(1)
+                    }}%
+                  } @else {
+                    Not contributing
+                  }
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="review-section">
+            <h4>Estimated take-home pay</h4>
+
+            <dl>
+              <div>
+                <dt>Gross per pay period</dt>
+                <dd>NZ${{ estimate.grossPerPay }}</dd>
+              </div>
+
+              <div>
+                <dt>PAYE (including ACC)</dt>
+                <dd>−NZ${{ estimate.payeIncludingAcc }}</dd>
+              </div>
+
+              <div>
+                <dt>KiwiSaver</dt>
+                <dd>−NZ${{ estimate.kiwiSaver }}</dd>
+              </div>
+
+              <div>
+                <dt>Student loan</dt>
+                <dd>−NZ${{ estimate.studentLoan }}</dd>
+              </div>
+
+              <div class="review-highlight">
+                <dt>Take-home per pay</dt>
+                <dd>NZ${{ estimate.netPerPay }}</dd>
+              </div>
+
+              <div class="review-highlight">
+                <dt>Estimated monthly take-home</dt>
+                <dd>NZ${{ estimate.estimatedMonthlyNet }}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="review-section">
+            <h4>Monthly budget allocation</h4>
+
+            <dl>
+              <div>
+                <dt>Needs ({{ budgetShares().needs }}%)</dt>
+                <dd>NZ${{ preview.needs.toFixed(2) }}</dd>
+              </div>
+
+              <div>
+                <dt>Savings ({{ budgetShares().savings }}%)</dt>
+                <dd>NZ${{ preview.savings.toFixed(2) }}</dd>
+              </div>
+
+              <div>
+                <dt>Wants ({{ budgetShares().wants }}%)</dt>
+                <dd>NZ${{ preview.wants.toFixed(2) }}</dd>
+              </div>
+
+              <div class="review-highlight">
+                <dt>Total allocated</dt>
+                <dd>NZ${{ preview.monthlyNet.toFixed(2) }}</dd>
+              </div>
+            </dl>
+          </div>
+
+            @if (completionError()) {
+            <p class="payroll-error" role="alert">
+                {{ completionError() }}
+            </p>
+            }
+
+            <button
+            type="button"
+            class="onboarding-action"
+            [disabled]="
+                completionSaving() ||
+                allocationLoading() ||
+                !allocationSaved()
+            "
+            (click)="finishSetup()"
+            >
+            @if (completionSaving()) {
+                Finishing your setup...
+            } @else {
+                Finish Setup
+            }
+            </button>
+
+            <p class="setup-note">
+            By finishing, you confirm that you've reviewed
+            your estimated take-home pay and monthly allocation.
+            You can manage your financial settings later.
+            </p>
+
+        } @else {
+          <p role="alert" class="budget-error">
+            Your saved allocation is unavailable.
+          </p>
+        }
+      } @else {
+        <p role="alert" class="budget-error">
+          Your budget allocation could not be calculated.
+        </p>
+      }
+    } @else {
+      <p role="alert" class="payroll-error">
+        Your payroll estimate is unavailable.
+      </p>
+
+      <button
+        type="button"
+        class="onboarding-action"
+        (click)="loadProgress()"
+      >
+        Reload saved details
+      </button>
+    }
+
+    <button
+      type="button"
+      class="onboarding-action onboarding-action--secondary"
+      [disabled]="completionSaving()"
+      (click)="viewedStep.set('BUDGET')"
+    >
+      Back to Budget
+    </button>
+  </section>
+}
+
+
+        }
+      }
+
+    </section>
+  </main>
+</ion-content>

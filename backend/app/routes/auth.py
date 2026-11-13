@@ -8,6 +8,7 @@ from app.auth_security import (
     get_authenticated_user_id,
     issue_csrf_token,
 )
+from app.models import User, OnboardingProgress
 
 
 auth_bp = Blueprint(
@@ -103,11 +104,24 @@ def register():
     db.session.add(user)
 
     try:
+        # Generate the new user's ID before creating progress.
+        db.session.flush()
+
+        progress = OnboardingProgress(
+            user_id=user.id,
+            status="IN_PROGRESS",
+            current_step="EMPLOYMENT",
+        )
+
+        db.session.add(progress)
+
+        # Save the user and onboarding progress together.
         db.session.commit()
+
     except IntegrityError:
         db.session.rollback()
         return jsonify({
-            "error": "Email is already registered."
+            "error": "Unable to create account. Please check your details."
         }), 409
 
     # Create session
