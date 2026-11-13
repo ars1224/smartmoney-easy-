@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from app.services.transaction_categorizer import (
     classify_bank_transaction,
+    classify_budget_group,
 )
 
 
@@ -38,12 +39,33 @@ class BankCategorizationTests(unittest.TestCase):
         )
 
     def test_bank_transfer(self):
+        category = classify_bank_transaction(
+            "TRANSFER TO SPARK",
+            Decimal("-200.00"),
+            "TRANSFER",
+        )
+
+        self.assertEqual(category, "Transfer")
+
+        # Transfers must not count as Needs/Wants spending.
         self.assertIsNone(
-            classify_bank_transaction(
-                "TRANSFER TO SPARK",
-                Decimal("-200.00"),
-                "TRANSFER",
-            )
+            classify_budget_group(category)
+        )
+
+    def test_savings_transfer_is_not_spending(self):
+        category = classify_bank_transaction(
+            "TRANSFER TO SAVINGS",
+            Decimal("-200.00"),
+            "TRANSFER",
+        )
+
+        self.assertEqual(
+            category,
+            "Savings Transfer",
+        )
+
+        self.assertIsNone(
+            classify_budget_group(category)
         )
 
     def test_refunds_are_not_expenses(self):

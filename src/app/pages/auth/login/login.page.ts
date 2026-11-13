@@ -21,6 +21,7 @@ export class LoginPage {
   readonly loading = signal(false);
   readonly serverError = signal('');
   readonly showPassword = signal(false);
+  readonly sessionExpired = signal (this.route.snapshot.queryParamMap.get('sessionExpired') === 'true');
 
   readonly form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
@@ -41,6 +42,8 @@ export class LoginPage {
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: () => {
+          this.sessionExpired.set(false);
+
           const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
           void this.router.navigateByUrl(returnUrl?.startsWith('/app') ? returnUrl : '/app/dashboard');
         },

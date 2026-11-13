@@ -10,24 +10,27 @@ import {
 } from 'vitest';
 
 import { BudgetsPage } from './budgets';
-
 import {
   BudgetsApiService,
   type BudgetRecord,
   type AllocationOverview,
 } from '../../core/services/budgets-api.service';
-
+import { MonthlyIncomeApiService } from '../../core/services/monthly-income-api.service';
 
 describe('BudgetsPage', () => {
   let component: BudgetsPage;
 
-const budgetsApi = {
-  getBudgetOverview: vi.fn(),
-  getAllocation: vi.fn(),
-  createBudget: vi.fn(),
-  updateBudget: vi.fn(),
-  saveAllocation: vi.fn(),
-};
+  const budgetsApi = {
+    getBudgetOverview: vi.fn(),
+    getAllocation: vi.fn(),
+    createBudget: vi.fn(),
+    updateBudget: vi.fn(),
+    saveAllocation: vi.fn(),
+  };
+
+  const incomeApi = {
+    getSummary: vi.fn(),
+  };
 
   const defaultAllocation: AllocationOverview = {
     month: '2026-11',
@@ -92,11 +95,24 @@ const budgetsApi = {
       of(defaultAllocation)
     );
 
+    incomeApi.getSummary.mockReturnValue(
+      of({
+        month: '2026-11',
+        expectedIncome: null,
+        allocatedBudget: 0,
+        unallocatedBudget: null,
+      })
+    );
+
     TestBed.configureTestingModule({
       providers: [
         {
           provide: BudgetsApiService,
           useValue: budgetsApi,
+        },
+        {
+          provide: MonthlyIncomeApiService,
+          useValue: incomeApi,
         },
       ],
     });
@@ -226,6 +242,7 @@ const budgetsApi = {
   it('creates a Needs budget successfully', async () => {
     const savedBudget = makeBudget({
       id: 'budget-2',
+      budgetGroup: 'NEEDS' as const,
       category: 'Transport',
       monthlyLimit: 250,
       spent: 0,
@@ -428,6 +445,7 @@ const budgetsApi = {
   it('prefills the custom category when editing', () => {
     const existingBudget = makeBudget({
       id: 'budget-custom',
+      budgetGroup: 'NEEDS' as const,
       category: 'Other - Loan',
       monthlyLimit: 50000,
     });
@@ -463,6 +481,7 @@ const budgetsApi = {
   it('updates an existing budget successfully', async () => {
     const existingBudget = makeBudget({
       id: 'budget-1',
+      budgetGroup: 'NEEDS' as const,
       category: 'Groceries',
       monthlyLimit: 400,
     });
@@ -473,6 +492,7 @@ const budgetsApi = {
     });
 
     component.budgets = [existingBudget];
+
     component.editingBudgetId = existingBudget.id;
 
     component.budgetForm = {

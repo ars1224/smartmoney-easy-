@@ -23,6 +23,12 @@ import {
   type BudgetGroup,
 } from '../../core/constants/financial-categories';
 
+import {
+  MonthlyIncomeApiService,
+  MonthlyIncomeSummary,
+} from '../../core/services/monthly-income-api.service';
+
+import { RouterLink } from '@angular/router';
 export type BudgetStatus = 'safe' | 'warning' | 'danger';
 
 interface BudgetForm {
@@ -32,15 +38,18 @@ interface BudgetForm {
   monthlyLimit: number | null;
 }
 
+
 @Component({
   selector: 'app-budgets',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   templateUrl: './budgets.html',
   styleUrl: './budgets.scss',
 })
 export class BudgetsPage implements OnInit {
+
   private readonly budgetsApi = inject(BudgetsApiService);
+  private readonly monthlyIncomeApi = inject(MonthlyIncomeApiService);
   private readonly cdr = inject(ChangeDetectorRef);
   @ViewChild('budgetDialog')
   private budgetDialog?: ElementRef<HTMLDialogElement>;
@@ -83,6 +92,12 @@ allocationForm: {
   savingsPercent: 25,
 };
 
+  incomeSummary: MonthlyIncomeSummary | null = null;
+  incomeLoading = false;
+  incomeError = '';
+
+  private incomeRequestId = 0;
+
   selectedMonth = this.getCurrentNzMonth();
 
   private loadRequestId = 0;
@@ -117,8 +132,8 @@ allocationForm: {
 
   ngOnInit(): void {
     void this.loadBudgets();
+    void this.loadIncomeSummary();
   }
-
 
 private getCurrentNzMonth(): string {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -167,12 +182,12 @@ changeMonth(direction: -1 | 1): void {
   ) {
     return;
   }
-
   this.selectedMonth = targetMonth;
   void this.loadBudgets();
-}
+    void this.loadIncomeSummary();
+  }
 
-async loadBudgets(): Promise<void> {
+  async loadBudgets(): Promise<void> {
   const requestId = ++this.loadRequestId;
   const month = this.selectedMonth;
 
@@ -549,6 +564,7 @@ openEditDialog(budget: BudgetRecord): void {
 
       // Reload budgets for the currently selected month.
       await this.loadBudgets();
+      void this.loadIncomeSummary();
 
     } catch (error: unknown) {
       this.formError =
@@ -689,4 +705,36 @@ get allocationPercentageTotal(): number | null {
   );
 }
 
+async loadIncomeSummary(): Promise<void> {
+  const requestId = ++this.incomeRequestId;
+  const month = this.selectedMonth;
+
+  this.incomeLoading = true;
+  this.incomeError = '';
+  this.incomeSummary = null;
+
+  try {
+    const summary = await firstValueFrom(
+      this.monthlyIncomeApi.getSummary(month)
+    );
+
+    if (requestId !== this.incomeRequestId) {
+      return;
+    }
+
+    this.incomeSummary = summary;
+  } catch {
+    if (requestId !== this.incomeRequestId) {
+      return;
+    }
+
+    this.incomeError =
+      'Unable to load your income overview.';
+  } finally {
+    if (requestId === this.incomeRequestId) {
+      this.incomeLoading = false;
+      this.cdr.markForCheck();
+    }
+  }
+}
 }
