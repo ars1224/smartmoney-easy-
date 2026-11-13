@@ -1,4 +1,3 @@
-
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import {
@@ -10,26 +9,58 @@ import {
 } from 'vitest';
 
 import { BudgetsPage } from './budgets';
-import { BudgetsApiService } from '../../core/services/budgets-api.service';
+import {
+  BudgetsApiService,
+  type BudgetRecord,
+} from '../../core/services/budgets-api.service';
+import { MonthlyIncomeApiService } from '../../core/services/monthly-income-api.service';
 
 describe('BudgetsPage', () => {
-  let component: BudgetsPage;
+    let component: BudgetsPage;
 
-  const budgetsApi = {
-    getBudgets: vi.fn(),
+    const makeOverview = (budgets: BudgetRecord[] = []) => ({
+    budgets,
+    groupSpending: {
+      NEEDS: 0,
+      WANTS: 0,
+    },
+  });
+
+    const budgetsApi = {
+    getBudgetOverview: vi.fn(),
     createBudget: vi.fn(),
     updateBudget: vi.fn(),
+    };
+
+  const incomeApi = {
+    getSummary: vi.fn(),
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    budgetsApi.getBudgets.mockReturnValue(of([]));
+
+    budgetsApi.getBudgetOverview.mockReturnValue(
+    of(makeOverview())
+    );
+
+    incomeApi.getSummary.mockReturnValue(
+      of({
+        month: '2026-11',
+        expectedIncome: null,
+        allocatedBudget: 0,
+        unallocatedBudget: null,
+      })
+    );
 
     TestBed.configureTestingModule({
       providers: [
         {
           provide: BudgetsApiService,
           useValue: budgetsApi,
+        },
+        {
+          provide: MonthlyIncomeApiService,
+          useValue: incomeApi,
         },
       ],
     });
@@ -40,6 +71,7 @@ describe('BudgetsPage', () => {
 
   it('rejects an invalid category', async () => {
     component.budgetForm = {
+      budgetGroup: 'NEEDS',
       category: 'Invalid',
       otherCategory: '',
       monthlyLimit: 100,
@@ -50,11 +82,13 @@ describe('BudgetsPage', () => {
     expect(component.formError).toBe(
       'Please select a valid category.'
     );
+
     expect(budgetsApi.createBudget).not.toHaveBeenCalled();
   });
 
   it('rejects a zero monthly limit', async () => {
     component.budgetForm = {
+      budgetGroup: 'NEEDS',
       category: 'Groceries',
       otherCategory: '',
       monthlyLimit: 0,
@@ -65,11 +99,13 @@ describe('BudgetsPage', () => {
     expect(component.formError).toContain(
       'greater than zero'
     );
+
     expect(budgetsApi.createBudget).not.toHaveBeenCalled();
   });
 
   it('rejects more than two decimal places', async () => {
     component.budgetForm = {
+      budgetGroup: 'NEEDS',
       category: 'Groceries',
       otherCategory: '',
       monthlyLimit: 12.345,
@@ -80,20 +116,25 @@ describe('BudgetsPage', () => {
     expect(component.formError).toContain(
       'two decimal places'
     );
+
     expect(budgetsApi.createBudget).not.toHaveBeenCalled();
   });
 
   it('rejects duplicate categories', async () => {
-    component.budgets = [{
-      id: 'budget-1',
-      category: 'Groceries',
-      monthlyLimit: 400,
-      spent: 50,
-      createdAt: '',
-      updatedAt: '',
-    }];
+    component.budgets = [
+      {
+        id: 'budget-1',
+        budgetGroup: 'NEEDS',
+        category: 'Groceries',
+        monthlyLimit: 400,
+        spent: 50,
+        createdAt: '',
+        updatedAt: '',
+      },
+    ];
 
     component.budgetForm = {
+      budgetGroup: 'NEEDS',
       category: 'Groceries',
       otherCategory: '',
       monthlyLimit: 500,
@@ -104,12 +145,14 @@ describe('BudgetsPage', () => {
     expect(component.formError).toContain(
       'already exists'
     );
+
     expect(budgetsApi.createBudget).not.toHaveBeenCalled();
   });
 
   it('creates a budget successfully', async () => {
     const savedBudget = {
       id: 'budget-2',
+      budgetGroup: 'NEEDS' as const,
       category: 'Transport',
       monthlyLimit: 250,
       spent: 0,
@@ -117,73 +160,86 @@ describe('BudgetsPage', () => {
       updatedAt: '',
     };
 
-    budgetsApi.createBudget.mockReturnValue(of(savedBudget));
-    budgetsApi.getBudgets.mockReturnValue(of([savedBudget]));
+    budgetsApi.createBudget.mockReturnValue(
+      of(savedBudget)
+    );
+
+    budgetsApi.getBudgetOverview.mockReturnValue(
+      of(makeOverview([savedBudget]))
+    );
 
     component.budgetForm = {
+      budgetGroup: 'NEEDS',
       category: 'Transport',
       otherCategory: '',
       monthlyLimit: 250,
     };
 
     await component.saveBudget();
+
     expect(budgetsApi.createBudget).toHaveBeenCalledWith(
-    {
+      {
         category: 'Transport',
         monthlyLimit: 250,
-    },
-    component.selectedMonth
+        budgetGroup: 'NEEDS',
+      },
+      component.selectedMonth
     );
-
 
     expect(component.budgets).toEqual([savedBudget]);
     expect(component.formError).toBe('');
     expect(component.saving).toBe(false);
   });
 
-
-    it('creates a custom Other - Loan budget', async () => {
+  it('creates a custom Other - Loan budget', async () => {
     const savedBudget = {
-        id: 'budget-custom',
-        category: 'Other - Loan',
-        monthlyLimit: 50000,
-        spent: 50,
-        createdAt: '',
-        updatedAt: '',
+      id: 'budget-custom',
+      budgetGroup: 'NEEDS' as const,
+      category: 'Other - Loan',
+      monthlyLimit: 50000,
+      spent: 50,
+      createdAt: '',
+      updatedAt: '',
     };
 
-    // Configure the API responses before saving.
-    budgetsApi.createBudget.mockReturnValue(of(savedBudget));
-    budgetsApi.getBudgets.mockReturnValue(of([savedBudget]));
+    budgetsApi.createBudget.mockReturnValue(
+      of(savedBudget)
+    );
+
+    budgetsApi.getBudgetOverview.mockReturnValue(
+        of(makeOverview([savedBudget]))
+    );
 
     component.budgetForm = {
-        category: 'Other',
-        otherCategory: '  Loan  ',
-        monthlyLimit: 50000,
+      budgetGroup: 'NEEDS',
+      category: 'Other',
+      otherCategory: '  Loan  ',
+      monthlyLimit: 50000,
     };
 
     await component.saveBudget();
 
     expect(budgetsApi.createBudget).toHaveBeenCalledWith(
-    {
+      {
         category: 'Other - Loan',
         monthlyLimit: 50000,
-    },
-    component.selectedMonth
+        budgetGroup: 'NEEDS',
+      },
+      component.selectedMonth
     );
 
-    expect(budgetsApi.getBudgets).toHaveBeenCalledWith(
-        component.selectedMonth
+    expect(budgetsApi.getBudgetOverview).toHaveBeenCalledWith(
+      component.selectedMonth
     );
 
     expect(component.budgets).toEqual([savedBudget]);
     expect(component.formError).toBe('');
     expect(component.saving).toBe(false);
-    });
-
+  });
 
   it('rejects an empty custom Other category', async () => {
     component.budgetForm = {
+      budgetGroup: 'NEEDS',
       category: 'Other',
       otherCategory: '   ',
       monthlyLimit: 100,
@@ -201,6 +257,7 @@ describe('BudgetsPage', () => {
   it('prefills the custom category when editing', () => {
     const existingBudget = {
       id: 'budget-custom',
+      budgetGroup: 'NEEDS' as const,
       category: 'Other - Loan',
       monthlyLimit: 50000,
       spent: 50,
@@ -215,6 +272,7 @@ describe('BudgetsPage', () => {
     );
 
     expect(component.budgetForm).toEqual({
+      budgetGroup: 'NEEDS',
       category: 'Other',
       otherCategory: 'Loan',
       monthlyLimit: 50000,
@@ -224,6 +282,7 @@ describe('BudgetsPage', () => {
   it('updates an existing budget successfully', async () => {
     const existingBudget = {
       id: 'budget-1',
+      budgetGroup: 'NEEDS' as const,
       category: 'Groceries',
       monthlyLimit: 400,
       spent: 50,
@@ -237,27 +296,34 @@ describe('BudgetsPage', () => {
     };
 
     component.budgets = [existingBudget];
+
     component.editingBudgetId = existingBudget.id;
 
     component.budgetForm = {
+      budgetGroup: 'NEEDS',
       category: 'Groceries',
       otherCategory: '',
       monthlyLimit: 600,
     };
 
-    budgetsApi.updateBudget.mockReturnValue(of(updatedBudget));
-    budgetsApi.getBudgets.mockReturnValue(of([updatedBudget]));
+    budgetsApi.updateBudget.mockReturnValue(
+      of(updatedBudget)
+    );
+
+    budgetsApi.getBudgetOverview.mockReturnValue(
+        of(makeOverview([updatedBudget]))
+    );
 
     await component.saveBudget();
 
-
     expect(budgetsApi.updateBudget).toHaveBeenCalledWith(
-    'budget-1',
-    {
+      'budget-1',
+      {
         category: 'Groceries',
         monthlyLimit: 600,
-    },
-    component.selectedMonth
+        budgetGroup: 'NEEDS',
+      },
+      component.selectedMonth
     );
 
     expect(component.budgets).toEqual([updatedBudget]);
@@ -268,18 +334,20 @@ describe('BudgetsPage', () => {
 
   it('shows an error and allows retry after a failed save', async () => {
     const savedBudget = {
-      id: 'budget-3',
-      category: 'Bills',
-      monthlyLimit: 300,
-      spent: 0,
-      createdAt: '',
-      updatedAt: '',
+    id: 'budget-3',
+    budgetGroup: 'NEEDS' as const,
+    category: 'Electricity',
+    monthlyLimit: 300,
+    spent: 0,
+    createdAt: '',
+    updatedAt: '',
     };
 
     component.budgetForm = {
-      category: 'Bills',
-      otherCategory: '',
-      monthlyLimit: 300,
+    budgetGroup: 'NEEDS',
+    category: 'Electricity',
+    otherCategory: '',
+    monthlyLimit: 300,
     };
 
     budgetsApi.createBudget.mockReturnValueOnce(
@@ -291,13 +359,17 @@ describe('BudgetsPage', () => {
     expect(component.formError).toBe(
       'Unable to save budget. Please try again.'
     );
+
     expect(component.saving).toBe(false);
     expect(component.budgets).toEqual([]);
 
     budgetsApi.createBudget.mockReturnValueOnce(
       of(savedBudget)
     );
-    budgetsApi.getBudgets.mockReturnValue(of([savedBudget]));
+
+    budgetsApi.getBudgetOverview.mockReturnValue(
+        of(makeOverview([savedBudget]))
+    );
 
     await component.saveBudget();
 
@@ -307,7 +379,7 @@ describe('BudgetsPage', () => {
   });
 
   it('shows a loading error and recovers after retry', async () => {
-    budgetsApi.getBudgets.mockReturnValueOnce(
+    budgetsApi.getBudgetOverview.mockReturnValueOnce(
       throwError(() => new Error('Network unavailable'))
     );
 
@@ -316,9 +388,12 @@ describe('BudgetsPage', () => {
     expect(component.loadError).toBe(
       'Unable to load budgets. Please try again.'
     );
+
     expect(component.isLoading).toBe(false);
 
-    budgetsApi.getBudgets.mockReturnValueOnce(of([]));
+    budgetsApi.getBudgetOverview.mockReturnValueOnce(
+      of(makeOverview())
+    );
 
     await component.loadBudgets();
 

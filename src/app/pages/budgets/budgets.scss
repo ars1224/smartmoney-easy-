@@ -120,7 +120,7 @@
 
 .budget-card,
 .budget-empty,
-.income-overview{
+.income-overview {
   background: var(--sm-color-surface);
   border: 1px solid var(--sm-color-border);
   border-radius: var(--sm-radius-lg);
@@ -141,13 +141,14 @@
    MONTHLY BUDGET OVERVIEW
 ========================================= */
 .income-overview {
+  margin-bottom: 1.5rem;
   padding: clamp(1rem, 2.5vw, 1.5rem);
 }
 
 .budgets-layout > .income-overview {
   grid-column: 1 / -1;
+  margin-bottom: 0;
 }
-
 .income-overview-heading {
   display: flex;
   align-items: center;
@@ -183,6 +184,7 @@
   border: 1px solid var(--sm-color-border);
   border-radius: var(--sm-radius-md);
 }
+
 .income-overview-stat h3 {
   margin: 0 0 0.75rem;
   color: var(--sm-color-text-muted);
@@ -663,11 +665,14 @@
   }
 }
 
+/* =========================================
+   RESPONSIVE — SMALL PHONES
+========================================= */
+
 @media (max-width: 320px) {
   .budgets-page {
     padding-inline: 0.625rem;
   }
-
 
   .budget-card-header h2 {
     font-size: 0.825rem;
@@ -676,7 +681,6 @@
   .budget-card-header span {
     font-size: 0.7rem;
   }
-
 
   .budget-card,
   .budget-alert,
@@ -696,9 +700,17 @@
   .budget-save-btn {
     padding-inline: 0.5rem;
     font-size: 0.75rem;
+    font-weight: 700;
   }
 }
 
+/* =========================================
+   ACTUAL SPENDING PANEL
+========================================= */
+
+.budgets-layout > .group-spending-panel {
+  grid-column: 1 / -1;
+}
 
 .group-spending-panel {
   padding: 1.25rem;
@@ -753,6 +765,10 @@
     font-size: 0.75rem;
   }
 }
+
+/* =========================================
+   ACTUAL SPENDING — RESPONSIVE
+========================================= */
 
 @media (max-width: 700px) {
   .group-spending-grid {

@@ -9,6 +9,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from app.models.budget import Budget
 from app.models.budget_monthly_limit import BudgetMonthlyLimit
+from app.models.monthly_income_plan import MonthlyIncomePlan
+from app.models.regular_income_profile import RegularIncomeProfile
 
 def utc_now():
     return datetime.now(timezone.utc)
