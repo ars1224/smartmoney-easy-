@@ -12,6 +12,10 @@ import {
 import { BudgetsPage } from './budgets';
 import { BudgetsApiService } from '../../core/services/budgets-api.service';
 
+import { MonthlyIncomeApiService } from
+  '../../core/services/monthly-income-api.service';
+
+
 describe('BudgetsPage', () => {
   let component: BudgetsPage;
 
@@ -20,6 +24,12 @@ describe('BudgetsPage', () => {
     createBudget: vi.fn(),
     updateBudget: vi.fn(),
   };
+
+
+const incomeApi = {
+  getSummary: vi.fn(),
+};
+
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -31,8 +41,20 @@ describe('BudgetsPage', () => {
           provide: BudgetsApiService,
           useValue: budgetsApi,
         },
+        {
+        provide: MonthlyIncomeApiService,
+        useValue: incomeApi,
+        },
+
       ],
     });
+
+    incomeApi.getSummary.mockReturnValue(of({
+    month: '2026-11',
+    expectedIncome: null,
+    allocatedBudget: 0,
+    unallocatedBudget: null,
+    }));
 
     const fixture = TestBed.createComponent(BudgetsPage);
     component = fixture.componentInstance;
@@ -326,4 +348,5 @@ describe('BudgetsPage', () => {
     expect(component.budgets).toEqual([]);
     expect(component.isLoading).toBe(false);
   });
+
 });

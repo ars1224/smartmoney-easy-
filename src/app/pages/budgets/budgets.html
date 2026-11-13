@@ -42,6 +42,102 @@
 
   <div class="budgets-layout">
 
+
+<section
+  class="income-overview"
+  aria-label="Monthly budget overview"
+>
+  <div class="income-overview-heading">
+    <h2>Budget overview</h2>
+    <p>{{ selectedMonthLabel }}</p>
+  </div>
+
+  @if (incomeLoading) {
+    <p role="status">Loading budget overview...</p>
+
+  } @else if (incomeError) {
+    <div role="alert">
+      <p>{{ incomeError }}</p>
+      <button
+        type="button"
+        (click)="loadIncomeSummary()"
+      >
+        Try again
+      </button>
+    </div>
+
+  } @else if (incomeSummary; as summary) {
+    <div class="income-overview-grid">
+
+      <article class="income-overview-stat">
+        <h3>Expected income</h3>
+        <strong>
+          @if (summary.expectedIncome === null) {
+            Not set
+          } @else {
+            {{ formatCurrency(summary.expectedIncome) }}
+          }
+        </strong>
+      </article>
+
+      <article class="income-overview-stat">
+        <h3>Allocated budget</h3>
+        <strong>
+          {{ formatCurrency(summary.allocatedBudget) }}
+        </strong>
+      </article>
+
+      <article
+        class="income-overview-stat"
+        [class.income-overallocated]="
+          summary.unallocatedBudget !== null &&
+          summary.unallocatedBudget < 0
+        "
+      >
+        <h3>Unallocated budget</h3>
+        <strong>
+          @if (summary.unallocatedBudget === null) {
+            Not available
+          } @else {
+            {{ formatCurrency(summary.unallocatedBudget) }}
+          }
+        </strong>
+      </article>
+
+    </div>
+
+<div class="income-overview-actions">
+  <a
+    class="income-edit-btn"
+    routerLink="/app/profile/settings"
+    aria-label="Manage income settings in Profile Settings"
+  >
+    Manage income settings
+  </a>
+</div>
+
+    @if (summary.expectedIncome === null) {
+      <p class="income-overview-note">
+        Set your expected monthly income to calculate
+        your unallocated budget.
+      </p>
+    } @else if (
+      summary.unallocatedBudget !== null &&
+      summary.unallocatedBudget < 0
+    ) {
+      <p class="income-overview-note">
+        Your planned allocations exceed expected income.
+      </p>
+    } @else {
+      <p class="income-overview-note">
+        Unallocated budget is a planning figure,
+        not your available bank balance.
+      </p>
+    }
+  }
+</section>
+
+
     <section
       class="budget-list"
       aria-label="Monthly budget categories"
