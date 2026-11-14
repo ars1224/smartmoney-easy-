@@ -80,18 +80,5 @@
 </div>
 
 @if (thinkerOpen) {
-  <div class="thinker-backdrop" (click)="closeThinker()" aria-hidden="true"></div>
-  <aside class="thinker-panel" role="dialog" aria-modal="true" aria-labelledby="thinker-title">
-    <div class="thinker-panel__header">
-      <div>
-        <p>Educational coach</p>
-        <h2 id="thinker-title">Thinker AI</h2>
-      </div>
-      <button type="button" (click)="closeThinker()" aria-label="Close Thinker AI">×</button>
-    </div>
-    <div class="thinker-panel__message">
-      Thinker is connected to the app shell. The complete guided conversation will be implemented in Phase 5.
-    </div>
-    <p class="thinker-panel__disclaimer">Educational guidance only — not financial advice.</p>
-  </aside>
+  <app-thinker (closed)="closeThinker()" />
 }

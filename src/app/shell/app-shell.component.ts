@@ -4,6 +4,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { addIcons } from 'ionicons';
 import { bookOutline, homeOutline, logOutOutline, personOutline } from 'ionicons/icons';
 import { AuthService } from '../core/auth/auth.service';
+import { ThinkerComponent } from '../shared/thinker/thinker.component';
 import { BankAutoSyncService } from '../core/bank/bank-auto-sync.service';
 
 interface NavigationItem {
@@ -18,7 +19,7 @@ interface NavigationItem {
   standalone: true,
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',
-  imports: [IonIcon, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [IonIcon, RouterLink, RouterLinkActive, RouterOutlet, ThinkerComponent],
 })
 export class AppShellComponent implements OnInit {
   private readonly auth = inject(AuthService);
@@ -79,10 +80,4 @@ export class AppShellComponent implements OnInit {
     this.isSettingsModalOpen = customEvent.detail?.isOpen === true;
   }
 
-  @HostListener('document:keydown.escape')
-  closeThinkerWithEscape(): void {
-    if (this.thinkerOpen) {
-      this.closeThinker();
-    }
-  }
 }
