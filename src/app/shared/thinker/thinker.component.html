@@ -1,0 +1,28 @@
+<dialog #panel aria-labelledby="thinker-title" aria-describedby="thinker-mode" (close)="onClosed()">
+ <header><div><p class="eyebrow">SmartMoney! Easy</p><h2 id="thinker-title">Thinker</h2></div><button class="close" type="button" (click)="close()" aria-label="Close Thinker" autofocus>×</button></header>
+ <div class="mode" id="thinker-mode">@if (status(); as config) {
+  <strong>{{ config.mode === 'live' ? 'AI assistance' : 'Demo mode' }}</strong><span>{{ config.mode === 'live' ? 'Powered by OpenAI' : 'Prepared replies · Live AI is not connected' }}</span>
+  @if (!config.available) { <span role="alert">Thinker is not configured. Contact the project team.</span> }
+ } @else if (statusError()) { <span role="alert">Could not connect to Thinker.</span><button type="button" (click)="loadStatus()">Reconnect</button> } @else { <span role="status">Connecting to Thinker…</span> }</div>
+ <div class="conversation" #conversation role="region" aria-label="Conversation" tabindex="0">
+  @if (!messages().length) {
+   <div class="welcome"><div class="mark" aria-hidden="true">?</div><h3>A little clarity for your money</h3><p>Explore a practical starting point for budgeting, saving or reviewing spending.</p><p class="privacy">Your question is sent to OpenAI in live mode. Thinker cannot see your financial records or previous messages. Avoid personal or account details.</p></div>
+  }
+  @for (message of messages(); track message.id) {
+   <article class="message" [class.you]="message.role === 'you'" [attr.aria-label]="message.role === 'you' ? 'Your message' : (message.mode === 'demo' ? 'Thinker demo reply' : 'Thinker AI reply')">
+    <span class="sender">{{ message.role === 'you' ? 'You' : (message.mode === 'demo' ? 'Thinker · Demo reply' : 'Thinker · AI reply') }}</span>
+    @if (message.title) { <h3>{{ message.title }}</h3> }
+    <p>{{ message.text }}</p>
+    @if (message.takeaway) { <div class="takeaway"><strong>Next step</strong><p>{{ message.takeaway }}</p></div> }
+   </article>
+  }
+  @if (busy()) { <p class="pending">Preparing reply…</p> }
+  @if (error()) { <div class="error" role="alert"><p>{{ error() }}</p>@if (failedMessage()) { <button type="button" (click)="retry()">Try again</button> }</div> }
+ </div>
+ <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ announcement() }}</p>
+ <div class="composer">
+  <div class="suggestions" aria-label="Suggested topics">@for (question of starters; track question) { <button type="button" [disabled]="busy() || !status()?.available" (click)="send(question)">{{ question }}</button> }</div>
+  <form (ngSubmit)="send()"><label for="thinker-message">Your question</label><div class="input-row"><textarea id="thinker-message" name="message" rows="2" maxlength="600" [ngModel]="draft()" (ngModelChange)="draft.set($event)" placeholder="Ask about budgeting, saving or spending" [disabled]="busy() || !status()?.available"></textarea><button class="send" type="submit" [disabled]="busy() || !draft().trim() || !status()?.available">Send</button></div><div class="form-meta"><span>{{ draft().length }}/600</span>@if (messages().length) { <button type="button" class="clear" (click)="clear()" [disabled]="busy()">Clear conversation</button> }</div></form>
+  <p class="disclaimer">General education only; AI can make mistakes. Questions are sent to OpenAI in live mode. No financial records or earlier messages are shared. Chat clears when closed.</p>
+ </div>
+</dialog>

@@ -119,6 +119,43 @@ class ReportsTests(unittest.TestCase):
         self.assertEqual(empty["total"], "0.00")
         self.assertEqual(empty["transactions"], [])
 
+    def test_new_transfer_categories_are_excluded_from_summary_and_details(self):
+        # Labels from the merged categoriser also apply to plain debit/credit kinds.
+        self.row("-100", category=" Savings Transfer ", kind="DEBIT", description="Automatic saving")
+        self.row("100", category="Internal Transfer", kind="CREDIT", description="Account movement")
+        self.row("-25", source="CASH", category="Internal Transfer", kind="expense", description="Wallet movement")
+        self.row("-12.50", category="Groceries")
+        self.row("-900", category="Groceries", user=self.other.id)
+        result = self.report()
+        self.assertEqual((result["income"], result["expenses"], result["netCashFlow"]), ("0.00", "12.50", "-12.50"))
+        self.assertEqual(result["excluded"]["transfers"], 3)
+        self.assertEqual(sum(Decimal(c["amount"]) for c in result["categories"]), Decimal("12.50"))
+        detail = self.client.get("/api/reports/category?month=2026-10&category=Savings%20Transfer").json
+        self.assertEqual(detail["total"], "0.00"); self.assertEqual(detail["transactions"], [])
+        self.assertEqual(self.report("month=2026-10&source=cash")["excluded"]["transfers"], 1)
+
+    def test_generic_transfer_category_requires_review(self):
+        self.row("-40", category="Transfer", description="Payment", kind="DEBIT")
+        self.row("40", category=" transfer ", description="Receipt", kind="CREDIT")
+        result = self.report()
+        self.assertEqual(result["transactionCount"], 0)
+        self.assertEqual(result["excluded"]["reviewNeeded"], 2)
+        self.assertEqual(result["coverage"], "partial")
+
+    def test_budget_group_override_is_not_proof_of_a_transfer(self):
+        row = self.row("-30", category="Groceries")
+        row.budget_group_override = "SAVINGS"; db.session.commit()
+        self.assertEqual(self.report()["expenses"], "30.00")
+        detail = self.client.get("/api/reports/category?month=2026-10&category=Groceries").json
+        self.assertEqual(detail["total"], "30.00")
+
+    def test_expected_income_plan_does_not_become_recorded_income(self):
+        from app.models import MonthlyIncomePlan
+        db.session.add(MonthlyIncomePlan(user_id=self.user.id, month="2026-10", expected_income=Decimal("9000")))
+        db.session.commit()
+        self.row("150", kind="CREDIT", category="Income")
+        self.assertEqual(self.report()["income"], "150.00")
+
     def test_success_has_no_store(self):
         self.assertEqual(self.client.get("/api/reports?month=2026-10").headers["Cache-Control"], "no-store")
 

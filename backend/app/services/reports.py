@@ -41,12 +41,13 @@ def summarise(transactions, month, source, expense_rows=None):
             excluded["foreignCurrency"] += 1
             continue
         amount = Decimal(row.amount)
-        kind = row.transaction_type.strip().upper()
-        if "TRANSFER" in kind:
+        kind = (row.transaction_type or "").strip().upper()
+        category = (row.category or "").strip().casefold()
+        if "TRANSFER" in kind or category in ("internal transfer", "savings transfer"):
             excluded["transfers"] += 1
             continue
         description = row.description or ""
-        if re.search(r"\btransfer\b", description, re.I) or (
+        if category == "transfer" or re.search(r"\btransfer\b", description, re.I) or (
             re.search(r"\brefund\b", description, re.I) and "REFUND" not in kind
         ):
             excluded["reviewNeeded"] += 1

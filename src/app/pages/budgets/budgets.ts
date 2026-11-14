@@ -14,42 +14,90 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {
   BudgetRecord,
   BudgetsApiService,
+  type AllocationOverview,
+  type GroupSpending,
 } from '../../core/services/budgets-api.service';
 
+import {
+  BUDGET_CATEGORIES,
+  type BudgetGroup,
+} from '../../core/constants/financial-categories';
+
+import {
+  MonthlyIncomeApiService,
+  MonthlyIncomeSummary,
+} from '../../core/services/monthly-income-api.service';
+
+import { RouterLink } from '@angular/router';
 export type BudgetStatus = 'safe' | 'warning' | 'danger';
 
 interface BudgetForm {
+  budgetGroup: BudgetGroup | '';
   category: string;
   otherCategory: string;
   monthlyLimit: number | null;
 }
 
+
 @Component({
   selector: 'app-budgets',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   templateUrl: './budgets.html',
   styleUrl: './budgets.scss',
 })
 export class BudgetsPage implements OnInit {
-  private readonly budgetsApi = inject(BudgetsApiService);
-  private readonly cdr = inject(ChangeDetectorRef);
 
+  private readonly budgetsApi = inject(BudgetsApiService);
+  private readonly monthlyIncomeApi = inject(MonthlyIncomeApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
   @ViewChild('budgetDialog')
   private budgetDialog?: ElementRef<HTMLDialogElement>;
 
-  readonly categories = [
-    'Groceries',
-    'Transport',
-    'Entertainment',
-    'Shopping',
-    'Bills',
-    'Eating out',
-    'Other',
-  ];
+  get categories(): readonly string[] {
+    const group = this.budgetForm.budgetGroup;
+
+    return group
+      ? BUDGET_CATEGORIES[group]
+      : [];
+  }
+
+onBudgetGroupChange(): void {
+  this.budgetForm.category =
+    this.budgetForm.budgetGroup === 'SAVINGS'
+      ? 'Savings'
+      : '';
+
+  this.budgetForm.otherCategory = '';
+}
 
   budgets: BudgetRecord[] = [];
+  groupSpending: GroupSpending | null = null;
+  savingsTransferred = 0;
+  allocation: AllocationOverview | null = null;
+  allocationError = '';
 
+  showAllocationEditor = false;
+allocationSaving = false;
+allocationFormError = '';
+
+allocationForm: {
+  availableMoney: number | null;
+  needsPercent: number;
+  wantsPercent: number;
+  savingsPercent: number;
+} = {
+  availableMoney: null,
+  needsPercent: 55,
+  wantsPercent: 20,
+  savingsPercent: 25,
+};
+
+  incomeSummary: MonthlyIncomeSummary | null = null;
+  incomeLoading = false;
+  incomeError = '';
+
+  private incomeRequestId = 0;
 
   selectedMonth = this.getCurrentNzMonth();
 
@@ -85,8 +133,8 @@ export class BudgetsPage implements OnInit {
 
   ngOnInit(): void {
     void this.loadBudgets();
+    void this.loadIncomeSummary();
   }
-
 
 private getCurrentNzMonth(): string {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -107,7 +155,15 @@ private getCurrentNzMonth(): string {
 }
 
 changeMonth(direction: -1 | 1): void {
-  if (this.isLoading || this.saving) return;
+  if (
+    this.isLoading ||
+    this.saving ||
+    this.allocationSaving
+  ) {
+    return;
+  }
+
+  this.showAllocationEditor = false;
 
   const [year, month] = this.selectedMonth
     .split('-')
@@ -127,40 +183,54 @@ changeMonth(direction: -1 | 1): void {
   ) {
     return;
   }
-
   this.selectedMonth = targetMonth;
   void this.loadBudgets();
-}
+    void this.loadIncomeSummary();
+  }
 
-
-
-
-async loadBudgets(): Promise<void> {
+  async loadBudgets(): Promise<void> {
   const requestId = ++this.loadRequestId;
   const month = this.selectedMonth;
 
   this.isLoading = true;
   this.loadError = '';
+  this.allocationError = '';
+  this.allocation = null;
 
   try {
-    const budgets = await firstValueFrom(
-      this.budgetsApi.getBudgets(month)
-    );
+    const [budgetResult, allocationResult] =
+      await Promise.allSettled([
+        firstValueFrom(
+          this.budgetsApi.getBudgetOverview(month)
+        ),
+        firstValueFrom(
+          this.budgetsApi.getAllocation(month)
+        ),
+      ]);
 
     if (requestId !== this.loadRequestId) {
       return;
     }
 
-    this.budgets = budgets;
-
-  } catch {
-    if (requestId !== this.loadRequestId) {
-      return;
+    if (budgetResult.status === 'fulfilled') {
+      this.budgets = budgetResult.value.budgets;
+      this.groupSpending = budgetResult.value.groupSpending;
+      this.savingsTransferred =
+        budgetResult.value.savingsTransferred ?? 0;
+    } else {
+      this.budgets = [];
+      this.groupSpending = null;
+      this.savingsTransferred = 0;
+      this.loadError =
+        'Unable to load budgets. Please try again.';
     }
 
-    this.loadError =
-      'Unable to load budgets. Please try again.';
-
+    if (allocationResult.status === 'fulfilled') {
+      this.allocation = allocationResult.value;
+    } else {
+      this.allocationError =
+        'Unable to load allocation targets.';
+    }
   } finally {
     if (requestId === this.loadRequestId) {
       this.isLoading = false;
@@ -169,14 +239,216 @@ async loadBudgets(): Promise<void> {
   }
 }
 
-
-  private emptyForm(): BudgetForm {
-    return {
-      category: '',
-      otherCategory: '',
-      monthlyLimit: null,
-    };
+openAllocationEditor(): void {
+  if (this.isLoading || this.allocationSaving) {
+    return;
   }
+
+  this.allocationForm = {
+    availableMoney: this.allocation?.availableMoney ?? null,
+    needsPercent: this.allocation?.percentages.NEEDS ?? 55,
+    wantsPercent: this.allocation?.percentages.WANTS ?? 20,
+    savingsPercent: this.allocation?.percentages.SAVINGS ?? 25,
+  };
+
+  this.allocationFormError = '';
+  this.showAllocationEditor = true;
+}
+
+cancelAllocationEditor(): void {
+  if (this.allocationSaving) {
+    return;
+  }
+
+  this.showAllocationEditor = false;
+  this.allocationFormError = '';
+}
+
+async saveAllocation(): Promise<void> {
+  if (this.allocationSaving) {
+    return;
+  }
+
+  const {
+    availableMoney,
+    needsPercent,
+    wantsPercent,
+    savingsPercent,
+  } = this.allocationForm;
+
+  if (
+    typeof availableMoney !== 'number' ||
+    !Number.isFinite(availableMoney) ||
+    availableMoney < 0 ||
+    availableMoney > 999999999999.99
+  ) {
+    this.allocationFormError =
+      'Enter a valid available-money amount.';
+    return;
+  }
+
+  if (
+    Math.abs(
+      availableMoney * 100 -
+      Math.round(availableMoney * 100)
+    ) > 0.000001
+  ) {
+    this.allocationFormError =
+      'Available money must have no more than two decimal places.';
+    return;
+  }
+
+  const percentages = [
+    needsPercent,
+    wantsPercent,
+    savingsPercent,
+  ];
+
+  if (
+    percentages.some(
+      value =>
+        !Number.isInteger(value) ||
+        value < 0 ||
+        value > 100
+    )
+  ) {
+    this.allocationFormError =
+      'Each percentage must be a whole number between 0 and 100.';
+    return;
+  }
+
+  if (
+    needsPercent +
+    wantsPercent +
+    savingsPercent !== 100
+  ) {
+    this.allocationFormError =
+      'Needs, Wants and Savings must add up to 100%.';
+    return;
+  }
+
+  this.allocationSaving = true;
+  this.allocationFormError = '';
+
+  const month = this.selectedMonth;
+
+  try {
+    const updated = await firstValueFrom(
+      this.budgetsApi.saveAllocation(
+        {
+          availableMoney,
+          needsPercent,
+          wantsPercent,
+          savingsPercent,
+        },
+        month
+      )
+    );
+
+    if (month === this.selectedMonth) {
+      this.allocation = updated;
+      this.allocationError = '';
+      this.showAllocationEditor = false;
+    }
+  } catch (error: unknown) {
+    this.allocationFormError =
+      error instanceof HttpErrorResponse &&
+      typeof error.error?.error === 'string'
+        ? error.error.error
+        : 'Unable to save allocation. Please try again.';
+  } finally {
+    this.allocationSaving = false;
+    this.cdr.markForCheck();
+  }
+}
+
+getGroupOverAllocation(group: BudgetGroup): number {
+  const target = this.getTargetForGroup(group);
+
+  if (target === null) {
+    return 0;
+  }
+
+  const planned = this.getTotalForGroup(group);
+
+  return Math.max(
+    0,
+    Math.round((planned - target) * 100) / 100
+  );
+}
+
+getOverallOverAllocation(): number {
+  const availableMoney = this.allocation?.availableMoney;
+
+  if (
+    availableMoney === null ||
+    availableMoney === undefined
+  ) {
+    return 0;
+  }
+
+  const totalPlanned = this.budgets.reduce(
+    (total, budget) => total + budget.monthlyLimit,
+    0
+  );
+
+  return Math.max(
+    0,
+    Math.round(
+      (totalPlanned - availableMoney) * 100
+    ) / 100
+  );
+}
+
+get savingsProgressPercent(): number {
+  const target = this.getTargetForGroup('SAVINGS');
+
+  if (target === null || target <= 0) {
+    return 0;
+  }
+
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round(
+        (this.savingsTransferred / target) * 100
+      )
+    )
+  );
+}
+
+get savingsRemaining(): number {
+  const target = this.getTargetForGroup('SAVINGS');
+
+  if (target === null || target <= 0) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.round(
+      (target - this.savingsTransferred) * 100
+    ) / 100
+  );
+}
+
+get availableMoneyDisplay(): string {
+  const amount = this.allocation?.availableMoney;
+
+  return amount === null || amount === undefined
+    ? 'Not configured'
+    : this.formatCurrency(amount);
+}
+
+private emptyForm(): BudgetForm {
+  return {
+    budgetGroup: '',
+    category: '',
+    otherCategory: '',
+    monthlyLimit: null,
+  };
+}
 
   openCreateDialog(): void {
     if (this.saving) return;
@@ -188,25 +460,27 @@ async loadBudgets(): Promise<void> {
     this.budgetDialog?.nativeElement.showModal();
   }
 
-  openEditDialog(budget: BudgetRecord): void {
-    if (this.saving) return;
+openEditDialog(budget: BudgetRecord): void {
+  if (this.saving) return;
 
-    this.editingBudgetId = budget.id;
+  this.editingBudgetId = budget.id;
 
-    const isCustomOther = budget.category.startsWith('Other - ');
+  const isCustomOther =
+    budget.category.startsWith('Other - ');
 
-    this.budgetForm = {
-      category: isCustomOther ? 'Other' : budget.category,
-      otherCategory: isCustomOther
-        ? budget.category.slice('Other - '.length)
-        : '',
-      monthlyLimit: budget.monthlyLimit,
-    };
+  this.budgetForm = {
+    budgetGroup: budget.budgetGroup ?? '',
+    category: isCustomOther ? 'Other' : budget.category,
+    otherCategory: isCustomOther
+      ? budget.category.slice('Other - '.length)
+      : '',
+    monthlyLimit: budget.monthlyLimit,
+  };
 
-    this.formError = '';
+  this.formError = '';
 
-    this.budgetDialog?.nativeElement.showModal();
-  }
+  this.budgetDialog?.nativeElement.showModal();
+}
 
   closeBudgetDialog(): void {
     if (this.saving) return;
@@ -235,6 +509,12 @@ async loadBudgets(): Promise<void> {
 
     this.formError = '';
 
+  const budgetGroup = this.budgetForm.budgetGroup;
+    if (!budgetGroup) {
+      this.formError =
+        'Please select Needs, Wants or Savings.';
+      return;
+    }
   const selectedCategory = this.budgetForm.category;
   let category = selectedCategory;
   const monthlyLimit = this.budgetForm.monthlyLimit;
@@ -299,6 +579,7 @@ async loadBudgets(): Promise<void> {
       const payload = {
         category,
         monthlyLimit,
+        budgetGroup,
       };
 
     await firstValueFrom(
@@ -320,6 +601,7 @@ async loadBudgets(): Promise<void> {
 
       // Reload budgets for the currently selected month.
       await this.loadBudgets();
+      void this.loadIncomeSummary();
 
     } catch (error: unknown) {
       this.formError =
@@ -400,5 +682,96 @@ async loadBudgets(): Promise<void> {
     }).format(amount);
   }
 
+  readonly budgetColumns = [
+  { id: 'NEEDS', title: 'Needs' },
+  { id: 'WANTS', title: 'Wants' },
+  { id: 'SAVINGS', title: 'Savings' },
+] as const;
 
+getBudgetsForGroup(
+  group: BudgetGroup
+): BudgetRecord[] {
+  return this.budgets.filter(
+    budget => budget.budgetGroup === group
+  );
+}
+
+getTotalForGroup(
+  group: BudgetGroup | 'SAVINGS'
+): number {
+  return this.getBudgetsForGroup(group).reduce(
+    (total, budget) => total + budget.monthlyLimit,
+    0
+  );
+}
+
+get unassignedBudgets(): BudgetRecord[] {
+  return this.budgets.filter(
+    budget => budget.budgetGroup === null
+  );
+}
+
+getTargetForGroup(group: BudgetGroup): number | null {
+  return this.allocation?.targets?.[group] ?? null;
+}
+
+getAllocationPercentage(group: BudgetGroup): number {
+  return this.allocation?.percentages[group] ?? 0;
+}
+
+get allocationPercentageTotal(): number | null {
+  const values = [
+    this.allocationForm.needsPercent,
+    this.allocationForm.wantsPercent,
+    this.allocationForm.savingsPercent,
+  ];
+
+  if (
+    !values.every(
+      value =>
+        typeof value === 'number' &&
+        Number.isFinite(value)
+    )
+  ) {
+    return null;
+  }
+
+  return values.reduce(
+    (total, value) => total + value,
+    0
+  );
+}
+
+async loadIncomeSummary(): Promise<void> {
+  const requestId = ++this.incomeRequestId;
+  const month = this.selectedMonth;
+
+  this.incomeLoading = true;
+  this.incomeError = '';
+  this.incomeSummary = null;
+
+  try {
+    const summary = await firstValueFrom(
+      this.monthlyIncomeApi.getSummary(month)
+    );
+
+    if (requestId !== this.incomeRequestId) {
+      return;
+    }
+
+    this.incomeSummary = summary;
+  } catch {
+    if (requestId !== this.incomeRequestId) {
+      return;
+    }
+
+    this.incomeError =
+      'Unable to load your income overview.';
+  } finally {
+    if (requestId === this.incomeRequestId) {
+      this.incomeLoading = false;
+      this.cdr.markForCheck();
+    }
+  }
+}
 }

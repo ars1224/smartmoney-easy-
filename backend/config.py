@@ -63,3 +63,11 @@ class Config:
         "YAHOO_FINANCE_RSS_URL",
         "https://news.google.com/rss/search?q=site%3Afinance.yahoo.com%2Fpersonal-finance+%28budget+OR+budgeting+OR+saving+OR+savings+OR+%22emergency+fund%22+OR+debt+OR+scam+OR+fraud+OR+spending%29+when%3A1y&hl=en-NZ&gl=NZ&ceid=NZ%3Aen",
     )
+
+    # Live Thinker must be explicitly enabled; key remains server-side.
+    THINKER_MODE = os.getenv("THINKER_MODE", "demo")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+    THINKER_DAILY_LIMIT = 50
+    THINKER_USER_DAILY_LIMIT = 20
+    THINKER_USER_MINUTE_LIMIT = 5

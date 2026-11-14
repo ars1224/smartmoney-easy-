@@ -73,3 +73,5 @@ backend/.venv/
 backend/.env
 __pycache__/
 *.pyc
+# Local persistent Thinker request counters (not conversation history).
+backend/instance/
