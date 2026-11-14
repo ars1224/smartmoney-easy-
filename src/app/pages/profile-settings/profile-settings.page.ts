@@ -1,4 +1,13 @@
-import { Component, ElementRef, HostListener, ViewChild, ChangeDetectorRef, inject } from '@angular/core';
+
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  ViewChild,
+  ChangeDetectorRef,
+  inject,
+} from '@angular/core';
+
 import { IonContent } from '@ionic/angular';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -6,13 +15,32 @@ import { Router } from '@angular/router';
 import { SmCardComponent } from '../../shared/ui/sm-card/sm-card.component';
 import { SmButtonComponent } from '../../shared/ui/sm-button/sm-button.component';
 import { AuthService } from '../../core/auth/auth.service';
+import { BankAccountsApiService } from '../../core/bank/bank-accounts-api.service';
+
+import { firstValueFrom } from 'rxjs';
+
+import {
+  MonthlyIncomeApiService,
+  MonthlyIncomeSummary,
+} from '../../core/services/monthly-income-api.service';
+
+import {
+  RegularIncomeApiService,
+  RegularIncomeProfile,
+  RegularIncomeType,
+  PayFrequency,
+} from '../../core/services/regular-income-api.service';
+
+import { HttpErrorResponse } from '@angular/common/http';
 
 type SettingsModal =
   | 'personal-details'
   | 'change-password'
   | 'privacy-data'
+  | 'confirm-remove-bank-data'
   | 'logout'
   | 'delete-account'
+  | 'expected-income'
   | null;
 
 @Component({
@@ -29,8 +57,23 @@ type SettingsModal =
 })
 export class ProfileSettingsPage {
   private readonly auth = inject(AuthService);
+  private readonly bankApi = inject(BankAccountsApiService);
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly monthlyIncomeApi =
+    inject(MonthlyIncomeApiService);
+  private readonly regularIncomeApi =
+    inject(RegularIncomeApiService);
+  private regularIncomeRequestId = 0;
+
+  incomeMonth = '';
+  incomeAmount: number | null = null;
+  incomeSummary: MonthlyIncomeSummary | null = null;
+
+  incomeLoading = false;
+  incomeSaving = false;
+  incomeError = '';
+  incomeMessage = '';
 
   activeModal: SettingsModal = null;
 
@@ -41,6 +84,26 @@ export class ProfileSettingsPage {
 
   private modalTrigger: HTMLElement | null = null;
   private modalElement: HTMLElement | null = null;
+
+
+private getCurrentNzMonth(): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date());
+
+  const year = parts.find(
+    part => part.type === 'year'
+  )?.value;
+
+  const month = parts.find(
+    part => part.type === 'month'
+  )?.value;
+
+  return `${year}-${month}`;
+}
+
 
   @ViewChild('settingsModal')
   set settingsModal(ref: ElementRef<HTMLElement> | undefined) {
@@ -153,6 +216,7 @@ export class ProfileSettingsPage {
 
   // Privacy and stored data
   privacyMessage = '';
+  bankDeleteLoading = false;
 
   // Delete account
   deleteConfirmation = '';
@@ -164,6 +228,11 @@ export class ProfileSettingsPage {
       title: 'Personal details',
       description: 'Manage this setting',
       action: 'personal-details',
+    },
+    {
+      title: 'Expected income',
+      description: 'Set your planned income for each month.',
+      action: 'expected-income',
     },
     {
       title: 'Change password',
@@ -200,6 +269,23 @@ export class ProfileSettingsPage {
 
     this.modalTrigger =
       trigger instanceof HTMLElement ? trigger : null;
+
+
+  if (action === 'expected-income') {
+    this.incomeMonth = this.getCurrentNzMonth();
+    this.incomeAmount = null;
+    this.incomeSummary = null;
+    this.incomeError = '';
+    this.incomeMessage = '';
+
+    this.activeModal = 'expected-income';
+    this.notifyModalState(true);
+
+    void this.loadExpectedIncome();
+    void this.loadRegularIncomeProfile();
+    return;
+  }
+
 
     if (action === 'personal-details') {
       const user = this.auth.currentUser();
@@ -259,7 +345,10 @@ export class ProfileSettingsPage {
     if (
       this.personalDetailsLoading ||
       this.passwordLoading ||
-      this.logoutLoading
+      this.logoutLoading ||
+      this.bankDeleteLoading ||
+      this.incomeSaving ||
+      this.regularIncomeSaving
     ) {
       return;
     }
@@ -295,14 +384,14 @@ export class ProfileSettingsPage {
   savePersonalDetails(): void {
     const name = this.personalName.trim();
     const email = this.personalEmail.trim();
-    
+
     if (!name || name.length < 2 || name.length > 100) {
       this.personalDetailsError =
         'Name must be between 2 and 100 characters.';
-        this.personalDetailsMessage = '';
+      this.personalDetailsMessage = '';
       return;
     }
-    
+
     if (
       !email ||
       email.length > 255 ||
@@ -325,11 +414,11 @@ export class ProfileSettingsPage {
     this.auth.updateProfile(name, email).subscribe({
       next: (user) => {
         this.personalName = user.name;
-        this.personalEmail = user.email;     
-      
+        this.personalEmail = user.email;
+
         this.personalDetailsMessage =
           'Your personal details have been updated successfully.';
-        
+
         this.personalDetailsLoading = false;
 
         this.cdr.detectChanges();
@@ -342,7 +431,6 @@ export class ProfileSettingsPage {
       },
     });
   }
-
 
   // Validate password fields
   updatePassword(): void {
@@ -392,7 +480,7 @@ export class ProfileSettingsPage {
       next: () => {
         this.passwordMessage =
           'Your password has been updated successfully.';
-          
+
         this.currentPassword = '';
         this.newPassword = '';
         this.confirmPassword = '';
@@ -410,7 +498,6 @@ export class ProfileSettingsPage {
     });
   }
 
-
   // Show privacy-related status messages
   showPrivacyMessage(action: string): void {
     if (action === 'export-data') {
@@ -420,9 +507,52 @@ export class ProfileSettingsPage {
     }
 
     if (action === 'remove-bank-data') {
-      this.privacyMessage =
-        'Bank data removal will be available after backend integration.';
+      if (this.bankDeleteLoading) {
+        return;
+      }
+
+      this.activeModal = 'confirm-remove-bank-data';
     }
+  }
+
+  // Return to the privacy modal without deleting data
+  cancelBankDeleteConfirmation(): void {
+    if (this.bankDeleteLoading) {
+      return;
+    }
+
+    this.activeModal = 'privacy-data';
+  }
+
+  // Confirm and remove imported bank transactions
+  confirmRemoveBankData(): void {
+    if (this.bankDeleteLoading) {
+      return;
+    }
+
+    this.bankDeleteLoading = true;
+
+    this.bankApi.deleteImportedTransactions().subscribe({
+      next: (response) => {
+        this.privacyMessage =
+          `${response.deleted_count} imported bank transactions removed. ` +
+          'Your connected accounts and cash transactions remain unchanged. ' +
+          'Deleted transactions may reappear during the next bank sync while your bank connection remains active.';
+
+        this.bankDeleteLoading = false;
+        this.activeModal = 'privacy-data';
+        this.cdr.detectChanges();
+      },
+
+      error: () => {
+        this.privacyMessage =
+          'Unable to remove imported bank transactions. Please try again.';
+
+        this.bankDeleteLoading = false;
+        this.activeModal = 'privacy-data';
+        this.cdr.detectChanges();
+      },
+    });
   }
 
   // Log out using Flask session-based authentication
@@ -440,6 +570,7 @@ export class ProfileSettingsPage {
         this.closeModal();
         void this.router.navigateByUrl('/auth/login');
       },
+
       error: (error: Error) => {
         this.logoutLoading = false;
         this.logoutError =
@@ -466,4 +597,296 @@ export class ProfileSettingsPage {
   goBack(): void {
     void this.router.navigateByUrl('/app/profile');
   }
+
+
+async loadExpectedIncome(): Promise<void> {
+  const month = this.incomeMonth;
+
+  this.incomeLoading = true;
+  this.incomeError = '';
+  this.incomeMessage = '';
+  this.incomeSummary = null;
+  this.incomeAmount = null;
+
+  try {
+    const summary = await firstValueFrom(
+      this.monthlyIncomeApi.getSummary(month)
+    );
+
+    if (
+      this.activeModal !== 'expected-income' ||
+      this.incomeMonth !== month
+    ) {
+      return;
+    }
+
+    this.incomeSummary = summary;
+    this.incomeAmount = summary.expectedIncome;
+
+  } catch {
+    if (
+      this.activeModal === 'expected-income' &&
+      this.incomeMonth === month
+    ) {
+      this.incomeError =
+        'Unable to load expected income. Please try again.';
+    }
+
+  } finally {
+    if (
+      this.activeModal === 'expected-income' &&
+      this.incomeMonth === month
+    ) {
+      this.incomeLoading = false;
+      this.cdr.detectChanges();
+    }
+  }
+}
+
+async saveExpectedIncome(): Promise<void> {
+  if (
+    this.incomeSaving ||
+    this.incomeLoading ||
+    this.activeModal !== 'expected-income'
+  ) {
+    return;
+  }
+
+  this.incomeError = '';
+  this.incomeMessage = '';
+
+  const amount = this.incomeAmount;
+  const month = this.incomeMonth;
+
+  if (
+    !Number.isInteger(Number(month.slice(0, 4))) ||
+    !/^\d{4}-(0[1-9]|1[0-2])$/.test(month) ||
+    Number(month.slice(0, 4)) < 1 ||
+    Number(month.slice(0, 4)) > 9998
+  ) {
+    this.incomeError = 'Select a valid month.';
+    return;
+  }
+
+  if (
+    amount === null ||
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    amount > 999999999999.99
+  ) {
+    this.incomeError =
+      'Enter a valid expected income of zero or more.';
+    return;
+  }
+
+  if (
+    Math.abs(amount - Number(amount.toFixed(2))) > 1e-9
+  ) {
+    this.incomeError =
+      'Income cannot exceed two decimal places.';
+    return;
+  }
+
+  this.incomeSaving = true;
+
+  try {
+    await firstValueFrom(
+      this.monthlyIncomeApi.saveExpectedIncome(
+        month,
+        amount
+      )
+    );
+
+    await this.loadExpectedIncome();
+
+    if (!this.incomeError) {
+      this.incomeMessage =
+        'Expected income saved successfully.';
+    }
+  } catch {
+    this.incomeError =
+      'Unable to save expected income. Please try again.';
+  } finally {
+    this.incomeSaving = false;
+    this.cdr.detectChanges();
+  }
+}
+
+
+regularIncomeProfile: RegularIncomeProfile | null = null;
+
+regularIncomeType: RegularIncomeType = 'SALARY';
+regularIncomeAmount: number | null = null;
+regularPayFrequency: PayFrequency = 'WEEKLY';
+regularHoursPerWeek: number | null = null;
+
+regularIncomeLoading = false;
+regularIncomeSaving = false;
+regularIncomeError = '';
+regularIncomeMessage = '';
+
+
+async loadRegularIncomeProfile(): Promise<void> {
+  const requestId = ++this.regularIncomeRequestId;
+
+  this.regularIncomeLoading = true;
+  this.regularIncomeError = '';
+  this.regularIncomeMessage = '';
+
+  try {
+    const profile = await firstValueFrom(
+      this.regularIncomeApi.getProfile()
+    );
+
+    if (
+      requestId !== this.regularIncomeRequestId ||
+      this.activeModal !== 'expected-income'
+    ) {
+      return;
+    }
+
+    this.regularIncomeProfile = profile;
+
+    if (profile) {
+      this.regularIncomeType = profile.incomeType;
+      this.regularIncomeAmount = profile.amount;
+
+      this.regularPayFrequency =
+        profile.payFrequency ?? 'WEEKLY';
+
+      this.regularHoursPerWeek =
+        profile.hoursPerWeek;
+    } else {
+      this.regularIncomeType = 'SALARY';
+      this.regularIncomeAmount = null;
+      this.regularPayFrequency = 'WEEKLY';
+      this.regularHoursPerWeek = null;
+    }
+
+  } catch {
+    if (
+      requestId === this.regularIncomeRequestId &&
+      this.activeModal === 'expected-income'
+    ) {
+      this.regularIncomeError =
+        'Unable to load regular income settings. Please try again.';
+    }
+
+  } finally {
+    if (requestId === this.regularIncomeRequestId) {
+      this.regularIncomeLoading = false;
+      this.cdr.detectChanges();
+    }
+  }
+}
+
+async saveRegularIncome(): Promise<void> {
+  if (
+    this.personalDetailsLoading ||
+    this.passwordLoading ||
+    this.logoutLoading ||
+    this.incomeSaving ||
+    this.regularIncomeLoading ||
+    this.regularIncomeSaving
+  ) {
+    return;
+  }
+
+
+  this.regularIncomeError = '';
+  this.regularIncomeMessage = '';
+
+  const incomeType = this.regularIncomeType;
+  const amount = this.regularIncomeAmount;
+  const hours = this.regularHoursPerWeek;
+
+  // Validate the regular pay amount.
+  if (
+    amount === null ||
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    amount > 999999999999.99
+  ) {
+    this.regularIncomeError =
+      'Enter a valid income amount of zero or more.';
+    return;
+  }
+
+  if (
+    Math.abs(amount - Number(amount.toFixed(2))) > 1e-9
+  ) {
+    this.regularIncomeError =
+      'Income cannot exceed two decimal places.';
+    return;
+  }
+
+  // Validate hourly workers' usual weekly hours.
+  if (incomeType === 'HOURLY') {
+    if (
+      hours === null ||
+      !Number.isFinite(hours) ||
+      hours < 0 ||
+      hours > 168
+    ) {
+      this.regularIncomeError =
+        'Enter weekly hours between 0 and 168.';
+      return;
+    }
+
+    if (
+      Math.abs(hours - Number(hours.toFixed(2))) > 1e-9
+    ) {
+      this.regularIncomeError =
+        'Weekly hours cannot exceed two decimal places.';
+      return;
+    }
+  }
+
+  this.regularIncomeSaving = true;
+
+  try {
+    const saved = await firstValueFrom(
+      this.regularIncomeApi.saveProfile({
+        incomeType,
+        amount,
+        payFrequency:
+          incomeType === 'SALARY'
+            ? this.regularPayFrequency
+            : null,
+        hoursPerWeek:
+          incomeType === 'HOURLY'
+            ? hours
+            : null,
+      })
+    );
+
+        this.regularIncomeProfile = saved;
+
+    // The regular income save succeeded.
+    this.regularIncomeMessage =
+      'Regular income saved successfully.';
+
+    // Refresh the monthly summary after saving.
+    if (this.activeModal === 'expected-income') {
+      await this.loadExpectedIncome();
+
+      if (this.incomeError) {
+        this.regularIncomeMessage =
+          'Regular income was saved, but the monthly summary could not be refreshed. Please use Reload income.';
+      }
+    }
+
+  } catch (error: unknown) {
+    this.regularIncomeError =
+      error instanceof HttpErrorResponse &&
+      typeof error.error?.error === 'string'
+        ? error.error.error
+        : 'Unable to save regular income. Please try again.';
+
+  } finally {
+    this.regularIncomeSaving = false;
+    this.cdr.detectChanges();
+  }
+}
+
 }

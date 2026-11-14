@@ -1,6 +1,6 @@
 # Thinker: OpenAI integration
 
-Work is on feature/thinker-ai, separate from Reports PR #27. No commit, push or PR has been created.
+Thinker is separate from Reports PR #27. Direct integration to main was requested after updating from GitHub; no Thinker PR is required.
 
 ## Configuration
 
@@ -30,3 +30,9 @@ The instruction confines replies to general budgeting, saving, spending and scam
 One real bounded backend request succeeded with the privately configured key and gpt-5.4-mini, using only a generic household-budget question. Browser verification used a separate key-free mocked provider: live-mode notice, reply display, clear/reset, 320/390px layouts, 480px desktop panel, Escape and opener focus restoration. Mocked preview content is explicitly labelled as such. Real end-to-end browser testing with the developer's own account remains for the user. Full screen-reader audit, device soft-keyboard resizing and cross-browser/deployed validation remain unverified.
 
 Developer app: frontend http://localhost:8100 and backend http://127.0.0.1:5000. Restart Flask after changing .env. Do not use the isolated 8200 UI preview as evidence of a live provider call.
+
+## Main integration — 15 November 2026
+
+Integrated GitHub main through fbe6761 (PR #33), retaining startup bank sync, the account-security changes, logout confirmation/focus controls, current budgets and categorisation. Resolved shell and blueprint conflicts by retaining incoming main behaviour and adding Thinker. All 119 frontend tests, 19 backend tests, nine isolated categorisation/savings tests, the production build and touched-file lint pass. Existing main stylesheet warnings remain. The old standalone live-bank scripts were not used as regression coverage.
+
+The developer database was backed up locally (under ignored backend/.venv/backups) before applying existing main migrations from 54d3333cc103 to 545d669fced4. No new Thinker application-schema migration was introduced. API credentials and local usage counters remain ignored; unrelated VS Code settings are preserved outside commits. Other developers must configure their own server-side OpenAI key to enable live mode; the repository defaults to demo.

@@ -8,6 +8,12 @@
       <h1 id="login-title">Welcome back</h1>
       <p class="auth-intro">Take control of your money, one simple step at a time.</p>
 
+      @if (sessionExpired()) {
+        <div class="form-alert" role="alert">
+          Your session has expired. Please log in again.
+        </div>
+      }
+
       <form class="auth-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
         @if (serverError()) {
           <div class="form-alert" role="alert">{{ serverError() }}</div>
