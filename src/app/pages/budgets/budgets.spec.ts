@@ -1,5 +1,10 @@
-import { TestBed } from '@angular/core/testing';
+import {
+  TestBed,
+  type ComponentFixture,
+} from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
+
+import { provideRouter } from '@angular/router';
 
 import {
   describe,
@@ -19,6 +24,7 @@ import { MonthlyIncomeApiService } from '../../core/services/monthly-income-api.
 
 describe('BudgetsPage', () => {
   let component: BudgetsPage;
+  let fixture: ComponentFixture<BudgetsPage>;
 
   const budgetsApi = {
     getBudgetOverview: vi.fn(),
@@ -76,16 +82,17 @@ describe('BudgetsPage', () => {
   }
 
   function mockBudgetOverview(
-    budgets: BudgetRecord[]
+    budgets: BudgetRecord[],
+    savingsTransferred = 0
   ): void {
     budgetsApi.getBudgetOverview.mockReturnValue(
       of({
         budgets,
         groupSpending: null,
+        savingsTransferred,
       })
     );
   }
-
   beforeEach(() => {
     vi.resetAllMocks();
 
@@ -106,6 +113,7 @@ describe('BudgetsPage', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
         {
           provide: BudgetsApiService,
           useValue: budgetsApi,
@@ -117,12 +125,105 @@ describe('BudgetsPage', () => {
       ],
     });
 
-    const fixture =
-      TestBed.createComponent(BudgetsPage);
+    fixture = TestBed.createComponent(BudgetsPage);
 
     component = fixture.componentInstance;
   });
 
+    // ---------------------------------
+    // Savings transfer progress
+    // ---------------------------------
+
+    describe('Savings transfer progress', () => {
+
+    it('calculates progress against the allocation target', () => {
+        component.allocation = configuredAllocation;
+        component.savingsTransferred = 100;
+
+        expect(component.savingsProgressPercent).toBe(20);
+        expect(component.savingsRemaining).toBe(400);
+    });
+
+    it('caps progress at 100% when savings exceed the target', () => {
+        component.allocation = configuredAllocation;
+        component.savingsTransferred = 650;
+
+        expect(component.savingsProgressPercent).toBe(100);
+        expect(component.savingsRemaining).toBe(0);
+    });
+
+    it('handles a missing savings target safely', () => {
+        component.allocation = defaultAllocation;
+        component.savingsTransferred = 100;
+
+        expect(component.savingsProgressPercent).toBe(0);
+        expect(component.savingsRemaining).toBe(0);
+    });
+
+    it('handles a zero savings target safely', () => {
+        component.allocation = {
+        ...configuredAllocation,
+        targets: {
+            NEEDS: 1100,
+            WANTS: 900,
+            SAVINGS: 0,
+        },
+        };
+
+        component.savingsTransferred = 100;
+
+        expect(component.savingsProgressPercent).toBe(0);
+        expect(component.savingsRemaining).toBe(0);
+    });
+
+    });
+
+    it('loads savings transfers and resets them on API failure', async () => {
+    mockBudgetOverview([], 100);
+
+    await component.loadBudgets();
+
+    expect(component.savingsTransferred).toBe(100);
+
+    budgetsApi.getBudgetOverview.mockReturnValueOnce(
+        throwError(
+        () => new Error('Network unavailable')
+        )
+    );
+
+    await component.loadBudgets();
+
+    expect(component.savingsTransferred).toBe(0);
+    expect(component.loadError).toBe(
+        'Unable to load budgets. Please try again.'
+    );
+    });
+
+    it('shows savings progress without a separate Savings budget', async () => {
+    mockBudgetOverview([], 100);
+
+    budgetsApi.getAllocation.mockReturnValue(
+        of(configuredAllocation)
+    );
+
+    fixture.detectChanges();
+
+    await component.loadBudgets();
+
+    fixture.detectChanges();
+
+    const content =
+        (fixture.nativeElement as HTMLElement)
+        .textContent
+        ?.replace(/\s+/g, ' ') ?? '';
+
+    expect(content).toContain('Savings progress');
+    expect(content).toContain('$100 transferred');
+
+    expect(content).toContain(
+        '20% of $500 allocation target'
+    );
+    });
 
   // ---------------------------------
   // Budget form validation

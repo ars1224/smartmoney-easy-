@@ -545,13 +545,59 @@
 
             <article class="budget-card savings-budget-card">
 
-              <div class="budget-card-header">
-                <h2>Savings allocation</h2>
+            <div class="budget-card-header">
+              <h2>Savings budget</h2>
 
+              <span>
+                {{ formatCurrency(budget.monthlyLimit) }} planned
+              </span>
+            </div>
+
+              <div class="budget-card-details">
                 <span>
-                  {{ formatCurrency(budget.monthlyLimit) }}
+                  {{ formatCurrency(savingsTransferred) }}
+                  transferred to savings
                 </span>
               </div>
+
+              @if (getTargetForGroup('SAVINGS') !== null) {
+
+                <div
+                  class="budget-progress"
+                  role="progressbar"
+                  aria-label="Monthly savings target progress"
+                  [attr.aria-valuenow]="savingsProgressPercent"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                >
+                  <div
+                    class="budget-progress-fill"
+                    style="background-color: #0d9488"
+                    [style.width.%]="savingsProgressPercent"
+                  ></div>
+                </div>
+
+                <div class="budget-card-details">
+                  <span>
+                    {{ savingsProgressPercent }}% of
+                    {{ formatCurrency(getTargetForGroup('SAVINGS') ?? 0) }}
+                    allocation target
+                  </span>
+
+                  <span>
+                    {{ formatCurrency(savingsRemaining) }}
+                    remaining
+                  </span>
+                </div>
+
+              } @else {
+
+                <p>
+                  Set a monthly allocation target to track
+                  your savings progress.
+                </p>
+
+              }
 
               <div class="budget-card-details">
                 <span>
@@ -573,17 +619,57 @@
 
               <article class="budget-card savings-budget-card">
                 <div class="budget-card-header">
-                  <h2>Savings allocation</h2>
+                  <h2>Savings progress</h2>
+
+                  <span>
+                    {{ formatCurrency(savingsTransferred) }}
+                    transferred
+                  </span>
                 </div>
 
-                <p>
-                  No savings allocation has been set for this month.
-                </p>
+                @if (getTargetForGroup('SAVINGS') !== null) {
+
+                  <div
+                    class="budget-progress"
+                    role="progressbar"
+                    aria-label="Monthly savings target progress"
+                    [attr.aria-valuenow]="savingsProgressPercent"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                  >
+                    <div
+                      class="budget-progress-fill"
+                      style="background-color: #0d9488"
+                      [style.width.%]="savingsProgressPercent"
+                    ></div>
+                  </div>
+
+                  <div class="budget-card-details">
+                    <span>
+                      {{ savingsProgressPercent }}% of
+                      {{ formatCurrency(getTargetForGroup('SAVINGS') ?? 0) }}
+                      allocation target
+                    </span>
+
+                    <span>
+                      {{ formatCurrency(savingsRemaining) }}
+                      remaining
+                    </span>
+                  </div>
+
+                } @else {
+
+                  <p>
+                    Configure your monthly allocation
+                    to set a savings target.
+                  </p>
+
+                }
 
                 <p>
-                  Select Savings when creating a budget
-                  to set aside money.
+                  No separate Savings budget has been created.
                 </p>
+
               </article>
 
             }

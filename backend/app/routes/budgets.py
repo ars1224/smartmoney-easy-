@@ -473,7 +473,33 @@ def get_monthly_group_spending(user_id, start, end):
         for group, amount in totals.items()
     }
 
+def get_monthly_savings_transferred(user_id, start, end):
+    """Total outgoing bank transfers categorised as savings."""
 
+    total = (
+        db.session.query(
+            func.coalesce(
+                func.sum(-Transaction.amount),
+                0,
+            )
+        )
+        .filter(
+            Transaction.user_id == user_id,
+            Transaction.source == "BANK",
+            Transaction.currency == "NZD",
+            Transaction.amount < 0,
+            func.lower(
+                func.trim(Transaction.category)
+            ) == "savings transfer",
+            Transaction.transaction_date >= start,
+            Transaction.transaction_date < end,
+        )
+        .scalar()
+    )
+
+    return str(
+        Decimal(total or 0).quantize(CENT)
+    )
 
 def serialize_budget(budget, spending, monthly_limit=None):
     if budget.budget_group == "SAVINGS":
@@ -556,6 +582,9 @@ def list_budgets():
     return no_cache({
         "month": month,
         "groupSpending": get_monthly_group_spending(
+            user_id, start, end
+        ),
+        "savingsTransferred": get_monthly_savings_transferred(
             user_id, start, end
         ),
         "budgets": [

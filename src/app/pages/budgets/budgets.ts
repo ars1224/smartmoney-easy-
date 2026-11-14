@@ -73,6 +73,7 @@ onBudgetGroupChange(): void {
 
   budgets: BudgetRecord[] = [];
   groupSpending: GroupSpending | null = null;
+  savingsTransferred = 0;
   allocation: AllocationOverview | null = null;
   allocationError = '';
 
@@ -214,9 +215,12 @@ changeMonth(direction: -1 | 1): void {
     if (budgetResult.status === 'fulfilled') {
       this.budgets = budgetResult.value.budgets;
       this.groupSpending = budgetResult.value.groupSpending;
+      this.savingsTransferred =
+        budgetResult.value.savingsTransferred ?? 0;
     } else {
       this.budgets = [];
       this.groupSpending = null;
+      this.savingsTransferred = 0;
       this.loadError =
         'Unable to load budgets. Please try again.';
     }
@@ -392,6 +396,39 @@ getOverallOverAllocation(): number {
     0,
     Math.round(
       (totalPlanned - availableMoney) * 100
+    ) / 100
+  );
+}
+
+get savingsProgressPercent(): number {
+  const target = this.getTargetForGroup('SAVINGS');
+
+  if (target === null || target <= 0) {
+    return 0;
+  }
+
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round(
+        (this.savingsTransferred / target) * 100
+      )
+    )
+  );
+}
+
+get savingsRemaining(): number {
+  const target = this.getTargetForGroup('SAVINGS');
+
+  if (target === null || target <= 0) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.round(
+      (target - this.savingsTransferred) * 100
     ) / 100
   );
 }
