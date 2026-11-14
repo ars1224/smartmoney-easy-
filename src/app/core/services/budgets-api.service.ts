@@ -27,6 +27,7 @@ export interface GroupSpending {
 export interface BudgetOverview {
   budgets: BudgetRecord[];
   groupSpending: GroupSpending;
+  savingsTransferred: number;
 }
 
 interface BudgetDto {
@@ -56,9 +57,10 @@ interface BudgetListResponse {
   budgets: BudgetDto[];
   count: number;
   groupSpending?: {
-  NEEDS?: string;
-  WANTS?: string;
-};
+    NEEDS?: string;
+    WANTS?: string;
+  };
+  savingsTransferred?: string;
 }
 
 interface BudgetResponse {
@@ -279,6 +281,10 @@ private mapBudget(dto: BudgetDto): BudgetRecord {
           NEEDS: Number(response.groupSpending?.NEEDS ?? 0),
           WANTS: Number(response.groupSpending?.WANTS ?? 0),
         },
+
+        savingsTransferred: Number(
+          response.savingsTransferred ?? 0
+        ),
       }))
     );
   }
