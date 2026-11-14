@@ -5,6 +5,7 @@
       <p class="dashboard__desktop-subtitle">Here's your financial fitness overview</p>
       <p class="dashboard__mobile-date">{{ today | date: 'EEEE, d MMMM' }}</p>
     </div>
+    <a class="dashboard__reports" routerLink="/app/reports">Reports ↗</a>
     <button class="dashboard__add" type="button" (click)="showPending('Adding a transaction')">+ Add transaction</button>
   </header>
 

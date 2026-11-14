@@ -14,6 +14,7 @@ from app.routes import (
 
 from app.routes.learn import learn_bp
 from app.routes.thinker import thinker_bp
+from app.routes.reports import reports_bp
 from app.routes.cash_wallets import cash_wallets_bp
 from app.routes.cash_transactions import cash_transactions_bp
 from app.routes.budgets import budgets_bp
@@ -58,6 +59,7 @@ def create_app():
 
     app.register_blueprint(learn_bp)
     app.register_blueprint(thinker_bp)
+    app.register_blueprint(reports_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(bank_oauth_bp)
     app.register_blueprint(cash_wallets_bp)
