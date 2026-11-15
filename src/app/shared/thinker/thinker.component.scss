@@ -29,3 +29,12 @@ textarea { min-width:0; width:100%; resize:vertical; max-height:120px; padding:.
 @media(max-height:560px) { .suggestions,.disclaimer { display:none; } header { padding:.4rem 1rem; } .composer { padding:.5rem 1rem; } }
 
 .mode button { min-height:44px; border:1px solid var(--sm-color-border); border-radius:.4rem; background:var(--sm-color-surface); color:inherit; padding:.4rem .7rem; }
+
+.reply-links { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .75rem; white-space: normal; }
+.reply-links a { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; box-sizing: border-box; padding: .4rem .6rem; border: 1px solid var(--sm-color-border); border-radius: .4rem; color: var(--sm-color-teal-dark); background: var(--sm-color-surface); font-size: .78rem; font-weight: 600; text-decoration: underline; text-underline-offset: .2em; }
+.reply-links a:focus-visible { outline: 3px solid var(--sm-color-teal-dark); outline-offset: 2px; }
+
+@media (max-width: 480px) {
+ .suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+ .suggestions button { min-width: 0; }
+}

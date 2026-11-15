@@ -1,6 +1,7 @@
 """Authenticated educational replies; explicit demo/live modes."""
 from flask import Blueprint, jsonify, request, current_app
 from app.auth_security import get_authenticated_user_id, csrf_required
+from app.services.app_help import demo_app_reply, help_links
 from app.services.thinker import ThinkerError, get_reply, reserve_request
 
 thinker_bp = Blueprint("thinker", __name__, url_prefix="/api/thinker")
@@ -40,6 +41,11 @@ def message():
             return response
     if mode != "demo":
         return jsonify(error="Thinker is unavailable. Please try again later."), 503
+    app_reply = demo_app_reply(text)
+    if app_reply:
+        response = jsonify(app_reply)
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
     words = text.lower()
     if any(term in words for term in ("budget", "payday", "bill")):
         topic = "budget"
@@ -49,8 +55,8 @@ def message():
         topic = "spending"
     else:
         topic = None
-    title, body, takeaway = TOPICS[topic] if topic else ("Try a demo topic", "This demo offers prepared explanations about budgeting, saving and understanding spending. It cannot answer other questions, view your accounts or remember earlier messages.", "Choose one of the suggested topics below.")
-    response = jsonify(mode="demo", title=title, message=body, takeaway=takeaway)
+    title, body, takeaway = TOPICS[topic] if topic else ("Try a demo topic", "This demo offers prepared explanations about budgeting, saving and understanding spending. It cannot answer other questions, view your accounts or remember earlier messages. Choose Using SmartMoney for app instructions.", "Choose one of the suggested topics below.")
+    response = jsonify(mode="demo", title=title, message=body, takeaway=takeaway, links=help_links(text))
     response.headers["Cache-Control"] = "private, no-store"
     return response
 

@@ -1,0 +1,179 @@
+{
+  "title": "Getting started with SmartMoney",
+  "intro": "Five practical steps. Pick the one you need, at your own pace.",
+  "developmentNote": "This is a development app. Use test information and Mock Bank credentials only.",
+  "returnNote": "You can return to this guide in Learn whenever you need it. No steps are required to explore.",
+  "pages": {
+    "profile": {
+      "label": "Open Profile & Assets",
+      "route": "/app/profile"
+    },
+    "activity": {
+      "label": "Open Activity",
+      "route": "/app/activity"
+    },
+    "budgets": {
+      "label": "Open Budgets",
+      "route": "/app/budgets"
+    },
+    "goals": {
+      "label": "Open Goals",
+      "route": "/app/goals"
+    },
+    "home": {
+      "label": "Open Home",
+      "route": "/app/dashboard"
+    },
+    "reports": {
+      "label": "Open Reports",
+      "route": "/app/reports"
+    },
+    "learn": {
+      "label": "Open Learn",
+      "route": "/app/learn"
+    }
+  },
+  "steps": [
+    {
+      "id": "money-source",
+      "title": "Add a money source",
+      "body": "In Profile & Assets, choose Add Cash Wallet to track cash. To import test bank activity, choose Connect Mock Bank, sign in there, then select accounts and choose Confirm selected accounts when you return.",
+      "links": [
+        {
+          "page": "profile",
+          "label": "Open Profile & Assets"
+        }
+      ]
+    },
+    {
+      "id": "transactions",
+      "title": "Record and review transactions",
+      "body": "In Activity, choose Add manual transaction. Select Income or Expense, a cash wallet, amount, category and date, then save. Bank entries arrive through sync; review their categories instead of adding the same purchase again.",
+      "links": [
+        {
+          "page": "activity",
+          "label": "Open Activity"
+        }
+      ]
+    },
+    {
+      "id": "budgets",
+      "title": "Give your spending a plan",
+      "body": "In Budgets, select a month and choose Create a budget. Choose a category and group, then enter its monthly limit. Needs and Wants track spending; Savings is money set aside. Expected income is a planning estimate, not recorded income.",
+      "links": [
+        {
+          "page": "budgets",
+          "label": "Open Budgets"
+        }
+      ]
+    },
+    {
+      "id": "goals",
+      "title": "Set a savings goal",
+      "body": "In Goals, choose Create Goal, give it a name, target amount and target date. Use Add Contribution to record progress. This updates the goal; it does not move money from a bank account or cash wallet.",
+      "links": [
+        {
+          "page": "goals",
+          "label": "Open Goals"
+        }
+      ]
+    },
+    {
+      "id": "overview",
+      "title": "Check the overview, explore the detail",
+      "body": "Home shows the current month's saved overview. Reports lets you choose a month and cash/bank source, then open an expense category to see its transactions. After a bank sync, refresh the page's figures. Net cash flow is income + refunds − expenses, not an available balance.",
+      "links": [
+        {
+          "page": "home",
+          "label": "Open Home"
+        },
+        {
+          "page": "reports",
+          "label": "Open Reports"
+        }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "empty-dashboard",
+      "title": "Why is my Dashboard empty?",
+      "paragraphs": [
+        "Home uses saved records for the current month, not example figures. With no included transactions, income, expenses and cash flow show $0.00. Add a cash transaction or connect Mock Bank. Older activity is available by choosing its month in Reports.",
+        "If you see Dashboard unavailable, use Try again; this is a loading problem, not an empty account."
+      ],
+      "links": [
+        {
+          "page": "activity",
+          "label": "Review Activity"
+        },
+        {
+          "page": "reports",
+          "label": "Choose a month in Reports"
+        }
+      ]
+    },
+    {
+      "id": "bank-sync",
+      "title": "Why haven't my bank transactions appeared?",
+      "paragraphs": [
+        "Signing in to Mock Bank is only part of the connection. Back in SmartMoney, select your accounts and choose Confirm selected accounts. Check the connection result for any sync error, then check Last synced in Profile & Assets.",
+        "Refresh balances reloads saved balances; it does not start a bank sync. The app also attempts sync when the signed-in app opens. After sync completes, use Refresh on Home or Refresh report in Reports. Check the report month and source if records are still missing."
+      ],
+      "links": [
+        {
+          "page": "profile",
+          "label": "Check Profile & Assets"
+        }
+      ]
+    },
+    {
+      "id": "cash-only",
+      "title": "Do I need to connect a bank to use the app?",
+      "paragraphs": [
+        "No. Create a cash wallet in Profile & Assets, then record manual income and expenses in Activity. Choose the wallet the entry belongs to. You can explore budgets, goals, Learn and Reports without connecting Mock Bank."
+      ],
+      "links": [
+        {
+          "page": "profile",
+          "label": "Set up a cash wallet"
+        }
+      ]
+    },
+    {
+      "id": "cash-flow",
+      "title": "Is net cash flow the money I can spend?",
+      "paragraphs": [
+        "No. It is recorded income + refunds − expenses for the selected month. It is not your bank balance or a safe-to-spend amount. Reports shows NZD records, excludes recognised transfers, and discloses foreign-currency or review-needed entries. Expected income in Budgets is a planning estimate."
+      ],
+      "links": [
+        {
+          "page": "reports",
+          "label": "Understand your report"
+        }
+      ]
+    },
+    {
+      "id": "goal-contributions",
+      "title": "Does adding a goal contribution move my money?",
+      "paragraphs": [
+        "No. Add Contribution records progress against your goal. It does not transfer money from a bank account or cash wallet. Check and update your saved goal records so they reflect what you have actually set aside."
+      ],
+      "links": [
+        {
+          "page": "goals",
+          "label": "Review Goals"
+        }
+      ]
+    },
+    {
+      "id": "thinker",
+      "title": "What can Thinker help me with?",
+      "paragraphs": [
+        "Thinker explains general budgeting, saving and spending ideas. It cannot see your financial records or earlier messages, change your accounts or move money. In live mode, your question is sent to OpenAI; avoid personal details, passwords and account information. AI can make mistakes and is not personalised financial advice."
+      ],
+      "links": [],
+      "action": "thinker"
+    }
+  ]
+}

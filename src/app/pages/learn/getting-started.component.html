@@ -1,0 +1,28 @@
+<section aria-labelledby="getting-started-title">
+  <app-sm-card>
+    <details class="app-guide">
+      <summary>
+        <span class="guide-intro">
+          <span class="eyebrow">New here? Start here</span>
+          <h2 id="getting-started-title">{{ help.title }}</h2>
+          <span class="intro-copy">{{ help.intro }}</span>
+        </span>
+        <span class="guide-toggle"><span class="when-closed">Explore the app</span><span class="when-open">Hide guide</span><span class="chevron" aria-hidden="true">⌄</span></span>
+      </summary>
+      <div class="guide-content">
+        <p class="prototype-note">{{ help.developmentNote }}</p>
+        <ol class="guide-steps" role="list">
+          @for (step of help.steps; track step.id; let index = $index) {
+            <li>
+              <span class="step-number" aria-hidden="true">0{{ index + 1 }}</span>
+              <div class="step-copy"><h3>{{ step.title }}</h3><p>{{ step.body }}</p><div class="step-links">
+                @for (link of step.links; track link.page) { <a [routerLink]="help.pages[link.page].route">{{ link.label }} <span aria-hidden="true">→</span></a> }
+              </div></div>
+            </li>
+          }
+        </ol>
+        <p class="return-note">{{ help.returnNote }}</p>
+      </div>
+    </details>
+  </app-sm-card>
+</section>

@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { switchMap, timeout } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { environment } from '../../../environments/environment';
-export interface ThinkerReply { mode: 'demo' | 'live'; title: string; message: string; takeaway: string; }
+export interface ThinkerReply { mode: 'demo' | 'live'; title: string; message: string; takeaway: string; links?: {id: string}[]; }
 export interface ThinkerStatus { mode: 'demo' | 'live' | 'unavailable'; available: boolean; }
 @Injectable({ providedIn: 'root' })
 export class ThinkerService {
