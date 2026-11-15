@@ -1,3 +1,5 @@
+import { GettingStartedComponent } from './getting-started.component';
+import { CommonQuestionsComponent } from './common-questions.component';
 import { GuideReaderComponent } from './guide-reader.component';
 import { DailyChallengeComponent } from './daily-challenge.component';
 import { DatePipe } from '@angular/common';
@@ -74,7 +76,7 @@ export const LEARNING_GUIDES: Guide[] = [
 @Component({
   selector: 'app-learn',
   standalone: true,
-  imports: [GuideReaderComponent, DailyChallengeComponent, DatePipe, FormsModule, SmCardComponent, SmButtonComponent],
+  imports: [GettingStartedComponent, CommonQuestionsComponent, GuideReaderComponent, DailyChallengeComponent, DatePipe, FormsModule, SmCardComponent, SmButtonComponent],
   templateUrl: './learn.page.html',
   styleUrl: './learn.page.scss',
 })

@@ -1,10 +1,12 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, inject, output, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { AppHelpPage, resolveAppHelpLinks } from '../app-help';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { ThinkerReply, ThinkerService, ThinkerStatus } from './thinker.service';
-interface Message { id: number; role: 'you' | 'thinker'; text: string; title?: string; takeaway?: string; mode?: 'demo' | 'live'; }
-@Component({ selector: 'app-thinker', standalone: true, imports: [FormsModule], templateUrl: './thinker.component.html', styleUrl: './thinker.component.scss' })
+interface Message { id: number; role: 'you' | 'thinker'; text: string; title?: string; takeaway?: string; mode?: 'demo' | 'live'; links?: AppHelpPage[]; }
+@Component({ selector: 'app-thinker', standalone: true, imports: [FormsModule, RouterLink], templateUrl: './thinker.component.html', styleUrl: './thinker.component.scss' })
 export class ThinkerComponent implements AfterViewInit, OnDestroy {
  @ViewChild('panel', { static: true }) panel!: ElementRef<HTMLDialogElement>;
  @ViewChild('conversation') conversation?: ElementRef<HTMLElement>;
@@ -22,7 +24,7 @@ export class ThinkerComponent implements AfterViewInit, OnDestroy {
  readonly announcement = signal('');
  readonly draft = signal('');
  readonly failedMessage = signal('');
- readonly starters = ['Budget basics', 'Savings goal', 'Spending review'];
+ readonly starters = ['Using SmartMoney', 'Budget basics', 'Savings goal', 'Spending review'];
  ngAfterViewInit(): void { this.panel.nativeElement.showModal(); this.loadStatus(); }
  loadStatus(): void {
   this.statusError.set(false);
@@ -39,7 +41,7 @@ export class ThinkerComponent implements AfterViewInit, OnDestroy {
   this.draft.set(''); this.error.set(''); this.failedMessage.set(text); this.busy.set(true); this.announcement.set('Preparing a reply.');
   this.request = this.api.send(text).subscribe({
    next: (reply: ThinkerReply) => {
-    this.messages.update(rows => [...rows, { id: this.nextId++, role: 'thinker', text: reply.message, title: reply.title, takeaway: reply.takeaway, mode: reply.mode }]);
+    this.messages.update(rows => [...rows, { id: this.nextId++, role: 'thinker', text: reply.message, title: reply.title, takeaway: reply.takeaway, mode: reply.mode, links: resolveAppHelpLinks(reply.links) }]);
     this.busy.set(false); this.failedMessage.set(''); this.announcement.set(`Thinker ${reply.mode === 'demo' ? 'demo' : 'AI'}: ${reply.message}${reply.takeaway ? ' Next step: ' + reply.takeaway : ''}`); this.scrollToLatest();
    },
    error: (error: HttpErrorResponse) => {

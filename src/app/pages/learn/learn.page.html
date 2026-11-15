@@ -1,5 +1,7 @@
 <div class="learn">
-  <header class="learn-heading"><h1>Learn</h1><p>Try a challenge. Pick up a useful money skill.</p></header>
+  <header class="learn-heading"><h1>Learn</h1><p>Find your way around the app. Pick up a useful money skill.</p></header>
+
+  <app-getting-started />
 
   @if (topic() === 'All topics' && !search().trim()) { <app-daily-challenge /> }
 
@@ -28,6 +30,8 @@
       } @empty { <div class="empty-state"><h3>No guides found</h3><p>Try another search or topic.</p><app-sm-button label="Clear filters" variant="secondary" (pressed)="resetFilters()" /></div> }
     </div>
   </section>
+
+  <app-common-questions />
 
   <section class="yahoo-section" aria-labelledby="yahoo-title" [attr.aria-busy]="feedLoading()">
     <div class="section-heading"><div><h2 id="yahoo-title">Worth a read</h2><p>Personal finance from Yahoo Finance · via Google News</p></div><a class="text-action" href="https://finance.yahoo.com/personal-finance/" target="_blank" rel="noopener noreferrer">Visit Yahoo <span aria-hidden="true">↗</span><span class="sr-only"> (opens a new tab)</span></a></div>

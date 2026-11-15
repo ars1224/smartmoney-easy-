@@ -84,6 +84,40 @@ describe('LearnPage', () => {
     expect(fixture.nativeElement.querySelector('.news-card a').textContent).toContain('Read via Google News');
   });
 
+  it('keeps app help available when the article feed fails or learning filters change', () => {
+    const fixture = TestBed.createComponent(LearnPage);
+    http.expectOne(endpoint).flush('Unavailable', { status: 503, statusText: 'Unavailable' });
+    fixture.detectChanges();
+    const guide = fixture.nativeElement.querySelector('app-getting-started details') as HTMLDetailsElement;
+    guide.querySelector('summary')!.click();
+    fixture.componentInstance.topic.set('Saving');
+    fixture.componentInstance.setSearch('no matching guide');
+    fixture.detectChanges();
+    expect(guide.open).toBe(true);
+    expect(fixture.nativeElement.querySelector('app-common-questions')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('No guides found');
+    expect(fixture.nativeElement.querySelector('app-daily-challenge')).toBeNull();
+  });
+
+  it('preserves challenges and financial guide reading alongside the app guide', () => {
+    const fixture = TestBed.createComponent(LearnPage);
+    http.expectOne(endpoint).flush({ articles: [], status: 'available', fetchedAt: null });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-daily-challenge')).not.toBeNull();
+    const read = fixture.nativeElement.querySelector('button[aria-label="Read guide: Make a plan for payday"]') as HTMLButtonElement;
+    // jsdom has no native dialog API; browser verification covers modal behavior.
+    const dialog = fixture.nativeElement.querySelector('app-guide-reader dialog') as HTMLDialogElement;
+    dialog.showModal = () => dialog.setAttribute('open', '');
+    dialog.close = () => { dialog.removeAttribute('open'); dialog.dispatchEvent(new Event('close')); };
+    read.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.activeGuide()?.id).toBe('budget');
+    expect(fixture.nativeElement.querySelector('app-getting-started')).not.toBeNull();
+    fixture.componentInstance.closeGuide();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.activeGuide()).toBeNull();
+  });
+
   it('retries the feed without overlapping requests', () => {
     const fixture = TestBed.createComponent(LearnPage);
     fixture.componentInstance.loadArticles();

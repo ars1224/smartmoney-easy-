@@ -1,0 +1,15 @@
+<section aria-labelledby="app-questions-title">
+  <header><p class="eyebrow">A little help, when you need it</p><h2 id="app-questions-title">Common questions</h2><p>Quick answers about using SmartMoney.</p></header>
+  <div class="questions">
+    @for (question of help.questions; track question.id) {
+      <details>
+        <summary>{{ question.title }}<span aria-hidden="true">+</span></summary>
+        <div class="answer">
+          @for (paragraph of question.paragraphs; track $index) { <p>{{ paragraph }}</p> }
+          @for (link of question.links; track link.page) { <a [routerLink]="help.pages[link.page].route">{{ link.label }} <span aria-hidden="true">→</span></a> }
+          @if (question.action === 'thinker') { <button type="button" (click)="openThinker()">Open Thinker <span aria-hidden="true">→</span></button> }
+        </div>
+      </details>
+    }
+  </div>
+</section>
