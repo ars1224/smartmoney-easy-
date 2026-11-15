@@ -6,6 +6,8 @@ import { Observable, map, switchMap } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { environment } from '../../../environments/environment';
 
+import type { BudgetGroup } from '../bank/bank-accounts-api.service';
+
 export type CashTransactionType = 'income' | 'expense';
 
 export interface CashTransactionRecord {
@@ -19,6 +21,7 @@ export interface CashTransactionRecord {
   note: string;
   createdAt: string;
   goalId: string | null;
+  budgetGroup: BudgetGroup | null;
 }
 
 interface CashTransactionDto {
@@ -32,6 +35,7 @@ interface CashTransactionDto {
   note: string;
   createdAt: string;
   goalId: string | null;
+  budgetGroup: BudgetGroup | null;
 }
 
 export interface CashTransactionPayload {
@@ -153,6 +157,7 @@ export class CashTransactionsApiService {
       note: dto.note,
       createdAt: dto.createdAt,
       goalId: dto.goalId ?? null,
+      budgetGroup: dto.budgetGroup ?? null,
     };
   }
 }

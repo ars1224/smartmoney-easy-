@@ -12,6 +12,10 @@ from app.auth_security import (
 from app.extensions import db
 from app.models import CashWallet, Transaction
 
+from app.services.transaction_categorizer import (
+    classify_budget_group,
+)
+
 
 cash_transactions_bp = Blueprint(
     "cash_transactions",
@@ -72,6 +76,20 @@ def parse_transaction_date(value):
 
 
 def serialize_transaction(transaction):
+    budget_group = None
+
+    if (
+        transaction.transaction_type == "expense"
+        and transaction.amount < 0
+    ):
+        override = transaction.budget_group_override
+
+        if override != "NONE":
+            budget_group = (
+                override
+                or classify_budget_group(transaction.category)
+            )
+
     return {
         "id": transaction.id,
         "goalId": transaction.goal_id,
@@ -83,6 +101,7 @@ def serialize_transaction(transaction):
         "date": transaction.transaction_date.date().isoformat(),
         "note": transaction.note or "",
         "createdAt": transaction.created_at.isoformat(),
+        "budgetGroup": budget_group,
     }
 
 

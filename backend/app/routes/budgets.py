@@ -560,7 +560,8 @@ def list_budgets():
         .all()
     )
 
-    monthly_limits = {}
+    effective_limits = {}
+    budgets_with_history = set()
 
     if budgets:
         records = (
@@ -568,17 +569,31 @@ def list_budgets():
             .filter(
                 BudgetMonthlyLimit.budget_id.in_(
                     [budget.id for budget in budgets]
-                ),
-                BudgetMonthlyLimit.month == month,
+                )
             )
+            .order_by(BudgetMonthlyLimit.month.asc())
             .all()
         )
 
-        monthly_limits = {
-            record.budget_id: record.monthly_limit
-            for record in records
-        }
+        for record in records:
+            budgets_with_history.add(record.budget_id)
 
+            if record.month <= month:
+                effective_limits[record.budget_id] = (
+                    record.monthly_limit
+                )
+
+    # Carry budgets forward, never backward.
+    # Preserve older budgets without monthly history.
+    visible_budgets = [
+        budget
+        for budget in budgets
+        if budget.id in effective_limits
+        or (
+            budget.id not in budgets_with_history
+            and budget.created_at.strftime("%Y-%m") <= month
+        )
+    ]
     return no_cache({
         "month": month,
         "groupSpending": get_monthly_group_spending(
@@ -591,11 +606,11 @@ def list_budgets():
             serialize_budget(
                 budget,
                 spending,
-                monthly_limits.get(budget.id),
+                effective_limits.get(budget.id),
             )
-            for budget in budgets
+            for budget in visible_budgets
         ],
-        "count": len(budgets),
+        "count": len(visible_budgets),
     })
 
 
@@ -643,16 +658,78 @@ def create_budget():
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
 
-    budget = Budget(
-        user_id=user_id,
-        category=category,
-        budget_group=budget_group,
-        monthly_limit=monthly_limit,
+    budget = (
+        Budget.query
+        .filter_by(
+            user_id=user_id,
+            category=category,
+        )
+        .with_for_update()
+        .first()
     )
 
+    is_new_budget = budget is None
+    legacy_record = None
+
+    if is_new_budget:
+        budget = Budget(
+            user_id=user_id,
+            category=category,
+            budget_group=budget_group,
+            monthly_limit=monthly_limit,
+        )
+
+    else:
+        if (
+            budget_group is not None
+            and budget.budget_group != budget_group
+        ):
+            return jsonify({
+                "error": (
+                    "This category already belongs to "
+                    "a different budget group."
+                )
+            }), 409
+
+        history = (
+            BudgetMonthlyLimit.query
+            .filter_by(budget_id=budget.id)
+            .all()
+        )
+
+        # An earlier limit already applies to this month.
+        # Existing limits should be edited, not recreated.
+        if any(record.month <= month for record in history):
+            return jsonify({
+                "error": (
+                    "A budget for this category already exists."
+                )
+            }), 409
+
+        # Preserve legacy budgets that have no monthly records.
+        if not history:
+            created_month = budget.created_at.strftime("%Y-%m")
+
+            if month >= created_month:
+                return jsonify({
+                    "error": (
+                        "A budget for this category already exists."
+                    )
+                }), 409
+
+            legacy_record = BudgetMonthlyLimit(
+                budget_id=budget.id,
+                month=created_month,
+                monthly_limit=budget.monthly_limit,
+            )
+
     try:
-        db.session.add(budget)
-        db.session.flush()
+        if is_new_budget:
+            db.session.add(budget)
+            db.session.flush()
+
+        if legacy_record is not None:
+            db.session.add(legacy_record)
 
         monthly_record = BudgetMonthlyLimit(
             budget_id=budget.id,
