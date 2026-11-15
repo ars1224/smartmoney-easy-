@@ -75,3 +75,8 @@ __pycache__/
 *.pyc
 # Local persistent Thinker request counters (not conversation history).
 backend/instance/
+
+# Environment variables
+.env
+.env.*
+!.env.example
