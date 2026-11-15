@@ -1,3 +1,4 @@
+
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -8,6 +9,11 @@ import {
   BankConfirmationResponse,
   PendingBankConnection,
 } from '../../core/bank/bank-connection.service';
+
+import {
+  BankAccountsApiService,
+  BankSyncResponse,
+} from '../../core/bank/bank-accounts-api.service';
 
 @Component({
   selector: 'app-bank-callback',
@@ -31,33 +37,80 @@ import {
 
           @if (connected(); as result) {
             <h2>Bank connected successfully</h2>
+
             <p>
               {{ result.accounts_connected }}
               bank account(s) connected.
             </p>
 
-            @if (result.sync_status === 'RETRY_REQUIRED') {
-              <p class="notice">
-                Your connection was saved, but synchronisation
-                needs to be retried.
-              </p>
-            } @else if (result.sync_status === 'PARTIAL_SUCCESS') {
-              <p class="notice">
-                Some accounts synchronised successfully.
-                Other accounts will need another sync attempt.
-              </p>
+            @if (syncResult(); as sync) {
+              @if (sync.status === 'success') {
+                <p class="success-notice" role="status">
+                  Bank synchronisation completed successfully.
+                  {{ sync.accounts_synced }} account(s) synchronised.
+                  {{ sync.transactions_imported }} transaction(s) imported.
+                </p>
+              } @else {
+                <p class="notice" role="status">
+                  Synchronisation partially completed.
+                  {{ sync.accounts_synced }} account(s) synchronised.
+                  {{ sync.accounts_failed }} account(s) failed.
+                </p>
+
+                <button
+                  type="button"
+                  class="primary"
+                  [disabled]="busy()"
+                  (click)="retrySync()"
+                >
+                  {{
+                    busy()
+                      ? 'Synchronising...'
+                      : 'Retry Synchronisation'
+                  }}
+                </button>
+              }
             } @else {
-              <p>Your initial bank synchronisation completed.</p>
+              @if (
+                result.sync_status === 'RETRY_REQUIRED' ||
+                result.sync_status === 'PARTIAL_SUCCESS'
+              ) {
+                <p class="notice">
+                  Your connection was saved, but synchronisation
+                  needs to be retried.
+                </p>
+
+                <button
+                  type="button"
+                  class="primary"
+                  [disabled]="busy()"
+                  (click)="retrySync()"
+                >
+                  {{
+                    busy()
+                      ? 'Synchronising...'
+                      : 'Retry Synchronisation'
+                  }}
+                </button>
+              } @else {
+                <p>
+                  Your initial bank synchronisation completed.
+                </p>
+              }
             }
 
             <a class="button-link" routerLink="/app/profile">
               View Profile & Assets
             </a>
           } @else {
-            @for (connection of connections(); track connection.connection_id) {
+            @for (
+              connection of connections();
+              track connection.connection_id
+            ) {
               <div class="connection">
                 @if (connection.status === 'EXPIRED') {
                   <h2>Bank authorisation expired</h2>
+
                   <p>
                     This connection can no longer be confirmed.
                     Cancel it before reconnecting.
@@ -248,6 +301,13 @@ import {
       color: #1e40af;
     }
 
+    .success-notice {
+      padding: 12px;
+      border-radius: 8px;
+      background: #ecfdf3;
+      color: #027a48;
+    }
+
     .back-link {
       display: block;
       margin-top: 20px;
@@ -258,17 +318,21 @@ import {
 })
 export class BankCallbackPage implements OnInit {
   private readonly bank = inject(BankConnectionService);
+  private readonly bankApi = inject(BankAccountsApiService);
   private readonly route = inject(ActivatedRoute);
 
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly error = signal('');
   readonly message = signal('');
+
   readonly connections = signal<PendingBankConnection[]>([]);
   readonly connected = signal<BankConfirmationResponse | null>(null);
+  readonly syncResult = signal<BankSyncResponse | null>(null);
 
   async ngOnInit(): Promise<void> {
     const params = this.route.snapshot.queryParamMap;
+
     const code = params.get('code');
     const state = params.get('state');
     const bankError = params.get('error');
@@ -282,7 +346,9 @@ export class BankCallbackPage implements OnInit {
 
     try {
       if (bankError) {
-        this.error.set('Bank authorisation was cancelled or rejected.');
+        this.error.set(
+          'Bank authorisation was cancelled or rejected.'
+        );
         return;
       }
 
@@ -291,18 +357,18 @@ export class BankCallbackPage implements OnInit {
           this.bank.completeAuthorization(code, state)
         );
 
-      if (
-        result.status !== 'PENDING' ||
-        !result.connection_id ||
-        !Array.isArray(result.accounts)
-      ) {
-        throw new Error('Invalid bank callback response.');
-      }
+        if (
+          result.status !== 'PENDING' ||
+          !result.connection_id ||
+          !Array.isArray(result.accounts)
+        ) {
+          throw new Error('Invalid bank callback response.');
+        }
 
-      this.connections.set([result]);
+        this.connections.set([result]);
 
-      await this.confirmConnection(result.connection_id);
-
+        // Automatically finish connecting authorised accounts.
+        await this.confirmConnection(result.connection_id);
       } else {
         await this.loadPending();
       }
@@ -314,7 +380,9 @@ export class BankCallbackPage implements OnInit {
   }
 
   async confirmConnection(connectionId: string): Promise<void> {
-    if (this.busy()) return;
+    if (this.busy()) {
+      return;
+    }
 
     const connection = this.connections().find(
       item =>
@@ -327,6 +395,7 @@ export class BankCallbackPage implements OnInit {
       return;
     }
 
+    // Automatically select all active authorised accounts.
     const accountIds = connection.accounts
       .filter(account => account.status === 'ACTIVE')
       .map(account => account.id);
@@ -340,6 +409,7 @@ export class BankCallbackPage implements OnInit {
 
     this.busy.set(true);
     this.error.set('');
+    this.syncResult.set(null);
 
     try {
       const result = await firstValueFrom(
@@ -355,8 +425,34 @@ export class BankCallbackPage implements OnInit {
     }
   }
 
+  async retrySync(): Promise<void> {
+    const connection = this.connected();
+
+    if (!connection || this.busy()) {
+      return;
+    }
+
+    this.busy.set(true);
+    this.error.set('');
+    this.syncResult.set(null);
+
+    try {
+      const result = await firstValueFrom(
+        this.bankApi.syncConnection(connection.connection_id)
+      );
+
+      this.syncResult.set(result);
+    } catch (err) {
+      this.error.set(this.errorMessage(err));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
   async cancelConnection(connectionId: string): Promise<void> {
-    if (this.busy()) return;
+    if (this.busy()) {
+      return;
+    }
 
     if (!window.confirm('Cancel this bank connection?')) {
       return;
@@ -389,7 +485,9 @@ export class BankCallbackPage implements OnInit {
   }
 
   async recoverPending(): Promise<void> {
-    if (this.busy()) return;
+    if (this.busy()) {
+      return;
+    }
 
     this.busy.set(true);
     this.error.set('');
@@ -405,7 +503,9 @@ export class BankCallbackPage implements OnInit {
   }
 
   async startConnection(): Promise<void> {
-    if (this.busy()) return;
+    if (this.busy()) {
+      return;
+    }
 
     this.busy.set(true);
     this.error.set('');
@@ -446,8 +546,16 @@ export class BankCallbackPage implements OnInit {
         return backendError;
       }
 
+      if (err.status === 0) {
+        return (
+          'Unable to connect to SmartMoney. Check your internet connection and make sure the Flask server is running.'
+        );
+      }
+
       if (err.status === 401) {
-        return 'Please log in to SmartMoney before connecting a bank.';
+        return (
+          'Please log in to SmartMoney before connecting a bank.'
+        );
       }
 
       return 'The bank request failed. Please try again.';
