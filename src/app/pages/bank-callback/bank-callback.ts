@@ -63,38 +63,35 @@ import {
                     Cancel it before reconnecting.
                   </p>
                 } @else {
-                  <h2>Select bank accounts</h2>
+                  <h2>Authorised bank accounts</h2>
+
                   <p>
-                    Choose the accounts you want to connect to SmartMoney.
+                    These accounts were already authorised through Mock Bank.
+                    If the automatic connection did not finish, you can retry below.
                   </p>
 
                   @for (account of connection.accounts; track account.id) {
-                    <label class="account">
-                      <input
-                        type="checkbox"
-                        [checked]="isSelected(connection.connection_id, account.id)"
-                        [disabled]="busy()"
-                        (change)="toggleAccount(connection.connection_id, account.id)"
-                      />
-
+                    <div class="account">
                       <span class="account-details">
                         <strong>{{ account.account_name }}</strong>
+
                         <small>
                           {{ account.account_type }}
                           ending in {{ account.account_number_last4 }}
                         </small>
+
                         <small>{{ account.currency }}</small>
                       </span>
-                    </label>
+                    </div>
                   }
 
                   <button
                     type="button"
                     class="primary"
-                    [disabled]="busy() || selectedCount(connection.connection_id) === 0"
+                    [disabled]="busy()"
                     (click)="confirmConnection(connection.connection_id)"
                   >
-                    {{ busy() ? 'Processing...' : 'Confirm selected accounts' }}
+                    {{ busy() ? 'Connecting...' : 'Finish connecting' }}
                   </button>
                 }
 
@@ -268,7 +265,6 @@ export class BankCallbackPage implements OnInit {
   readonly error = signal('');
   readonly message = signal('');
   readonly connections = signal<PendingBankConnection[]>([]);
-  readonly selected = signal<Record<string, string[]>>({});
   readonly connected = signal<BankConfirmationResponse | null>(null);
 
   async ngOnInit(): Promise<void> {
@@ -295,15 +291,18 @@ export class BankCallbackPage implements OnInit {
           this.bank.completeAuthorization(code, state)
         );
 
-        if (
-          result.status !== 'PENDING' ||
-          !result.connection_id ||
-          !Array.isArray(result.accounts)
-        ) {
-          throw new Error('Invalid bank callback response.');
-        }
+      if (
+        result.status !== 'PENDING' ||
+        !result.connection_id ||
+        !Array.isArray(result.accounts)
+      ) {
+        throw new Error('Invalid bank callback response.');
+      }
 
-        this.connections.set([result]);
+      this.connections.set([result]);
+
+      await this.confirmConnection(result.connection_id);
+
       } else {
         await this.loadPending();
       }
@@ -314,31 +313,30 @@ export class BankCallbackPage implements OnInit {
     }
   }
 
-  isSelected(connectionId: string, accountId: string): boolean {
-    return (this.selected()[connectionId] ?? []).includes(accountId);
-  }
-
-  selectedCount(connectionId: string): number {
-    return (this.selected()[connectionId] ?? []).length;
-  }
-
-  toggleAccount(connectionId: string, accountId: string): void {
-    this.selected.update(current => {
-      const ids = current[connectionId] ?? [];
-
-      return {
-        ...current,
-        [connectionId]: ids.includes(accountId)
-          ? ids.filter(id => id !== accountId)
-          : [...ids, accountId],
-      };
-    });
-  }
-
   async confirmConnection(connectionId: string): Promise<void> {
-    const accountIds = this.selected()[connectionId] ?? [];
+    if (this.busy()) return;
 
-    if (this.busy() || accountIds.length === 0) return;
+    const connection = this.connections().find(
+      item =>
+        item.connection_id === connectionId &&
+        item.status === 'PENDING'
+    );
+
+    if (!connection) {
+      this.error.set('Pending bank connection was not found.');
+      return;
+    }
+
+    const accountIds = connection.accounts
+      .filter(account => account.status === 'ACTIVE')
+      .map(account => account.id);
+
+    if (accountIds.length === 0) {
+      this.error.set(
+        'No active authorised bank accounts are available.'
+      );
+      return;
+    }
 
     this.busy.set(true);
     this.error.set('');
