@@ -1,11 +1,10 @@
-from datetime import datetime, timezone
+from datetime import timezone
 from flask import Blueprint, current_app, jsonify, request
-from sqlalchemy import and_, or_
 from sqlalchemy.exc import SQLAlchemyError
 from app.auth_security import get_authenticated_user_id
 from app.extensions import db
-from app.models import Transaction
 from app.services.reports import NZ, money, report_month, summarise
+from app.services.report_transactions import report_transactions
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/api/reports")
 
@@ -31,22 +30,7 @@ def get_report():
     if detail and (not category or len(category) > 80):
         return jsonify({"error": "Choose a category of 1 to 80 characters."}), 400
     try:
-        query = Transaction.query.filter(
-            Transaction.user_id == user_id,
-            or_(Transaction.source == "CASH", and_(Transaction.source == "BANK", Transaction.bank_account_id.isnot(None))),
-        )
-        if source != "all":
-            query = query.filter(Transaction.source == source.upper())
-        # Cash date-only records are stored at UTC midnight. Include only the requested
-        # calendar month, while bank records use exact Auckland timestamp boundaries.
-        cash_start = datetime.strptime(month + "-01", "%Y-%m-%d").replace(tzinfo=timezone.utc)
-        # end in UTC is normally the prior NZ calendar day; use the local end month.
-        local_end = end.astimezone(NZ)
-        cash_end = datetime(local_end.year, local_end.month, 1, tzinfo=timezone.utc)
-        query = query.filter(or_(
-            and_(Transaction.source == "BANK", Transaction.transaction_date >= start, Transaction.transaction_date < end),
-            and_(Transaction.source == "CASH", Transaction.transaction_date >= cash_start, Transaction.transaction_date < cash_end),
-        ))
+        query = report_transactions(user_id, month, source, start, end)
         expenses = []
         summary = summarise(query.all(), month, source, expenses if detail else None)
         if detail:

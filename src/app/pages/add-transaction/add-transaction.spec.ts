@@ -1,6 +1,6 @@
 
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import {
@@ -263,4 +263,23 @@ describe('AddTransactionPage', () => {
     ).toBe(wallet.id);
     expect(walletApi.createWallet).toHaveBeenCalledTimes(2);
   });
+  it('honours an income quick action on a new transaction', async () => {
+    vi.spyOn(TestBed.inject(ActivatedRoute).snapshot.queryParamMap, 'get').mockReturnValue('income');
+    component.ngOnInit(); await new Promise(resolve => setTimeout(resolve, 0));
+    expect(component.transactionForm.controls.type.value).toBe('income');
+  });
+  it('ignores unsupported quick-action types', async () => {
+    vi.spyOn(TestBed.inject(ActivatedRoute).snapshot.queryParamMap, 'get').mockReturnValue('invalid');
+    component.ngOnInit(); await new Promise(resolve => setTimeout(resolve, 0));
+    expect(component.transactionForm.controls.type.value).toBe('expense');
+  });
+  it('does not overwrite an existing transaction type with a quick-action parameter', async () => {
+    const route=TestBed.inject(ActivatedRoute);
+    vi.spyOn(route.snapshot.paramMap,'get').mockReturnValue(transaction.id);
+    vi.spyOn(route.snapshot.queryParamMap,'get').mockReturnValue('income');
+    transactionsApi.getTransactions.mockReturnValue(of([transaction]));
+    component.ngOnInit(); await new Promise(resolve => setTimeout(resolve, 0));
+    expect(component.transactionForm.controls.type.value).toBe('expense');expect(component.transactionForm.controls.amount.value).toBe(40);
+  });
+
 });

@@ -172,6 +172,13 @@ export class AddTransactionPage implements OnInit {
     this.editId =
       this.activatedRoute.snapshot.paramMap.get('id');
 
+    if (!this.editId) {
+      const requestedType = this.activatedRoute.snapshot.queryParamMap.get('type');
+      if (requestedType === 'income' || requestedType === 'expense') {
+        this.transactionForm.controls.type.setValue(requestedType);
+      }
+    }
+
     this.walletsLoading = true;
     this.loadError = '';
 
