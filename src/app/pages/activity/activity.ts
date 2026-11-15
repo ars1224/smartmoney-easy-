@@ -714,8 +714,14 @@ canLinkToGoal(transaction: Transaction): boolean {
   const description = transaction.description.trim().toUpperCase();
 
   if (
-    ['INTERNAL TRANSFER', 'TRANSFER', 'REFUND'].includes(category) ||
-    description.startsWith('TRANSFER ')
+    [
+      'INTERNAL TRANSFER',
+      'SAVINGS TRANSFER',
+      'TRANSFER',
+      'REFUND',
+    ].includes(category) ||
+    description.startsWith('TRANSFER ') ||
+    description.startsWith('SAVINGS TRANSFER')
   ) {
     return false;
   }

@@ -43,18 +43,19 @@ def summarise(transactions, month, source, expense_rows=None):
         amount = Decimal(row.amount)
         kind = (row.transaction_type or "").strip().upper()
         category = (row.category or "").strip().casefold()
+        is_refund = "REFUND" in kind or category == "refund"
         if "TRANSFER" in kind or category in ("internal transfer", "savings transfer"):
             excluded["transfers"] += 1
             continue
         description = row.description or ""
         if category == "transfer" or re.search(r"\btransfer\b", description, re.I) or (
-            re.search(r"\brefund\b", description, re.I) and "REFUND" not in kind
+            re.search(r"\brefund\b", description, re.I) and not is_refund
         ):
             excluded["reviewNeeded"] += 1
             continue
         if amount == 0:
             continue
-        if ("REFUND" in kind and amount < 0) or (row.source == "CASH" and not (
+        if (is_refund and amount < 0) or (row.source == "CASH" and not (
             (kind == "INCOME" and amount > 0) or (kind == "EXPENSE" and amount < 0)
         )):
             excluded["reviewNeeded"] += 1
@@ -62,7 +63,7 @@ def summarise(transactions, month, source, expense_rows=None):
         count += 1
         bank_count += row.source == "BANK"
         day = daily[local.isoformat()]
-        if amount > 0 and "REFUND" in kind:
+        if amount > 0 and is_refund:
             refunds += amount
             day["refunds"] += amount
         elif amount > 0:
