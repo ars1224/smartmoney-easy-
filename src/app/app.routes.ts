@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './core/auth/auth.guard';
+import { onboardingGuard } from './core/auth/onboarding.guard';
 
 export const routes: Routes = [
   // Mock Bank OAuth callback
@@ -50,10 +51,19 @@ export const routes: Routes = [
     ],
   },
 
+  // First-time onboarding
+  {
+    path: 'onboarding',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./pages/onboarding/onboarding.page')
+        .then((m) => m.OnboardingPage),
+  },
+
   // Protected SmartMoney application
   {
     path: 'app',
-    canActivate: [authGuard],
+    canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
       import('./shell/app-shell.component')
         .then((m) => m.AppShellComponent),

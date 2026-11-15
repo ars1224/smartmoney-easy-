@@ -1,0 +1,481 @@
+
+:host {
+  display: block;
+}
+
+.onboarding-page {
+  width: min(100% - 2rem, 44rem);
+  margin: 0 auto;
+  padding: clamp(2rem, 6vw, 5rem) 0;
+  color: var(--sm-color-text);
+}
+
+.onboarding-header {
+  margin-bottom: 2rem;
+}
+
+.eyebrow {
+  color: var(--sm-color-teal-dark);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0.75rem 0;
+  color: var(--sm-color-navy);
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  line-height: 1.2;
+}
+
+.description {
+  color: var(--sm-color-text-muted);
+  line-height: 1.6;
+}
+
+.onboarding-card {
+  padding: 1.5rem;
+  background: var(--sm-color-surface);
+  border: 1px solid var(--sm-color-border);
+  border-radius: var(--sm-radius-lg);
+  box-shadow: var(--sm-shadow-card);
+}
+
+.onboarding-card h2 {
+  margin-top: 0;
+  color: var(--sm-color-navy);
+}
+
+.onboarding-steps {
+  display: grid;
+  gap: 1rem;
+  padding-left: 1.5rem;
+  line-height: 1.5;
+}
+
+.setup-note {
+  margin-bottom: 0;
+  color: var(--sm-color-text-muted);
+  font-size: 0.875rem;
+}
+
+
+.onboarding-steps li.active {
+  color: var(--sm-color-teal-dark);
+  font-weight: 800;
+}
+
+.current-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.onboarding-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--sm-color-teal);
+  color: var(--sm-color-on-dark);
+  border: 0;
+  border-radius: var(--sm-radius-md);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.onboarding-action:focus-visible {
+  outline: 2px solid var(--sm-color-teal-dark);
+  outline-offset: 3px;
+}
+
+
+.employment-step {
+  margin-top: 1.75rem;
+}
+
+.employment-step h3,
+.payroll-step h3 {
+  color: var(--sm-color-navy);
+}
+
+.employment-step p,
+.payroll-step p {
+  color: var(--sm-color-text-muted);
+  line-height: 1.5;
+}
+
+.employment-options {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.employment-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+  width: 100%;
+  min-height: 76px;
+  padding: 1rem;
+  border: 2px solid var(--sm-color-border);
+  border-radius: var(--sm-radius-md);
+  background: var(--sm-color-surface);
+  color: var(--sm-color-navy);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.employment-option span {
+  color: var(--sm-color-text-muted);
+  font-size: 0.875rem;
+}
+
+.employment-option.selected {
+  border-color: var(--sm-color-teal);
+  background: var(--sm-color-teal-soft);
+}
+
+.employment-option:focus-visible {
+  outline: 2px solid var(--sm-color-teal);
+  outline-offset: 3px;
+}
+
+.onboarding-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.payroll-step {
+  margin-top: 1.75rem;
+}
+
+
+.payroll-form {
+  margin-top: 1.5rem;
+}
+
+.payroll-fields {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.payroll-field {
+  display: grid;
+  gap: 0.4rem;
+
+  label {
+    font-weight: 700;
+    color: var(--sm-color-navy);
+  }
+
+  input,
+  select {
+    width: 100%;
+    min-height: 46px;
+    padding: 0.75rem;
+    border: 1px solid var(--sm-color-border);
+    border-radius: var(--sm-radius-md);
+    background: var(--sm-color-surface);
+    color: var(--sm-color-text);
+    font: inherit;
+  }
+
+  input:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--sm-color-teal);
+    outline-offset: 2px;
+  }
+
+  small {
+    color: var(--sm-color-text-muted);
+  }
+}
+
+.payroll-notice {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+}
+
+.payroll-error {
+  margin-top: 1rem;
+  color: #b42318;
+  font-weight: 600;
+}
+
+.payroll-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.payroll-estimate {
+  margin-top: 2rem;
+  padding: 1.25rem;
+  border: 1px solid var(--sm-color-border);
+  border-radius: var(--sm-radius-md);
+
+  h3 {
+    margin-top: 0;
+  }
+
+  dl {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  dl > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  dt {
+    color: var(--sm-color-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 700;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .estimate-total {
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--sm-color-border);
+
+    dt,
+    dd {
+      color: var(--sm-color-navy);
+      font-weight: 800;
+    }
+  }
+}
+
+
+.budget-step {
+  margin-top: 1.75rem;
+
+  h3,
+  h4 {
+    color: var(--sm-color-navy);
+  }
+
+  > p {
+    line-height: 1.5;
+  }
+}
+
+.budget-income-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--sm-color-border);
+  border-radius: var(--sm-radius-md);
+  background: var(--sm-color-surface);
+
+  strong {
+    color: var(--sm-color-teal-dark);
+    font-size: 1.4rem;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.budget-allocation-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.budget-allocation-field {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+
+  label {
+    font-weight: 700;
+    color: var(--sm-color-navy);
+  }
+
+  input {
+    width: 100%;
+    min-height: 46px;
+    padding: 0.75rem;
+    border: 1px solid var(--sm-color-border);
+    border-radius: var(--sm-radius-md);
+    background: var(--sm-color-surface);
+    color: var(--sm-color-text);
+    font: inherit;
+  }
+
+  input:focus-visible {
+    outline: 2px solid var(--sm-color-teal);
+    outline-offset: 2px;
+  }
+
+  small {
+    color: var(--sm-color-text-muted);
+    line-height: 1.4;
+  }
+}
+
+.budget-percentage-total {
+  margin-top: 1.25rem;
+  font-weight: 700;
+
+  &.invalid {
+    color: #b42318;
+  }
+}
+
+.budget-error {
+  color: #b42318;
+  font-weight: 600;
+}
+
+.budget-preview {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--sm-color-border);
+  border-radius: var(--sm-radius-md);
+
+  h4 {
+    margin-top: 0;
+  }
+
+  dl {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  dl > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  dt {
+    color: var(--sm-color-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 700;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .budget-preview-total {
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--sm-color-border);
+
+    dt,
+    dd {
+      color: var(--sm-color-navy);
+      font-weight: 800;
+    }
+  }
+}
+
+
+.budget-save-actions {
+  margin-top: 1.5rem;
+}
+
+.budget-save-message {
+  margin-top: 1rem;
+  color: var(--sm-color-teal-dark);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+
+.review-step {
+  margin-top: 1.75rem;
+
+  h3,
+  h4 {
+    color: var(--sm-color-navy);
+  }
+
+  > p {
+    line-height: 1.5;
+  }
+}
+
+.review-section {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--sm-color-border);
+  border-radius: var(--sm-radius-md);
+  background: var(--sm-color-surface);
+
+  h4 {
+    margin-top: 0;
+  }
+
+  dl {
+    display: grid;
+    gap: 0.85rem;
+    margin-bottom: 0;
+  }
+
+  dl > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  dt {
+    color: var(--sm-color-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 700;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+}
+
+.review-highlight {
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--sm-color-border);
+
+  dt,
+  dd {
+    color: var(--sm-color-navy);
+    font-weight: 800;
+  }
+}
+
+
+/* Secondary actions: Back, Cancel, Previous */
+.onboarding-action.onboarding-action--secondary {
+  background: #f1f5f9;
+  color: var(--sm-color-navy);
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
+}
+
+.onboarding-action.onboarding-action--secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.onboarding-action.onboarding-action--secondary:focus-visible {
+  outline: 2px solid var(--sm-color-teal);
+  outline-offset: 3px;
+}

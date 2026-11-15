@@ -21,6 +21,8 @@ from app.routes.cash_transactions import cash_transactions_bp
 from app.routes.budgets import budgets_bp
 from app.routes.monthly_income import monthly_income_bp
 from app.routes.regular_income import regular_income_bp
+from app.routes.onboarding import onboarding_bp
+from app.routes.payroll import payroll_bp
 
 
 def create_app():
@@ -72,5 +74,7 @@ def create_app():
     app.register_blueprint(budgets_bp)
     app.register_blueprint(monthly_income_bp)
     app.register_blueprint(regular_income_bp)
+    app.register_blueprint(onboarding_bp)
+    app.register_blueprint(payroll_bp)
 
     return app
