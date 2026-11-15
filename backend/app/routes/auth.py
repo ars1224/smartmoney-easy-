@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request, session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.extensions import db
-from app.models import User
+from app.models import User, OnboardingProgress
 from app.auth_security import (
     csrf_required,
     get_authenticated_user_id,
@@ -100,15 +100,32 @@ def register():
     )
     user.set_password(password)
 
-    db.session.add(user)
-
     try:
+        db.session.add(user)
+        db.session.flush()
+
+        # Every newly registered user must complete onboarding.
+        db.session.add(
+            OnboardingProgress(
+                user_id=user.id,
+                status="IN_PROGRESS",
+                current_step="EMPLOYMENT",
+            )
+        )
+
         db.session.commit()
+
     except IntegrityError:
         db.session.rollback()
         return jsonify({
             "error": "Email is already registered."
         }), 409
+
+    except SQLAlchemyError:
+        db.session.rollback()
+        return jsonify({
+            "error": "Unable to create account. Please try again."
+        }), 500
 
     # Create session
     session.clear()

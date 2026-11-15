@@ -12,6 +12,7 @@ from app.models.budget_monthly_limit import BudgetMonthlyLimit
 from app.models.monthly_income_plan import MonthlyIncomePlan
 from app.models.regular_income_profile import RegularIncomeProfile
 from app.models.budget_plans import BudgetAllocationPlan
+from app.models.onboarding_progress import OnboardingProgress
 
 def utc_now():
     return datetime.now(timezone.utc)
@@ -350,3 +351,4 @@ from app.models.savings_goal import (
     GoalFundingMovement,
 )
 from app.models.cash_wallet import CashWallet
+from app.models.payroll_settings import PayrollSettings
