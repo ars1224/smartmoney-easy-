@@ -68,6 +68,26 @@ class BankCategorizationTests(unittest.TestCase):
             classify_budget_group(category)
         )
 
+    def test_qa_savings_transfer_description(self):
+        category = classify_bank_transaction(
+            "SAVINGS TRANSFER QA TEST",
+            Decimal("-250.00"),
+            "DEBIT",
+        )
+
+        self.assertEqual(category, "Savings Transfer")
+        self.assertIsNone(classify_budget_group(category))
+
+    def test_qa_restaurant_description(self):
+        category = classify_bank_transaction(
+            "RESTAURANT QA TEST",
+            Decimal("-45.00"),
+            "DEBIT",
+        )
+
+        self.assertEqual(category, "Eating out")
+        self.assertEqual(classify_budget_group(category), "WANTS")
+
     def test_refunds_are_not_expenses(self):
         self.assertIsNone(
             classify_bank_transaction(

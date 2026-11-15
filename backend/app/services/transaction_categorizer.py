@@ -25,7 +25,8 @@ CATEGORY_RULES = (
     ),
     (
         r"\bMCDONALDS\b|\bKFC\b|"
-        r"\bBURGER KING\b|\bSUBWAY\b",
+        r"\bBURGER KING\b|\bSUBWAY\b|"
+        r"\bRESTAURANT\b",
         "Eating out",
     ),
 )
@@ -58,7 +59,10 @@ def classify_bank_transaction(
     # These are labels, not ordinary spending.
     if (
         value < 0
-        and re.search(r"\bTRANSFER TO SAVINGS\b", normalized)
+        and re.search(
+            r"\bTRANSFER TO SAVINGS\b|\bSAVINGS TRANSFER\b",
+            normalized,
+        )
     ):
         return "Savings Transfer"
 

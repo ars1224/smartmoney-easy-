@@ -72,9 +72,15 @@ def get_purchase_source(transaction):
     ).strip().upper()
 
     if (
-        transaction_type in {"TRANSFER", "REFUND"}
-        or category in {"INTERNAL TRANSFER", "TRANSFER", "REFUND"}
-        or description.startswith("TRANSFER ")
+        "TRANSFER" in transaction_type
+        or transaction_type == "REFUND"
+        or category in {
+            "INTERNAL TRANSFER",
+            "SAVINGS TRANSFER",
+            "TRANSFER",
+            "REFUND",
+        }
+        or description.startswith(("TRANSFER ", "SAVINGS TRANSFER"))
     ):
         raise GoalFundingError(
             "Transfers and refunds cannot be linked as goal purchases.",
