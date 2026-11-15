@@ -553,3 +553,92 @@
     transition: none;
   }
 }
+
+/* Goals group filters */
+
+.goal-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0 0 1.5rem;
+}
+
+.goal-filter-btn {
+  min-height: 40px;
+  padding: 0.5rem 1.1rem;
+
+  border: 1px solid #d3dde6;
+  border-radius: 999px;
+
+  background: #ffffff;
+  color: #28415e;
+
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+}
+
+.goal-filter-btn:hover {
+  border-color: #008d88;
+  color: #007c78;
+}
+
+.goal-filter-btn.active {
+  background: #008d88;
+  border-color: #008d88;
+  color: #ffffff;
+}
+
+.goal-filter-btn:focus-visible {
+  outline: 3px solid #70c8bb;
+  outline-offset: 3px;
+}
+
+/* Goal classification badges */
+
+.goal-group-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+
+  padding: 0.25rem 0.65rem;
+
+  border-radius: 999px;
+
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.goal-group-badge[data-group='NEEDS'] {
+  background: #dceeff;
+  color: #195c98;
+}
+
+.goal-group-badge[data-group='WANTS'] {
+  background: #fff1bd;
+  color: #865a00;
+}
+
+.goal-group-badge[data-group='SAVINGS'] {
+  background: #dcf7ed;
+  color: #086c53;
+}
+
+/* Keep native dropdowns readable in the light theme */
+:host select {
+  color-scheme: light;
+  background-color: #ffffff;
+  color: #102a43;
+}
+
+:host select option {
+  background-color: #ffffff;
+  color: #102a43;
+}

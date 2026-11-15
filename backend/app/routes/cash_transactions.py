@@ -74,6 +74,7 @@ def parse_transaction_date(value):
 def serialize_transaction(transaction):
     return {
         "id": transaction.id,
+        "goalId": transaction.goal_id,
         "source": "cash",
         "assetId": transaction.cash_wallet_id,
         "type": transaction.transaction_type,
@@ -303,6 +304,29 @@ def update_cash_transaction(transaction_id):
             "error": "Cash transaction not found."
         }), 404
 
+        # A goal-linked purchase must retain its original
+    # financial details to preserve funding history.
+    if (
+        transaction.goal_id is not None
+        and any(
+            field in data
+            for field in (
+                "assetId",
+                "type",
+                "amount",
+                "date",
+            )
+        )
+    ):
+        db.session.rollback()
+
+        return jsonify({
+            "error": (
+                "This transaction is linked to a savings goal. "
+                "Its amount, wallet, type and date cannot be changed."
+            )
+        }), 409
+
     wallet_id = data.get(
         "assetId",
         transaction.cash_wallet_id,
@@ -453,6 +477,18 @@ def delete_cash_transaction(transaction_id):
         return jsonify({
             "error": "Cash transaction not found."
         }), 404
+
+        # Deleting a linked purchase would invalidate
+    # the goal's spending and funding history.
+    if transaction.goal_id is not None:
+        db.session.rollback()
+
+        return jsonify({
+            "error": (
+                "This transaction is linked to a savings goal "
+                "and cannot be deleted."
+            )
+        }), 409
 
     # Archived wallets retain their transaction history.
     # Lock the wallet to coordinate with archive operations.

@@ -259,6 +259,7 @@ def get_all_bank_transactions():
         "transactions": [
             {
                 "id": transaction.id,
+                "goal_id": transaction.goal_id,
                 "bank_account_id": transaction.bank_account_id,
                 "description": transaction.description,
                 "category": transaction.category,
@@ -291,6 +292,35 @@ def delete_imported_bank_transactions():
         }), 401
 
     try:
+        # Lock imported transactions before checking their
+        # goal associations to prevent concurrent deletion.
+        imported_transactions = (
+            Transaction.query
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.source == "BANK",
+                Transaction.bank_account_id.isnot(None),
+            )
+            .with_for_update()
+            .all()
+        )
+
+        # Never delete imported purchases that are
+        # linked to savings goals.
+        if any(
+            transaction.goal_id is not None
+            for transaction in imported_transactions
+        ):
+            db.session.rollback()
+
+            return jsonify({
+                "error": (
+                    "Some imported bank transactions are "
+                    "linked to savings goals and cannot "
+                    "be deleted."
+                )
+            }), 409
+
         deleted_count = (
             Transaction.query
             .filter(

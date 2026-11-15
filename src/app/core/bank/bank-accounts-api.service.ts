@@ -82,6 +82,7 @@ export interface BankActivityTransaction {
   transactionDate: string;
   budgetGroup: BudgetGroup | null;
   budgetGroupOverride: BudgetGroupOverride;
+  goalId: string | null;
 }
 
 interface BankActivityTransactionDto {
@@ -95,6 +96,7 @@ interface BankActivityTransactionDto {
   transaction_date: string;
   budget_group: BudgetGroup | null;
   budget_group_override: BudgetGroupOverride;
+  goal_id: string | null;
 }
 
 interface AllBankTransactionsResponse {
@@ -185,6 +187,7 @@ export class BankAccountsApiService {
       map(response =>
         response.transactions.map(transaction => ({
           id: transaction.id,
+          goalId: transaction.goal_id ?? null,
           bankAccountId: transaction.bank_account_id,
           description: transaction.description,
           category: transaction.category,
