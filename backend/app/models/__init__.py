@@ -210,6 +210,16 @@ class Transaction(db.Model):
     index=True
     )
 
+    goal_id = db.Column(
+        db.String(36),
+        db.ForeignKey(
+            "savings_goals.id",
+            ondelete="RESTRICT",
+        ),
+        nullable=True,
+        index=True,
+    )
+
     external_transaction_id = db.Column(
         db.String(100),
         nullable=True
@@ -334,5 +344,9 @@ class BankOAuthAttempt(db.Model):
         nullable=False
 
     )
-from app.models.savings_goal import (SavingsGoal, SavingsGoalContribution,)
+from app.models.savings_goal import (
+    SavingsGoal,
+    SavingsGoalContribution,
+    GoalFundingMovement,
+)
 from app.models.cash_wallet import CashWallet

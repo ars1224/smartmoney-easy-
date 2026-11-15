@@ -18,6 +18,7 @@ export interface CashTransactionRecord {
   date: string;
   note: string;
   createdAt: string;
+  goalId: string | null;
 }
 
 interface CashTransactionDto {
@@ -30,6 +31,7 @@ interface CashTransactionDto {
   date: string;
   note: string;
   createdAt: string;
+  goalId: string | null;
 }
 
 export interface CashTransactionPayload {
@@ -150,6 +152,7 @@ export class CashTransactionsApiService {
       date: dto.date,
       note: dto.note,
       createdAt: dto.createdAt,
+      goalId: dto.goalId ?? null,
     };
   }
 }

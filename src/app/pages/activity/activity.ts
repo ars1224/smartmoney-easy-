@@ -31,11 +31,17 @@ import { FormsModule } from '@angular/forms';
 
 import { DatePipe } from '@angular/common';
 
+import {
+  GoalPurchasesApiService,
+  type GoalPurchaseOption,
+} from '../../core/services/goal-purchases-api.service';
+
 type TransactionSource = 'cash' | 'bank';
 type SourceFilter = 'all' | TransactionSource;
 
 interface Transaction {
   id: string;
+  goalId: string | null;
   description: string;
   source: TransactionSource;
   category: string;
@@ -59,8 +65,24 @@ export class ActivityPage implements OnInit {
 
   private deleteModalElement: HTMLElement | null = null;
 
+  private readonly goalPurchasesApi =
+  inject(GoalPurchasesApiService);
+
   private readonly bankAccountsApi =
   inject(BankAccountsApiService);
+
+  @ViewChild('linkGoalDialog')
+  private linkGoalDialog?: ElementRef<HTMLDialogElement>;
+
+  linkGoalTransaction: Transaction | null = null;
+  goalOptions: GoalPurchaseOption[] = [];
+  selectedGoalId = '';
+
+  loadingGoalOptions = false;
+  savingGoalLink = false;
+  goalLinkError = '';
+
+  private goalLinkTrigger: HTMLElement | null = null;
 
   @ViewChild('deleteModal')
   set deleteModal(ref: ElementRef<HTMLElement> | undefined) {
@@ -148,6 +170,7 @@ export class ActivityPage implements OnInit {
           transaction => ({
             budgetGroup: null,
             id: transaction.id,
+            goalId: transaction.goalId ?? null,
             description:
               transaction.note.trim() || transaction.category,
             source: 'cash' as const,
@@ -168,9 +191,10 @@ export class ActivityPage implements OnInit {
 
       // Imported bank transactions
       if (bankResult.status === 'fulfilled') {
-        this.bankTransactions = bankResult.value.map(
-          transaction => ({
-            id: transaction.id,
+          this.bankTransactions = bankResult.value.map(
+            transaction => ({
+              id: transaction.id,
+              goalId: transaction.goalId ?? null,
             description: transaction.description,
             source: 'bank' as const,
             category:
@@ -673,6 +697,186 @@ async applyLegacyCategories(): Promise<void> {
 
   } finally {
     this.legacyApplying = false;
+    this.changeDetector.markForCheck();
+  }
+}
+
+canLinkToGoal(transaction: Transaction): boolean {
+  if (
+    transaction.goalId !== null ||
+    transaction.amount >= 0 ||
+    transaction.currency !== 'NZD'
+  ) {
+    return false;
+  }
+
+  const category = transaction.category.trim().toUpperCase();
+  const description = transaction.description.trim().toUpperCase();
+
+  if (
+    ['INTERNAL TRANSFER', 'TRANSFER', 'REFUND'].includes(category) ||
+    description.startsWith('TRANSFER ')
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+
+async openLinkGoalDialog(
+  transaction: Transaction,
+  event: Event
+): Promise<void> {
+  if (
+    !this.canLinkToGoal(transaction) ||
+    this.savingGoalLink ||
+    this.linkGoalTransaction ||
+    this.categoryTransaction ||
+    this.transactionToDelete
+  ) {
+    return;
+  }
+
+  this.goalLinkTrigger =
+    event.currentTarget instanceof HTMLElement
+      ? event.currentTarget
+      : null;
+
+  this.linkGoalTransaction = transaction;
+  this.goalOptions = [];
+  this.selectedGoalId = '';
+  this.goalLinkError = '';
+  this.loadingGoalOptions = true;
+
+  this.linkGoalDialog?.nativeElement.showModal();
+  this.changeDetector.markForCheck();
+
+  try {
+    const goals = await firstValueFrom(
+      this.goalPurchasesApi.getGoals()
+    );
+
+    if (this.linkGoalTransaction?.id !== transaction.id) {
+      return;
+    }
+
+    this.goalOptions = goals.filter(
+      goal => goal.achievedAt === null
+    );
+
+    if (this.goalOptions.length === 0) {
+      this.goalLinkError =
+        'No active goals found. Create a goal first.';
+    }
+
+  } catch (error: unknown) {
+    if (this.linkGoalTransaction?.id === transaction.id) {
+      this.goalLinkError = this.getErrorMessage(
+        error,
+        'Unable to load your goals.'
+      );
+    }
+
+  } finally {
+    if (this.linkGoalTransaction?.id === transaction.id) {
+      this.loadingGoalOptions = false;
+    }
+
+    this.changeDetector.markForCheck();
+  }
+}
+
+
+closeLinkGoalDialog(): void {
+  if (this.savingGoalLink) {
+    return;
+  }
+
+  this.linkGoalDialog?.nativeElement.close();
+}
+
+
+onLinkGoalDialogCancel(event: Event): void {
+  if (this.savingGoalLink) {
+    event.preventDefault();
+  }
+}
+
+
+onLinkGoalDialogClosed(): void {
+  const trigger = this.goalLinkTrigger;
+
+  this.linkGoalTransaction = null;
+  this.goalOptions = [];
+  this.selectedGoalId = '';
+  this.goalLinkError = '';
+  this.loadingGoalOptions = false;
+  this.goalLinkTrigger = null;
+
+  setTimeout(() => {
+    if (trigger?.isConnected) {
+      trigger.focus();
+    }
+  }, 0);
+
+  this.changeDetector.markForCheck();
+}
+
+
+async submitGoalLink(): Promise<void> {
+  const transaction = this.linkGoalTransaction;
+  const goalId = this.selectedGoalId;
+
+  if (
+    !transaction ||
+    !goalId ||
+    this.loadingGoalOptions ||
+    this.savingGoalLink ||
+    !this.goalOptions.some(goal => goal.id === goalId)
+  ) {
+    return;
+  }
+
+  this.savingGoalLink = true;
+  this.goalLinkError = '';
+
+  try {
+    await firstValueFrom(
+      this.goalPurchasesApi.linkPurchase(
+        goalId,
+        transaction.id
+      )
+    );
+
+    const updateGoalLink = (items: Transaction[]) =>
+      items.map(item =>
+        item.id === transaction.id &&
+        item.source === transaction.source
+          ? { ...item, goalId }
+          : item
+      );
+
+    if (transaction.source === 'bank') {
+      this.bankTransactions = updateGoalLink(
+        this.bankTransactions
+      );
+    } else {
+      this.manualTransactions = updateGoalLink(
+        this.manualTransactions
+      );
+    }
+
+    this.linkGoalDialog?.nativeElement.close();
+
+  } catch (error: unknown) {
+    this.goalLinkError = this.getErrorMessage(
+      error,
+      'Unable to link this purchase to the selected goal.'
+    );
+
+  } finally {
+    this.savingGoalLink = false;
     this.changeDetector.markForCheck();
   }
 }

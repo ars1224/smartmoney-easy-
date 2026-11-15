@@ -1,13 +1,12 @@
-
 <main class="goals-page">
 
   <!-- Page header -->
   <header class="page-header">
     <div class="page-heading">
       <p class="page-eyebrow">Plan for your future</p>
-      <h1>Savings Goals</h1>
+      <h1>Goals</h1>
       <p class="page-description">
-        Set savings targets, track your progress, and celebrate your achievements.
+        Track what you're saving towards across Needs, Wants, and Savings.
       </p>
     </div>
 
@@ -21,26 +20,54 @@
     </button>
   </header>
 
+  <nav class="goal-filters" aria-label="Filter goals">
+    @for (filter of goalFilters; track filter.value) {
+      <button
+        type="button"
+        class="goal-filter-btn"
+        [class.active]="activeFilter() === filter.value"
+        [attr.aria-pressed]="activeFilter() === filter.value"
+        (click)="setActiveFilter(filter.value)"
+      >
+        {{ filter.label }}
+      </button>
+    }
+  </nav>
+
   <!-- Savings summary -->
-  <section class="summary-grid" aria-label="Savings summary">
+  <section class="summary-grid" aria-label="Goals summary">
 
     <article class="summary-card">
-      <span class="summary-label">Total Saved</span>
+      <span class="summary-label">Total Allocated</span>
       <strong class="summary-value">
         {{ formatCurrency(totalSaved()) }}
       </strong>
       <span class="summary-caption">
-        Across all savings goals
+        Across all goals
       </span>
     </article>
 
     <article class="summary-card">
-      <span class="summary-label">Total Target</span>
+      <span class="summary-label">
+        Linked Savings Balance
+      </span>
+
       <strong class="summary-value">
-        {{ formatCurrency(totalTarget()) }}
+        {{
+          fundingLoading()
+            ? 'Loading...'
+            : linkedSavingsLabel()
+        }}
       </strong>
+
       <span class="summary-caption">
-        Your combined savings targets
+        @if (fundingError()) {
+          Unable to load your savings balance.
+        } @else if (fundingSummary()?.savingsAccountCount === 0) {
+          Connect an NZD Savings account.
+        } @else {
+          From your connected Savings account.
+        }
       </span>
     </article>
 
@@ -82,7 +109,7 @@
 
     <div class="section-heading">
       <div>
-        <h2 id="goals-heading">My Savings Goals</h2>
+        <h2 id="goals-heading">My Goals</h2>
         <p>Manage your goals and savings progress.</p>
       </div>
 
@@ -93,7 +120,7 @@
     </div>
 
     @if (loading()) {
-      <p role="status">Loading your savings goals...</p>
+      <p role="status">Loading your goals...</p>
     } @else if (pageError()) {
       <div class="empty-state">
         <p role="alert">{{ pageError() }}</p>
@@ -113,7 +140,7 @@
           <span>&#9678;</span>
         </div>
 
-        <h3>No savings goals yet</h3>
+        <h3>No goals yet</h3>
 
         <p>
           Start with something meaningful.
@@ -129,12 +156,21 @@
         </button>
       </div>
 
+    } @else if (filteredGoals().length === 0) {
+
+      <div class="empty-state">
+        <h3>No goals in this group yet</h3>
+        <p>
+          Choose another group or create a new goal.
+        </p>
+      </div>
+
     } @else {
 
-      <!-- Savings goals cards -->
+      <!-- Goals cards -->
       <div class="goals-grid">
 
-        @for (goal of goals(); track goal.id) {
+        @for (goal of filteredGoals(); track goal.id) {
 
           <article class="goal-card">
 
@@ -143,8 +179,21 @@
                 <h3>{{ goal.name }}</h3>
 
                 <span
+                  class="goal-group-badge"
+                  [attr.data-group]="goal.group"
+                >
+                  {{
+                    goal.group === 'NEEDS'
+                      ? 'Needs'
+                      : goal.group === 'WANTS'
+                        ? 'Wants'
+                        : 'Savings'
+                  }}
+                </span>
+
+                <span
                   class="status-badge"
-                  [class.is-complete]="goalStatus(goal) === 'Completed'"
+                  [class.is-complete]="goalStatus(goal) === 'Achieved'"
                   [class.is-overdue]="goalStatus(goal) === 'Overdue'"
                 >
                   {{ goalStatus(goal) }}
@@ -152,47 +201,53 @@
               </div>
 
               <div class="goal-card-actions">
-                <button
-                  type="button"
-                  class="btn-icon"
-                  [attr.aria-label]="'Edit ' + goal.name"
-                  (click)="openEditGoal(goal)"
-                >
-                  Edit
-                </button>
 
-                <button
-                  type="button"
-                  class="btn-icon danger"
-                  [attr.aria-label]="'Delete ' + goal.name"
-                  (click)="requestDelete(goal)"
-                >
-                  Delete
-                </button>
+                @if (!goal.achievedAt) {
+                  <button
+                    type="button"
+                    class="btn-icon"
+                    [attr.aria-label]="'Edit ' + goal.name"
+                    (click)="openEditGoal(goal)"
+                  >
+                    Edit
+                  </button>
+                }
+
+                @if (!goal.achievedAt && goal.spentAmount <= 0) {
+                  <button
+                    type="button"
+                    class="btn-icon danger"
+                    [attr.aria-label]="'Delete ' + goal.name"
+                    (click)="requestDelete(goal)"
+                  >
+                    Delete
+                  </button>
+                }
+
               </div>
-            </div>
-
-            <div class="goal-amounts">
-              <div>
-                <span class="amount-label">Saved</span>
-                <strong class="saved-amount">
-                  {{ formatCurrency(goal.savedAmount) }}
-                </strong>
               </div>
 
-              <div class="target-amount">
-                <span class="amount-label">Target</span>
-                <strong>
-                  {{ formatCurrency(goal.targetAmount) }}
-                </strong>
-              </div>
-            </div>
+              <div class="goal-amounts">
+                <div>
+                  <span class="amount-label">Allocated</span>
+                  <strong class="saved-amount">
+                    {{ formatCurrency(goal.savedAmount) }}
+                  </strong>
+                </div>
 
-            <div class="goal-progress">
-              <div class="progress-labels">
-                <span>Progress</span>
-                <strong>{{ progressPercent(goal) }}%</strong>
+                <div class="target-amount">
+                  <span class="amount-label">Target</span>
+                  <strong>
+                    {{ formatCurrency(goal.targetAmount) }}
+                  </strong>
+                </div>
               </div>
+
+              <div class="goal-progress">
+                <div class="progress-labels">
+                  <span>Goal Progress</span>
+                  <strong>{{ progressPercent(goal) }}%</strong>
+                </div>
 
               <div
                 class="progress-track"
@@ -224,14 +279,37 @@
               </div>
             </div>
 
+            @if (goal.spentAmount > 0) {
+              <div class="detail-row">
+                <span>Spent on Goal</span>
+                <strong>
+                  {{ formatCurrency(goal.spentAmount) }}
+                </strong>
+              </div>
+            }
+
             <div class="goal-card-footer">
               <button
                 type="button"
                 class="btn btn-secondary"
-                (click)="openContribution(goal)"
+                (click)="openFunding(goal)"
               >
-                + Add Contribution
+                {{ goal.achievedAt ? 'View Funding History' : 'Manage Funds' }}
               </button>
+
+              @if (
+                !goal.achievedAt &&
+                goal.spentAmount > 0 &&
+                goal.savedAmount <= 0
+              ) {
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  (click)="requestAchieve(goal)"
+                >
+                  Mark as Achieved
+                </button>
+              }
             </div>
 
           </article>
@@ -296,6 +374,33 @@
             </div>
 
             <div class="form-field">
+              <label for="goal-group">Goal Type</label>
+
+              <select
+                id="goal-group"
+                name="goalGroup"
+                [(ngModel)]="goalForm.group"
+                required
+              >
+                <option value="NEEDS">
+                  Needs — Essential expenses
+                </option>
+
+                <option value="WANTS">
+                  Wants — Wishlist and purchases
+                </option>
+
+                <option value="SAVINGS">
+                  Savings — Future financial goals
+                </option>
+              </select>
+
+              <small>
+                Choose which budget group this goal belongs to.
+              </small>
+            </div>
+
+            <div class="form-field">
               <label for="goal-target">Target Amount (NZD)</label>
 
               <input
@@ -308,25 +413,6 @@
                 [(ngModel)]="goalForm.targetAmount"
                 required
               />
-            </div>
-
-            <div class="form-field">
-              <label for="goal-saved">Current Savings (NZD)</label>
-
-              <input
-                id="goal-saved"
-                name="goalSaved"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                [(ngModel)]="goalForm.savedAmount"
-                required
-              />
-
-              <small>
-                Enter the amount already saved towards this goal.
-              </small>
             </div>
 
             <div class="form-field">
@@ -380,68 +466,267 @@
 
   }
 
-  <!-- Add contribution modal -->
-  @if (showContributionForm && contributionGoal) {
-
-    <div class="modal-backdrop">
-      <div
-        class="modal-panel modal-small"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="contribution-heading"
-      >
-
-        <div class="modal-header">
-          <div>
-            <h2 id="contribution-heading">Add Contribution</h2>
-            <p>{{ contributionGoal.name }}</p>
-          </div>
-
-          <button
-            type="button"
-            class="modal-close"
-            aria-label="Close contribution form"
-            (click)="closeContribution()"
-          >
-            &times;
-          </button>
+<!-- Manage Funds modal -->
+@if (showFundingForm && fundingGoal) {
+  <div class="modal-backdrop">
+    <div
+      class="modal-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="funding-heading"
+    >
+      <div class="modal-header">
+        <div>
+          <h2 id="funding-heading">
+            {{ fundingGoal.achievedAt ? 'Funding History' : 'Manage Funds' }}
+          </h2>
+          <p>{{ fundingGoal.name }}</p>
         </div>
 
-        <form (ngSubmit)="addContribution()" novalidate>
+        <button
+          type="button"
+          class="modal-close"
+          aria-label="Close Manage Funds"
+          [disabled]="fundingBusy"
+          (click)="closeFunding()"
+        >
+          &times;
+        </button>
+      </div>
+
+      @if (fundingFormError) {
+        <p class="form-error" role="alert">
+          {{ fundingFormError }}
+        </p>
+      }
+
+      @if (fundingFormLoading) {
+        <div class="modal-body">
+          <p role="status">Loading funding information...</p>
+        </div>
+      } @else if (fundingHistory) {
+
+        <form (ngSubmit)="submitFunding()" novalidate>
           <div class="modal-body">
 
             <p class="contribution-info">
-              Currently Saved:
+              Verified funds allocated:
               <strong>
-                {{ formatCurrency(contributionGoal.savedAmount) }}
+                {{ formatCurrency(fundingGoal.savedAmount) }}
               </strong>
             </p>
 
+            <p class="form-help">
+              Goal target:
+              {{ formatCurrency(fundingGoal.targetAmount) }}
+            </p>
+
+            @if (fundingHistory.legacyUnverifiedAmount > 0) {
+              <p class="form-help">
+                Historical manual savings:
+                <strong>
+                  {{
+                    formatCurrency(
+                      fundingHistory.legacyUnverifiedAmount
+                    )
+                  }}
+                </strong>
+                <br />
+                This amount has not been verified against a
+                bank account or Cash Wallet and is not
+                included in verified goal funding.
+              </p>
+            }
+            @if (!fundingGoal.achievedAt) {
             <div class="form-field">
-              <label for="contribution-amount">
-                Contribution Amount (NZD)
+              <label for="funding-action">Action</label>
+
+              <select
+                id="funding-action"
+                name="fundingAction"
+                [(ngModel)]="fundingAction"
+                (ngModelChange)="changeFundingAction()"
+                [disabled]="fundingBusy"
+              >
+                <option value="ALLOCATE">
+                  Allocate funds
+                </option>
+
+                <option value="RELEASE">
+                  Release funds
+                </option>
+              </select>
+            </div>
+
+            <div class="form-field">
+              <label for="funding-source">
+                Funding Source
+              </label>
+
+              <select
+                id="funding-source"
+                name="fundingSource"
+                [(ngModel)]="fundingSelectedSourceKey"
+                [disabled]="fundingBusy"
+                required
+              >
+                @if (fundingAction === 'ALLOCATE') {
+                  @for (
+                    source of availableFundingSources();
+                    track fundingKey(source)
+                  ) {
+                    <option [value]="fundingKey(source)">
+                      {{ source.name }}
+                      — Available:
+                      {{ formatCurrency(source.available) }}
+                    </option>
+                  }
+                } @else {
+                  @for (
+                    source of releasableFundingSources();
+                    track fundingKey(source)
+                  ) {
+                    <option [value]="fundingKey(source)">
+                      {{ source.name }}
+                      — Allocated:
+                      {{ formatCurrency(source.allocated) }}
+                    </option>
+                  }
+                }
+              </select>
+            </div>
+
+            @if (
+              fundingAction === 'ALLOCATE' &&
+              availableFundingSources().length === 0
+            ) {
+              <p class="form-help">
+                No available funding sources were found.
+                Connect an NZD Savings account or create
+                an active NZD Cash Wallet to allocate funds.
+              </p>
+            }
+
+            @if (
+              fundingAction === 'RELEASE' &&
+              releasableFundingSources().length === 0
+            ) {
+              <p class="form-help">
+                This goal has no allocated funds to release.
+              </p>
+            }
+
+            <div class="form-field">
+              <label for="funding-amount">
+                Amount (NZD)
               </label>
 
               <input
-                id="contribution-amount"
-                name="contributionAmount"
+                id="funding-amount"
+                name="fundingAmount"
                 type="number"
                 min="0.01"
                 step="0.01"
+                [max]="selectedFundingLimit()"
                 placeholder="0.00"
-                [(ngModel)]="contributionAmount"
+                [(ngModel)]="fundingAmount"
+                [disabled]="fundingBusy || selectedFundingLimit() < 0.01"
                 required
               />
+
+              <small>
+                Maximum:
+                {{
+                  formatCurrency(selectedFundingLimit())
+                }}
+              </small>
             </div>
 
             <p class="form-help">
-              This updates your goal progress only.
-              It does not transfer money from a bank or cash wallet.
+              @if (fundingAction === 'ALLOCATE') {
+                Allocating funds reserves money for this goal.
+                Your bank or Cash Wallet balance does not change.
+              } @else {
+                Releasing funds removes the reservation,
+                making the money available for other goals.
+              }
             </p>
 
-            @if (contributionError) {
-              <p class="form-error" role="alert">
-                {{ contributionError }}
+            }
+
+            @if (fundingGoal.achievedAt) {
+              <p class="form-help">
+                This goal has been achieved.
+                Funding changes are disabled, but its financial
+                history remains available below.
+              </p>
+            }
+
+            @if (fundingHistory.sources.length > 0) {
+              <h3>Current allocations</h3>
+
+              <div class="goal-details">
+                @for (
+                  source of fundingHistory.sources;
+                  track fundingKey(source)
+                ) {
+                  <div class="detail-row">
+                    <span>{{ source.name }}</span>
+
+                    <strong>
+                      {{ formatCurrency(source.allocated) }}
+                    </strong>
+                  </div>
+
+                  @if (source.shortfall > 0) {
+                    <p class="form-error" role="alert">
+                      Funding shortfall:
+                      {{ formatCurrency(source.shortfall) }}
+                    </p>
+                  }
+                }
+              </div>
+            }
+
+            <h3>Funding history</h3>
+
+            @for (
+              movement of fundingHistory.history;
+              track movement.id
+            ) {
+              <div class="detail-row">
+                <span>
+                  {{
+                    movement.movementType === 'SPENT'
+                      ? 'Spent'
+                      : movement.movementType === 'ALLOCATED'
+                        ? 'Allocated'
+                        : 'Released'
+                  }}
+                  —
+                  {{
+                    movement.sourceType === 'BANK_ACCOUNT'
+                      ? 'Savings account'
+                      : 'Cash Wallet'
+                  }}
+                  <small>
+                    {{ movement.createdAt | date:'mediumDate' }}
+                  </small>
+                </span>
+
+                <strong>
+                  {{
+                    formatCurrency(
+                      movement.amount > 0
+                        ? movement.amount
+                        : -movement.amount
+                    )
+                  }}
+                </strong>
+              </div>
+            } @empty {
+              <p class="form-help">
+                No funding movements recorded yet.
               </p>
             }
 
@@ -451,22 +736,110 @@
             <button
               type="button"
               class="btn btn-outline"
-              (click)="closeContribution()"
+              [disabled]="fundingBusy"
+              (click)="closeFunding()"
             >
-              Cancel
+              {{ fundingGoal.achievedAt ? 'Close' : 'Cancel' }}
             </button>
-
-            <button type="submit" class="btn btn-primary">
-              Add Contribution
+            @if (!fundingGoal.achievedAt) {
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="
+                fundingBusy ||
+                !fundingSelectedSourceKey ||
+                selectedFundingLimit() < 0.01 ||
+                fundingAmount === null ||
+                fundingAmount <= 0
+              "
+              [attr.aria-busy]="fundingBusy"
+            >
+              @if (fundingBusy) {
+                Processing...
+              } @else if (fundingAction === 'ALLOCATE') {
+                Allocate Funds
+              } @else {
+                Release Funds
+              }
             </button>
+          }
           </div>
         </form>
+      }
+    </div>
+  </div>
+}
 
+<!-- Achievement confirmation modal -->
+@if (goalToAchieve) {
+  <div class="modal-backdrop">
+    <div
+      class="modal-panel modal-small"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="achieve-heading"
+      aria-describedby="achieve-description"
+    >
+      <div class="modal-header">
+        <h2 id="achieve-heading">
+          Mark Goal as Achieved?
+        </h2>
+      </div>
+
+      <div class="modal-body">
+        <p id="achieve-description">
+          Are you ready to mark
+          <strong>{{ goalToAchieve.name }}</strong>
+          as achieved?
+        </p>
+
+        <p>
+          Linked purchases:
+          <strong>
+            {{ formatCurrency(goalToAchieve.spentAmount) }}
+          </strong>
+        </p>
+
+        <p>
+          This records the goal's achievement.
+          It will not charge your bank account
+          or Cash Wallet again.
+        </p>
+
+        @if (achieveError) {
+          <p class="form-error" role="alert">
+            {{ achieveError }}
+          </p>
+        }
+      </div>
+
+      <div class="modal-footer">
+        <button
+          type="button"
+          class="btn btn-outline"
+          [disabled]="achievingGoal"
+          (click)="cancelAchieve()"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="achievingGoal"
+          [attr.aria-busy]="achievingGoal"
+          (click)="confirmAchieve()"
+        >
+          {{
+            achievingGoal
+              ? 'Saving...'
+              : 'Confirm Achievement'
+          }}
+        </button>
       </div>
     </div>
-
-  }
-
+  </div>
+}
   <!-- Delete confirmation modal -->
 @if (goalToDelete) {
   <div class="modal-backdrop">

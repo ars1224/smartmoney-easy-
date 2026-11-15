@@ -13,6 +13,7 @@ from app.auth_security import (
 
 from sqlalchemy import func
 from flask import request
+from app.services.wallet_balance import calculate_wallet_balance
 
 cash_wallets_bp = Blueprint(
     "cash_wallets",
@@ -51,23 +52,6 @@ def parse_balance(value):
 
     except InvalidOperation:
         raise ValueError("Invalid opening balance.")
-
-
-def calculate_wallet_balance(wallet):
-    transaction_total = (
-        db.session.query(func.sum(Transaction.amount))
-        .filter(
-            Transaction.cash_wallet_id == wallet.id,
-            Transaction.user_id == wallet.user_id,
-            Transaction.source == "CASH",
-        )
-        .scalar()
-    )
-
-    if transaction_total is None:
-        transaction_total = Decimal("0.00")
-
-    return wallet.opening_balance + transaction_total
 
 def serialize_wallet(wallet):
     return {

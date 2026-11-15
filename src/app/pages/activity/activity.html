@@ -269,23 +269,26 @@
 
             <td class="actions-column">
               <div class="transaction-actions">
-                @if (transaction.source === 'cash') {
-                  <a
-                    class="edit-transaction-btn"
-                    [routerLink]="['/app/activity/edit', transaction.id]"
-                    [attr.aria-label]="'Edit ' + transaction.description"
-                  >
-                    Edit
-                  </a>
 
-                  <button
-                    class="delete-transaction-btn"
-                    type="button"
-                    [attr.aria-label]="'Delete ' + transaction.description"
-                    (click)="openDeleteModal(transaction, $event)"
-                  >
-                    Delete
-                  </button>
+                @if (transaction.source === 'cash') {
+                  @if (!transaction.goalId) {
+                    <a
+                      class="edit-transaction-btn"
+                      [routerLink]="['/app/activity/edit', transaction.id]"
+                      [attr.aria-label]="'Edit ' + transaction.description"
+                    >
+                      Edit
+                    </a>
+
+                    <button
+                      class="delete-transaction-btn"
+                      type="button"
+                      [attr.aria-label]="'Delete ' + transaction.description"
+                      (click)="openDeleteModal(transaction, $event)"
+                    >
+                      Delete
+                    </button>
+                  }
                 } @else {
                   <button
                     class="edit-transaction-btn"
@@ -298,6 +301,31 @@
                     Edit category
                   </button>
                 }
+
+                @if (transaction.goalId) {
+                  <a
+                    class="edit-transaction-btn"
+                    [routerLink]="['/app/goals']"
+                    [attr.aria-label]="
+                      'View linked goal for ' + transaction.description
+                    "
+                  >
+                    View Goal
+                  </a>
+
+                } @else if (canLinkToGoal(transaction)) {
+                  <button
+                    class="edit-transaction-btn"
+                    type="button"
+                    [attr.aria-label]="
+                      'Link ' + transaction.description + ' to a goal'
+                    "
+                    (click)="openLinkGoalDialog(transaction, $event)"
+                  >
+                    Link to Goal
+                  </button>
+                }
+
               </div>
             </td>
           </tr>
@@ -529,5 +557,116 @@
   </form>
 </dialog>
 
+<dialog
+  #linkGoalDialog
+  class="confirm-modal category-dialog"
+  aria-labelledby="link-goal-dialog-title"
+  (cancel)="onLinkGoalDialogCancel($event)"
+  (close)="onLinkGoalDialogClosed()"
+>
+  <h2 id="link-goal-dialog-title">
+    Link Purchase to Goal
+  </h2>
 
+  @if (linkGoalTransaction) {
+    <p class="modal-text">
+      <strong>
+        {{ linkGoalTransaction.description }}
+      </strong>
+    </p>
+
+    <p class="modal-subtext">
+      Purchase amount:
+      <strong>
+        {{
+          formatAmount(
+            linkGoalTransaction.amount,
+            linkGoalTransaction.currency
+          )
+        }}
+      </strong>
+    </p>
+
+    <p class="modal-subtext">
+      Linking associates this existing expense with a goal.
+      Any reserved funds from the matching source will be
+      recorded as spent. Your bank or Cash Wallet will not
+      be charged again.
+    </p>
+  }
+
+  @if (loadingGoalOptions) {
+    <p role="status">
+      Loading your goals...
+    </p>
+  }
+
+  @if (goalLinkError) {
+    <p
+      class="modal-error"
+      role="alert"
+    >
+      {{ goalLinkError }}
+    </p>
+  }
+
+  <form (ngSubmit)="submitGoalLink()">
+
+    <div class="category-field">
+      <label for="purchase-goal-select">
+        Select Goal
+      </label>
+
+      <select
+        id="purchase-goal-select"
+        name="purchaseGoal"
+        class="category-select"
+        [(ngModel)]="selectedGoalId"
+        [disabled]="loadingGoalOptions || savingGoalLink"
+        required
+      >
+        <option value="" disabled>
+          Choose a goal
+        </option>
+
+        @for (goal of goalOptions; track goal.id) {
+          <option [value]="goal.id">
+            {{ goal.name }} — {{ goal.group }}
+            (Target: ${{ goal.targetAmount }})
+          </option>
+        }
+      </select>
+    </div>
+
+    <div class="modal-actions">
+
+      <button
+        type="button"
+        class="modal-cancel-btn"
+        (click)="closeLinkGoalDialog()"
+        [disabled]="savingGoalLink"
+      >
+        Cancel
+      </button>
+
+      <button
+        type="submit"
+        class="category-save-btn"
+        [disabled]="
+          loadingGoalOptions ||
+          savingGoalLink ||
+          !selectedGoalId
+        "
+      >
+        {{
+          savingGoalLink
+            ? 'Linking...'
+            : 'Confirm Link'
+        }}
+      </button>
+
+    </div>
+
+  </form>
+</dialog>
 </main>
