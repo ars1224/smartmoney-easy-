@@ -6,6 +6,16 @@ import { Observable, map, switchMap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 
+export interface BankSyncResponse {
+  status: 'success' | 'partial_success';
+  accounts_synced: number;
+  accounts_failed: number;
+  failed_account_ids: string[];
+  imported_count: number;
+  last_synced_at: string;
+  categories_count: number;
+}
+
 export interface ConnectedBankAccount {
   id: string;
   connectionId: string;
@@ -82,6 +92,7 @@ export interface BankActivityTransaction {
   transactionDate: string;
   budgetGroup: BudgetGroup | null;
   budgetGroupOverride: BudgetGroupOverride;
+  goalId: string | null;
 }
 
 interface BankActivityTransactionDto {
@@ -95,6 +106,7 @@ interface BankActivityTransactionDto {
   transaction_date: string;
   budget_group: BudgetGroup | null;
   budget_group_override: BudgetGroupOverride;
+  goal_id: string | null;
 }
 
 interface AllBankTransactionsResponse {
@@ -195,6 +207,7 @@ export class BankAccountsApiService {
           transactionDate: transaction.transaction_date,
           budgetGroupOverride:
             transaction.budget_group_override ?? null,
+          goalId: transaction.goal_id ?? null,
         }))
       )
     );
@@ -305,14 +318,14 @@ export class BankAccountsApiService {
     );
   }
 
-  syncConnection(connectionId: string): Observable<unknown> {
+  syncConnection(connectionId: string): Observable<BankSyncResponse> {
     const url =
       `${environment.apiUrl}/bank/connections/` +
       `${encodeURIComponent(connectionId)}/sync`;
 
     return this.auth.getCsrfToken().pipe(
       switchMap(token =>
-        this.http.post<unknown>(
+        this.http.post<BankSyncResponse>(
           url,
           {},
           {
