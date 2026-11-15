@@ -168,7 +168,7 @@ export class ActivityPage implements OnInit {
       if (cashResult.status === 'fulfilled') {
         this.manualTransactions = cashResult.value.map(
           transaction => ({
-            budgetGroup: null,
+            budgetGroup: transaction.budgetGroup,
             id: transaction.id,
             goalId: transaction.goalId ?? null,
             description:
