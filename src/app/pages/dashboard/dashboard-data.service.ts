@@ -1,55 +1,30 @@
-import { Injectable } from '@angular/core';
-import { Observable, delay, of } from 'rxjs';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, catchError, forkJoin, map, of, throwError, timeout } from 'rxjs';
+import { environment } from '../../../environments/environment';
+import { ReportSummary } from '../reports/reports-api.service';
 
-export interface DashboardMetric { label: string; amount: number; change: string }
-export interface DashboardBudget { name: string; spent: number; limit: number; tone: 'teal' | 'green' | 'warning' | 'danger' }
-export interface DashboardTransaction { id: string; name: string; category: string; date: string; amount: number; source: 'manual' | 'mock-bank' }
-export interface DashboardSnapshot {
-  /** Illustrative design value only; not a calculated financial recommendation. */
-  safeToSpend: number;
-  safeToSpendEndDate: Date;
-  lastUpdated: string;
-  metrics: DashboardMetric[];
-  budgets: DashboardBudget[];
-  goal: { name: string; saved: number; target: number; note: string };
-  transactions: DashboardTransaction[];
-  learning: { duration: string; title: string; description: string };
+export interface DashboardBudget { id: string; category: string; monthlyLimit: string; spent: string; }
+export interface DashboardGoal { id: string; name: string; savedAmount: string; targetAmount: string; targetDate: string; }
+export interface DashboardTransaction { id: string; name: string; category: string; date: string; reportDate: string; amount: string; currency: string; source: 'cash' | 'bank'; }
+export interface DashboardOverview { report: ReportSummary; transactions: DashboardTransaction[]; recordCount: number; loadedAt: string; }
+export interface DashboardSnapshot extends DashboardOverview { budgets: DashboardBudget[] | null; goals: DashboardGoal[] | null; }
+export function dashboardMonth(now = new Date()): string {
+ const parts = new Intl.DateTimeFormat('en-NZ', { timeZone: 'Pacific/Auckland', year: 'numeric', month: '2-digit' }).formatToParts(now);
+ return `${parts.find(part => part.type === 'year')?.value}-${parts.find(part => part.type === 'month')?.value}`;
 }
-
-const DEMO_SNAPSHOT: DashboardSnapshot = {
-  safeToSpend: 42.5,
-  safeToSpendEndDate: nextFriday(new Date()),
-  lastUpdated: 'Example data — no bank connected',
-  metrics: [
-    { label: 'Income', amount: 2800, change: '+4.2% vs last month' },
-    { label: 'Expenses', amount: 1940, change: '−6.8% vs last month' },
-    { label: 'Saved', amount: 420, change: '+12% vs last month' },
-  ],
-  budgets: [
-    { name: 'Groceries', spent: 382, limit: 500, tone: 'teal' },
-    { name: 'Transport', spent: 168, limit: 200, tone: 'warning' },
-    { name: 'Eating out', spent: 126, limit: 140, tone: 'danger' },
-    { name: 'Utilities', spent: 214, limit: 280, tone: 'green' },
-  ],
-  goal: { name: 'Emergency fund', saved: 1260, target: 2000, note: '$40 ahead this month' },
-  transactions: [
-    { id: 'demo-transaction-1', name: 'Fresh Choice', category: 'Groceries', date: 'Today', amount: -84.2, source: 'mock-bank' },
-    { id: 'demo-transaction-2', name: 'AT HOP', category: 'Transport', date: 'Yesterday', amount: -32, source: 'mock-bank' },
-    { id: 'demo-transaction-3', name: 'Salary', category: 'Income', date: '2 Oct', amount: 1400, source: 'mock-bank' },
-  ],
-  learning: { duration: '2 min read', title: 'Make your food budget last', description: 'Example article based on grocery activity' },
-};
-
-function nextFriday(today: Date): Date {
-  const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  endDate.setDate(endDate.getDate() + ((5 - endDate.getDay() + 7) % 7));
-  return endDate;
-}
-
 @Injectable({ providedIn: 'root' })
 export class DashboardDataService {
-  /** Replace this boundary when approved backend contracts are ready. */
-  load(): Observable<DashboardSnapshot> {
-    return of({ ...DEMO_SNAPSHOT, safeToSpendEndDate: nextFriday(new Date()) }).pipe(delay(350));
-  }
+ private readonly http = inject(HttpClient);
+ load(month = dashboardMonth()): Observable<DashboardSnapshot> {
+  const options = { withCredentials: true, params: {month} };
+  // Optional sections can fail independently, but authentication failures still propagate.
+  const optionalError = (error: unknown) => error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)
+   ? throwError(() => error) : of(null);
+  return forkJoin({
+   overview: this.http.get<DashboardOverview>(`${environment.apiUrl}/dashboard`, options).pipe(timeout(12000)),
+   budgets: this.http.get<{budgets: DashboardBudget[]}>(`${environment.apiUrl}/budgets`, options).pipe(timeout(12000), catchError(optionalError)),
+   goals: this.http.get<{goals: DashboardGoal[]}>(`${environment.apiUrl}/savings-goals`, {withCredentials: true}).pipe(timeout(12000), catchError(optionalError)),
+  }).pipe(map(({overview, budgets, goals}) => ({...overview, budgets: budgets?.budgets ?? null, goals: goals?.goals ?? null})));
+ }
 }
