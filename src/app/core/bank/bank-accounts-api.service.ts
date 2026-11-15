@@ -6,6 +6,16 @@ import { Observable, map, switchMap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 
+export interface BankSyncResponse {
+  status: 'success' | 'partial_success';
+  accounts_synced: number;
+  accounts_failed: number;
+  failed_account_ids: string[];
+  transactions_imported: number;
+  last_synced_at: string;
+  transactions_categorised: number;
+}
+
 export interface ConnectedBankAccount {
   id: string;
   connectionId: string;
@@ -308,14 +318,14 @@ export class BankAccountsApiService {
     );
   }
 
-  syncConnection(connectionId: string): Observable<unknown> {
+  syncConnection(connectionId: string): Observable<BankSyncResponse> {
     const url =
       `${environment.apiUrl}/bank/connections/` +
       `${encodeURIComponent(connectionId)}/sync`;
 
     return this.auth.getCsrfToken().pipe(
       switchMap(token =>
-        this.http.post<unknown>(
+        this.http.post<BankSyncResponse>(
           url,
           {},
           {
