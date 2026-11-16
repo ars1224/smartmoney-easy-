@@ -82,14 +82,14 @@
 
         @if ((fundingSummary()?.savingsShortfall ?? 0) > 0) {
           <p class="savings-pool-warning" role="alert">
-            Your savings balance is below the amount allocated
-            to goals by
+            One or more savings accounts have goal allocations
+            exceeding their individual balances by a combined
             {{
               formatCurrency(
                 fundingSummary()?.savingsShortfall ?? 0
               )
             }}.
-            Review your goal allocations.
+            Review your goal funding sources.
           </p>
         }
       }
