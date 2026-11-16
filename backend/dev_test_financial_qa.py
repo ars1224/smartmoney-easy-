@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from app.services.goal_funding import GoalFundingError
 from app.services.goal_purchases import get_purchase_source
 from app.services.reports import summarise
+from app.services.transaction_categorizer import classify_bank_transaction
 
 
 NZ = ZoneInfo("Pacific/Auckland")
@@ -111,6 +112,46 @@ class FinancialQATests(unittest.TestCase):
         self.assertEqual(result["income"], "0.00")
         self.assertEqual(result["refunds"], "0.00")
         self.assertEqual(result["excluded"]["reviewNeeded"], 1)
+
+    def test_automatic_refund_reporting(self):
+        refund_category = classify_bank_transaction(
+            "PAKNSAVE REFUND QA TEST",
+            Decimal("20.00"),
+            "CREDIT",
+        )
+
+        self.assertEqual(refund_category, "Refund")
+
+        transactions = [
+            make_transaction(
+                amount=Decimal("4000.00"),
+                transaction_type="CREDIT",
+                category="Income",
+                description="SALARY",
+            ),
+            make_transaction(
+                amount=Decimal("-295.00"),
+                category="Groceries",
+                description="QA EXPENSES",
+            ),
+            make_transaction(
+                amount=Decimal("20.00"),
+                transaction_type="CREDIT",
+                category=refund_category,
+                description="PAKNSAVE REFUND QA TEST",
+            ),
+        ]
+
+        result = summarise(
+            transactions,
+            "2026-11",
+            "all",
+        )
+
+        self.assertEqual(result["income"], "4000.00")
+        self.assertEqual(result["expenses"], "295.00")
+        self.assertEqual(result["refunds"], "20.00")
+        self.assertEqual(result["netCashFlow"], "3725.00")
 
 
 if __name__ == "__main__":
