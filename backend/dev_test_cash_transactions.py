@@ -241,7 +241,379 @@ def run_tests():
 
             print("PASS: Wallet current balance is NZD 130.00")
 
+                        # Regression: expenses cannot exceed available cash.
+            response = owner.post(
+                "/api/cash-transactions",
+                json={
+                    **expense_payload,
+                    "amount": "130.01",
+                },
+                headers=owner_headers,
+            )
 
+            verify(
+                response,
+                409,
+                "Expense exceeding wallet balance rejected",
+            )
+
+            assert (
+                response.get_json()["error"]
+                == "Insufficient cash wallet balance."
+            )
+
+            # Rejection must not create another transaction.
+            response = owner.get("/api/cash-transactions")
+
+            verify(
+                response,
+                200,
+                "Retrieve history after rejected expense",
+            )
+
+            assert response.get_json()["count"] == 2
+
+            response = owner.get("/api/cash-wallets")
+
+            wallet = next(
+                item
+                for item in response.get_json()["wallets"]
+                if item["id"] == wallet_id
+            )
+
+            assert wallet["currentBalance"] == "130.00"
+
+            print("PASS: Rejected expense preserved wallet balance")
+
+                        # Regression: a zero-balance wallet cannot be overdrawn.
+            response = owner.post(
+                "/api/cash-wallets",
+                json={
+                    "name": "Zero Balance QA",
+                    "currency": "NZD",
+                    "openingBalance": "0.00",
+                },
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                201,
+                "Create zero-balance test wallet",
+            )
+
+            zero_wallet_id = response.get_json()["wallet"]["id"]
+
+            response = owner.post(
+                "/api/cash-transactions",
+                json={
+                    **expense_payload,
+                    "assetId": zero_wallet_id,
+                    "amount": "1.00",
+                },
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                409,
+                "Zero-balance wallet expense rejected",
+            )
+
+            response = owner.get("/api/cash-wallets")
+
+            zero_wallet = next(
+                item
+                for item in response.get_json()["wallets"]
+                if item["id"] == zero_wallet_id
+            )
+
+            assert zero_wallet["currentBalance"] == "0.00"
+
+            response = owner.get("/api/cash-transactions")
+
+            assert response.get_json()["count"] == 2
+
+            print("PASS: Zero-balance wallet remains unchanged")
+
+                        # Regression: editing an expense cannot overdraw a wallet.
+            response = owner.patch(
+                f"/api/cash-transactions/{expense['id']}",
+                json={
+                    "amount": "150.01",
+                },
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                409,
+                "Expense edit exceeding available funds rejected",
+            )
+
+            # The original transaction must remain unchanged.
+            response = owner.get("/api/cash-transactions")
+
+            verify(
+                response,
+                200,
+                "Retrieve transactions after rejected expense edit",
+            )
+
+            original_expense = next(
+                item
+                for item in response.get_json()["transactions"]
+                if item["id"] == expense["id"]
+            )
+
+            assert original_expense["amount"] == "20.00"
+            assert original_expense["type"] == "expense"
+
+            # The wallet balance must remain unchanged.
+            response = owner.get("/api/cash-wallets")
+
+            wallet = next(
+                item
+                for item in response.get_json()["wallets"]
+                if item["id"] == wallet_id
+            )
+
+            assert wallet["currentBalance"] == "130.00"
+
+            print("PASS: Rejected expense edit preserved financial data")
+
+                        # Regression: income cannot be reduced or deleted
+            # if doing so would overdraw the wallet.
+
+            response = owner.post(
+                "/api/cash-transactions",
+                json={
+                    **payload,
+                    "assetId": zero_wallet_id,
+                    "amount": "10.00",
+                },
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                201,
+                "Create income for balance protection test",
+            )
+
+            guard_income_id = response.get_json()["transaction"]["id"]
+
+            response = owner.post(
+                "/api/cash-transactions",
+                json={
+                    **expense_payload,
+                    "assetId": zero_wallet_id,
+                    "amount": "9.00",
+                },
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                201,
+                "Spend most of the test income",
+            )
+
+            guard_expense_id = response.get_json()["transaction"]["id"]
+
+            # Current wallet balance is NZD 1.00.
+            response = owner.get("/api/cash-wallets")
+
+            zero_wallet = next(
+                item
+                for item in response.get_json()["wallets"]
+                if item["id"] == zero_wallet_id
+            )
+
+            assert zero_wallet["currentBalance"] == "1.00"
+
+            # Reducing the income to NZD 5 would cause a deficit.
+            response = owner.patch(
+                f"/api/cash-transactions/{guard_income_id}",
+                json={"amount": "5.00"},
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                409,
+                "Reducing spent income rejected",
+            )
+
+            # Deleting the income would also cause a deficit.
+            response = owner.delete(
+                f"/api/cash-transactions/{guard_income_id}",
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                409,
+                "Deleting spent income rejected",
+            )
+
+            # Both transactions must remain unchanged.
+            response = owner.get("/api/cash-transactions")
+
+            transactions = response.get_json()["transactions"]
+
+            saved_income = next(
+                item
+                for item in transactions
+                if item["id"] == guard_income_id
+            )
+
+            saved_expense = next(
+                item
+                for item in transactions
+                if item["id"] == guard_expense_id
+            )
+
+            assert saved_income["amount"] == "10.00"
+            assert saved_expense["amount"] == "9.00"
+
+            response = owner.get("/api/cash-wallets")
+
+            zero_wallet = next(
+                item
+                for item in response.get_json()["wallets"]
+                if item["id"] == zero_wallet_id
+            )
+
+            assert zero_wallet["currentBalance"] == "1.00"
+
+            print("PASS: Rejected income changes preserved balances")
+
+            # Restore the test wallet by deleting the expense first.
+            response = owner.delete(
+                f"/api/cash-transactions/{guard_expense_id}",
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                200,
+                "Remove temporary expense",
+            )
+
+            # Income can now be deleted safely.
+            response = owner.delete(
+                f"/api/cash-transactions/{guard_income_id}",
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                200,
+                "Remove temporary income",
+            )
+
+            response = owner.get("/api/cash-wallets")
+
+            zero_wallet = next(
+                item
+                for item in response.get_json()["wallets"]
+                if item["id"] == zero_wallet_id
+            )
+
+            assert zero_wallet["currentBalance"] == "0.00"
+
+            response = owner.get("/api/cash-transactions")
+
+            assert response.get_json()["count"] == 2
+
+            print("PASS: Income protection test restored original data")
+
+                        # Regression: spending exactly the available balance
+            # must remain allowed.
+
+            response = owner.post(
+                "/api/cash-transactions",
+                json={
+                    **payload,
+                    "assetId": zero_wallet_id,
+                    "amount": "5.00",
+                },
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                201,
+                "Fund wallet for exact-balance expense test",
+            )
+
+            exact_income_id = response.get_json()["transaction"]["id"]
+
+            response = owner.post(
+                "/api/cash-transactions",
+                json={
+                    **expense_payload,
+                    "assetId": zero_wallet_id,
+                    "amount": "5.00",
+                },
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                201,
+                "Expense equal to available balance allowed",
+            )
+
+            exact_expense_id = response.get_json()["transaction"]["id"]
+
+            response = owner.get("/api/cash-wallets")
+
+            zero_wallet = next(
+                item
+                for item in response.get_json()["wallets"]
+                if item["id"] == zero_wallet_id
+            )
+
+            assert zero_wallet["currentBalance"] == "0.00"
+
+            print("PASS: Exact-balance expense left zero balance")
+
+            # Restore the test wallet before continuing.
+            verify(
+                owner.delete(
+                    f"/api/cash-transactions/{exact_expense_id}",
+                    headers=owner_headers,
+                ),
+                200,
+                "Remove exact-balance test expense",
+            )
+
+            verify(
+                owner.delete(
+                    f"/api/cash-transactions/{exact_income_id}",
+                    headers=owner_headers,
+                ),
+                200,
+                "Remove exact-balance test income",
+            )
+
+            response = owner.get("/api/cash-wallets")
+
+            zero_wallet = next(
+                item
+                for item in response.get_json()["wallets"]
+                if item["id"] == zero_wallet_id
+            )
+
+            assert zero_wallet["currentBalance"] == "0.00"
+
+            response = owner.get("/api/cash-transactions")
+
+            assert response.get_json()["count"] == 2
+
+            print("PASS: Exact-balance test restored original data")
             # Test editing existing cash transactions.
 
             verify(
@@ -350,6 +722,90 @@ def run_tests():
             verify(response, 201, "Create destination cash wallet")
 
             second_wallet_id = response.get_json()["wallet"]["id"]
+
+                        # Regression: moving an expense must not overdraw
+            # the destination wallet.
+            response = owner.post(
+                "/api/cash-transactions",
+                json={
+                    **expense_payload,
+                    "assetId": wallet_id,
+                    "amount": "30.00",
+                    "note": "Temporary wallet transfer test",
+                },
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                201,
+                "Create temporary expense for wallet move",
+            )
+
+            move_expense_id = response.get_json()["transaction"]["id"]
+
+            # Secondary wallet has only NZD 25 available.
+            response = owner.patch(
+                f"/api/cash-transactions/{move_expense_id}",
+                json={"assetId": second_wallet_id},
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                409,
+                "Expense move to insufficient wallet rejected",
+            )
+
+            # The expense must remain in its original wallet.
+            response = owner.get("/api/cash-transactions")
+
+            original_transaction = next(
+                item
+                for item in response.get_json()["transactions"]
+                if item["id"] == move_expense_id
+            )
+
+            assert original_transaction["assetId"] == wallet_id
+            assert original_transaction["amount"] == "30.00"
+
+            # Neither wallet should be changed by the rejected move.
+            response = owner.get("/api/cash-wallets")
+
+            balances = {
+                item["id"]: item["currentBalance"]
+                for item in response.get_json()["wallets"]
+            }
+
+            assert balances[wallet_id] == "160.00"
+            assert balances[second_wallet_id] == "25.00"
+
+            print("PASS: Rejected move preserved both wallet balances")
+
+            # Remove the temporary expense to restore the original
+            # test balances before continuing existing tests.
+            response = owner.delete(
+                f"/api/cash-transactions/{move_expense_id}",
+                headers=owner_headers,
+            )
+
+            verify(
+                response,
+                200,
+                "Remove temporary wallet move expense",
+            )
+
+            response = owner.get("/api/cash-wallets")
+
+            balances = {
+                item["id"]: item["currentBalance"]
+                for item in response.get_json()["wallets"]
+            }
+
+            assert balances[wallet_id] == "190.00"
+            assert balances[second_wallet_id] == "25.00"
+
+            print("PASS: Wallet move test restored original balances")
 
             # Move the NZD 40 income to the second wallet.
             response = owner.patch(
