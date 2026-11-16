@@ -23,13 +23,24 @@ def money(value):
     return format(value, ".2f")
 
 def summarise(transactions, month, source, expense_rows=None):
-    income = expenses = refunds = ZERO
+    income = expenses = refunds = uncategorised_inflows = ZERO
     excluded = {"foreignCurrency": 0, "transfers": 0, "reviewNeeded": 0}
     categories = {}
     year, number = map(int, month.split("-"))
-    daily = {f"{month}-{day:02}": {"income": ZERO, "expenses": ZERO, "refunds": ZERO}
-             for day in range(1, calendar.monthrange(year, number)[1] + 1)}
+    daily = {
+        f"{month}-{day:02}": {
+            "income": ZERO,
+            "expenses": ZERO,
+            "refunds": ZERO,
+            "uncategorisedInflows": ZERO,
+        }
+        for day in range(
+            1,
+            calendar.monthrange(year, number)[1] + 1,
+        )
+    }
     count = uncategorised = bank_count = 0
+    uncategorised_inflow_count = 0
     for row in transactions:
         date = row.transaction_date
         local = date.date() if row.source == "CASH" else (
@@ -66,9 +77,21 @@ def summarise(transactions, month, source, expense_rows=None):
         if amount > 0 and is_refund:
             refunds += amount
             day["refunds"] += amount
+
+        elif (
+            amount > 0
+            and row.source == "BANK"
+            and category in ("", "uncategorised", "uncategorized")
+        ):
+            # Unknown bank credits are inflows, not confirmed income.
+            uncategorised_inflows += amount
+            uncategorised_inflow_count += 1
+            day["uncategorisedInflows"] += amount
+
         elif amount > 0:
             income += amount
             day["income"] += amount
+
         else:
             if expense_rows is not None:
                 expense_rows.append(row)
@@ -86,8 +109,15 @@ def summarise(transactions, month, source, expense_rows=None):
     groups = sorted(categories.values(), key=lambda item: (-item["amount"], item["name"].casefold()))
     return {
         "month": month, "source": source, "currency": "NZD",
-        "income": money(income), "expenses": money(expenses), "refunds": money(refunds),
-        "netCashFlow": money(income + refunds - expenses), "transactionCount": count,
+        "income": money(income),
+        "expenses": money(expenses),
+        "refunds": money(refunds),
+        "uncategorisedInflows": money(uncategorised_inflows),
+        "uncategorisedInflowCount": uncategorised_inflow_count,
+        "netCashFlow": money(
+            income + refunds + uncategorised_inflows - expenses
+        ),
+        "transactionCount": count,
         "uncategorisedCount": uncategorised, "bankTransactionCount": bank_count,
         "excluded": excluded,
         "coverage": "partial" if excluded["foreignCurrency"] or excluded["reviewNeeded"] else "complete",
