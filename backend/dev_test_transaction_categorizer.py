@@ -88,14 +88,35 @@ class BankCategorizationTests(unittest.TestCase):
         self.assertEqual(category, "Eating out")
         self.assertEqual(classify_budget_group(category), "WANTS")
 
-    def test_refunds_are_not_expenses(self):
-        self.assertIsNone(
+    def test_merchant_refund_is_automatically_categorised(self):
+        self.assertEqual(
             classify_bank_transaction(
                 "PAKNSAVE REFUND",
                 Decimal("30.00"),
                 "CREDIT",
-            )
+            ),
+            "Refund",
         )
+
+    def test_incoming_credit_classification(self):
+        cases = [
+            ("QA SALARY", "CREDIT", "Income"),
+            ("TRANSFER FROM EVERYDAY", "TRANSFER", "Internal Transfer"),
+            ("UNKNOWN CUSTOMER CREDIT", "CREDIT", None),
+            ("REFUND FROM NEW WORLD", "CREDIT", "Refund"),
+            ("CARD REVERSAL PAKNSAVE", "CREDIT", "Refund"),
+            ("REFUND TRANSFER", "TRANSFER", "Transfer"),
+        ]
+
+        for description, transaction_type, expected in cases:
+            with self.subTest(description=description):
+                result = classify_bank_transaction(
+                    description,
+                    Decimal("20.00"),
+                    transaction_type,
+                )
+
+                self.assertEqual(result, expected)
 
     def test_zero_amount(self):
         self.assertIsNone(

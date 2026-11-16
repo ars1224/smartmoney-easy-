@@ -69,6 +69,22 @@ def classify_bank_transaction(
     if re.search(r"\bTRANSFER FROM EVERYDAY\b", normalized):
         return "Internal Transfer"
 
+    # Recognise incoming refunds without confusing them with transfers.
+    # The original description preserves the merchant's name.
+    if (
+        value > 0
+        and "TRANSFER" not in transaction_kind
+        and not re.search(r"\bTRANSFER\b", normalized)
+        and (
+            transaction_kind == "REFUND"
+            or re.search(
+                r"\bREFUND(?:ED)?\b|\bREVERSAL\b",
+                normalized,
+            )
+        )
+    ):
+        return "Refund"
+
     # Recognised incoming employment income.
     if value > 0 and re.search(
         r"\bSALARY\b|\bPAYROLL\b|\bWAGES\b",
