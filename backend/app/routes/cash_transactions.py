@@ -16,6 +16,8 @@ from app.services.transaction_categorizer import (
     classify_budget_group,
 )
 
+from app.services.wallet_balance import calculate_wallet_balance
+
 
 cash_transactions_bp = Blueprint(
     "cash_transactions",
@@ -239,6 +241,17 @@ def create_cash_transaction():
             "error": "Cash wallet not found or archived."
         }), 404
 
+    # Prevent cash expenses from exceeding the wallet balance.
+    # The wallet row is already locked for this transaction.
+    if transaction_type == "expense":
+        current_balance = calculate_wallet_balance(wallet)
+
+        if amount > current_balance:
+            db.session.rollback()
+
+            return jsonify({
+                "error": "Insufficient cash wallet balance."
+            }), 409
     # Existing bank transactions use the BANK source.
     # Cash expenses are stored as negative amounts.
     signed_amount = (
@@ -442,13 +455,50 @@ def update_cash_transaction(transaction_id):
         if wallet.id == wallet_id
     )
 
-    transaction.cash_wallet_id = destination_wallet.id
-    transaction.bank_account_id = None
-    transaction.transaction_type = transaction_type
-    transaction.amount = (
+    # Calculate the new signed transaction amount.
+    new_signed_amount = (
         amount if transaction_type == "income"
         else -amount
     )
+
+    # Validate balance changes before modifying the transaction.
+    if (
+        transaction.cash_wallet_id != destination_wallet.id
+        or transaction.amount != new_signed_amount
+    ):
+        projected_balances = {
+            wallet.id: calculate_wallet_balance(wallet)
+            for wallet in wallets
+        }
+
+        # Reverse the original transaction's balance effect.
+        projected_balances[
+            transaction.cash_wallet_id
+        ] -= transaction.amount
+
+        # Apply the proposed transaction's balance effect.
+        projected_balances[
+            destination_wallet.id
+        ] += new_signed_amount
+
+        # Neither affected wallet may become negative.
+        if any(
+            balance < 0
+            for balance in projected_balances.values()
+        ):
+            db.session.rollback()
+
+            return jsonify({
+                "error": (
+                    "This change would make a cash wallet "
+                    "balance negative."
+                )
+            }), 409
+
+    transaction.cash_wallet_id = destination_wallet.id
+    transaction.bank_account_id = None
+    transaction.transaction_type = transaction_type
+    transaction.amount = new_signed_amount
     transaction.category = category
     transaction.description = category
     transaction.note = note.strip()
@@ -531,6 +581,22 @@ def delete_cash_transaction(transaction_id):
                 "wallets cannot be deleted."
             )
         }), 404
+
+    # Check the balance that would remain after deletion.
+    projected_balance = (
+        calculate_wallet_balance(wallet)
+        - transaction.amount
+    )
+
+    if projected_balance < 0:
+        db.session.rollback()
+
+        return jsonify({
+            "error": (
+                "Deleting this transaction would make "
+                "the cash wallet balance negative."
+            )
+        }), 409
 
     # Remove the incorrect transaction.
     # The wallet balance is calculated from remaining
