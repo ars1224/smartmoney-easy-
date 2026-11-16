@@ -60,13 +60,47 @@
         }}
       </strong>
 
+      @if (
+        !fundingLoading() &&
+        !fundingError() &&
+        (fundingSummary()?.savingsAccountCount ?? 0) > 0
+      ) {
+        <div
+          class="savings-pool-breakdown"
+          aria-label="Savings allocation breakdown"
+        >
+          <div class="savings-pool-row">
+            <span>Available for Goals</span>
+            <strong>{{ availableForGoalsLabel() }}</strong>
+          </div>
+
+          <div class="savings-pool-row">
+            <span>Allocated from Savings</span>
+            <strong>{{ allocatedFromSavingsLabel() }}</strong>
+          </div>
+        </div>
+
+        @if ((fundingSummary()?.savingsShortfall ?? 0) > 0) {
+          <p class="savings-pool-warning" role="alert">
+            One or more savings accounts have goal allocations
+            exceeding their individual balances by a combined
+            {{
+              formatCurrency(
+                fundingSummary()?.savingsShortfall ?? 0
+              )
+            }}.
+            Review your goal funding sources.
+          </p>
+        }
+      }
+
       <span class="summary-caption">
         @if (fundingError()) {
           Unable to load your savings balance.
         } @else if (fundingSummary()?.savingsAccountCount === 0) {
           Connect an NZD Savings account.
         } @else {
-          From your connected Savings account.
+          Based on your connected savings accounts
         }
       </span>
     </article>
