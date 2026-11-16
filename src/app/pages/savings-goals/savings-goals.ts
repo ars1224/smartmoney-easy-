@@ -65,6 +65,23 @@ export class SavingsGoalsPage implements OnInit {
       ? 'Unavailable'
       : this.formatCurrency(balance);
   });
+
+  readonly availableForGoalsLabel = computed(() => {
+  const available = this.fundingSummary()?.availableForGoals;
+
+  return available == null
+    ? 'Unavailable'
+    : this.formatCurrency(available);
+  });
+
+  readonly allocatedFromSavingsLabel = computed(() => {
+    const allocated = this.fundingSummary()?.allocatedFromSavings;
+
+    return allocated == null
+      ? 'Unavailable'
+      : this.formatCurrency(allocated);
+  });
+
   readonly pageError = signal('');
   readonly goals = signal<SavingsGoal[]>([]);
 
@@ -573,6 +590,8 @@ if (
 
     this.fundingBusy = false;
     this.closeFunding();
+
+    await this.loadFundingSummary();
   } catch (error: unknown) {
     this.fundingFormError = this.getFundingError(
       error,

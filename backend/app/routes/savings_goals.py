@@ -176,7 +176,7 @@ def get_savings_funding_summary():
 
     accounts = (
         db.session.query(
-            BankAccount.balance,
+            BankAccount.id,
             BankConnection.last_synced_at,
         )
         .join(
@@ -196,33 +196,50 @@ def get_savings_funding_summary():
         .all()
     )
 
-    if not accounts:
-        linked_balance = None
-        last_synced_at = None
-    else:
-        linked_balance = sum(
-            (
-                account.balance or Decimal("0.00")
-                for account in accounts
-            ),
-            Decimal("0.00"),
+    zero = Decimal("0.00")
+
+    linked_balance = zero
+    allocated_from_savings = zero
+    available_for_goals = zero
+    savings_shortfall = zero
+
+    for account in accounts:
+        source = get_funding_source(
+            user_id,
+            "BANK_ACCOUNT",
+            account.id,
         )
 
-        sync_dates = [
-            account.last_synced_at
-            for account in accounts
-            if account.last_synced_at is not None
-        ]
+        linked_balance += source["currentBalance"]
+        allocated_from_savings += source["allocated"]
+        available_for_goals += source["available"]
+        savings_shortfall += source["shortfall"]
 
-        last_synced_at = (
-            min(sync_dates).isoformat()
-            if sync_dates else None
-        )
+    sync_dates = [
+        account.last_synced_at
+        for account in accounts
+        if account.last_synced_at is not None
+    ]
+
+    last_synced_at = (
+        min(sync_dates).isoformat()
+        if sync_dates else None
+    )
+
+    has_accounts = bool(accounts)
 
     response = jsonify({
         "linkedSavingsBalance": (
-            str(linked_balance)
-            if linked_balance is not None else None
+            str(linked_balance) if has_accounts else None
+        ),
+        "allocatedFromSavings": (
+            str(allocated_from_savings) if has_accounts else None
+        ),
+        "availableForGoals": (
+            str(available_for_goals) if has_accounts else None
+        ),
+        "savingsShortfall": (
+            str(savings_shortfall) if has_accounts else None
         ),
         "savingsAccountCount": len(accounts),
         "currency": "NZD",

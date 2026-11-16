@@ -9,6 +9,9 @@ export type GoalGroup = 'NEEDS' | 'WANTS' | 'SAVINGS';
 
 export interface SavingsFundingSummary {
   linkedSavingsBalance: number | null;
+  allocatedFromSavings: number | null;
+  availableForGoals: number | null;
+  savingsShortfall: number | null;
   savingsAccountCount: number;
   currency: string;
   lastSyncedAt: string | null;
@@ -16,6 +19,9 @@ export interface SavingsFundingSummary {
 
 interface SavingsFundingSummaryDto {
   linkedSavingsBalance: string | null;
+  allocatedFromSavings: string | null;
+  availableForGoals: string | null;
+  savingsShortfall: string | null;
   savingsAccountCount: number;
   currency: string;
   lastSyncedAt: string | null;
@@ -366,9 +372,25 @@ export class SavingsGoalsService {
     ).pipe(
       map(response => ({
         linkedSavingsBalance:
-          response.linkedSavingsBalance === null
+          response.linkedSavingsBalance == null
             ? null
             : Number(response.linkedSavingsBalance),
+
+        allocatedFromSavings:
+          response.allocatedFromSavings == null
+            ? null
+            : Number(response.allocatedFromSavings),
+
+        availableForGoals:
+          response.availableForGoals == null
+            ? null
+            : Number(response.availableForGoals),
+
+        savingsShortfall:
+          response.savingsShortfall == null
+            ? null
+            : Number(response.savingsShortfall),
+
         savingsAccountCount: response.savingsAccountCount,
         currency: response.currency,
         lastSyncedAt: response.lastSyncedAt,
