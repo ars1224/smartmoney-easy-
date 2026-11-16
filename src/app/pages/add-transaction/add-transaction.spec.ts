@@ -46,6 +46,10 @@ describe('AddTransactionPage', () => {
     date: '2026-11-02',
     note: '',
     createdAt: '2026-11-02T00:00:00Z',
+
+    // Required by the current CashTransactionRecord interface.
+    goalId: null,
+    budgetGroup: null,
   };
 
   let component: AddTransactionPage;

@@ -159,4 +159,63 @@ class ReportsTests(unittest.TestCase):
     def test_success_has_no_store(self):
         self.assertEqual(self.client.get("/api/reports?month=2026-10").headers["Cache-Control"], "no-store")
 
+    def test_uncategorised_bank_credit_is_inflow_not_income(self):
+        # Genuine income.
+        self.row(
+            "4000.00",
+            kind="CREDIT",
+            category="Income",
+            description="QA SALARY",
+        )
+
+        # Ordinary expense.
+        self.row(
+            "-295.00",
+            kind="DEBIT",
+            category="Groceries",
+            description="QA GROCERIES",
+        )
+
+        # Recognised refund.
+        self.row(
+            "20.00",
+            kind="CREDIT",
+            category="Refund",
+            description="PAKNSAVE REFUND",
+        )
+
+        # Incoming money with no known category.
+        self.row(
+            "65.00",
+            kind="CREDIT",
+            category=None,
+            description="UNKNOWN CUSTOMER CREDIT",
+        )
+
+        result = self.report()
+
+        self.assertEqual(result["income"], "4000.00")
+        self.assertEqual(result["expenses"], "295.00")
+        self.assertEqual(result["refunds"], "20.00")
+
+        self.assertEqual(
+            result["uncategorisedInflows"],
+            "65.00",
+        )
+
+        self.assertEqual(
+            result["uncategorisedInflowCount"],
+            1,
+        )
+
+        self.assertEqual(result["netCashFlow"], "3790.00")
+        self.assertEqual(result["transactionCount"], 4)
+
+        self.assertEqual(
+            sum(
+                Decimal(day["uncategorisedInflows"])
+                for day in result["daily"]
+            ),
+            Decimal("65.00"),
+        )
 if __name__ == "__main__": unittest.main()
