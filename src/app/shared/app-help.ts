@@ -20,5 +20,5 @@ export function resolveAppHelpLinks(value: unknown): AppHelpPage[] {
     if (typeof id !== 'string' || !Object.hasOwn(APP_HELP.pages, id) || seen.has(id)) return [];
     seen.add(id);
     return [APP_HELP.pages[id]];
-  }).slice(0, 7);
+  }).slice(0, 8);
 }

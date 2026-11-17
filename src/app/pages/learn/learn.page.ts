@@ -1,3 +1,4 @@
+import { APP_HELP } from '../../shared/app-help';
 import { GettingStartedComponent } from './getting-started.component';
 import { CommonQuestionsComponent } from './common-questions.component';
 import { GuideReaderComponent } from './guide-reader.component';
@@ -48,7 +49,7 @@ export const LEARNING_GUIDES: Guide[] = [
     sections: [
       { title: 'Give your goal a purpose', body: 'Name something you care about: a rainy-day buffer, a course or a trip. Give your saving a purpose.' },
       { title: 'Choose a target and a date', body: 'Choose an amount and a date. Divide the amount by the paydays left, then check whether it fits your budget.' },
-      { title: 'Track your progress', body: 'Record each contribution. SmartMoney tracks your progress; it does not transfer money between accounts.' },
+      { title: 'Reserve and review your funds', body: APP_HELP.questions.find(question => question.id === 'goal-contributions')!.paragraphs[0] },
     ], action: 'Set a savings goal', route: '/app/goals',
   },
   {
