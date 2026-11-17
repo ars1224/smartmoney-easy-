@@ -7,7 +7,25 @@
           <h2 id="getting-started-title">{{ help.title }}</h2>
           <span class="intro-copy">{{ help.intro }}</span>
         </span>
-        <span class="guide-toggle"><span class="when-closed">Explore the app</span><span class="when-open">Hide guide</span><span class="chevron" aria-hidden="true">⌄</span></span>
+        <span class="guide-toggle"
+          ><span class="when-closed">Explore the app</span><span class="when-open">Hide guide</span
+          ><svg
+            class="chevron"
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              d="m6 9 6 6 6-6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            /></svg
+        ></span>
       </summary>
       <div class="guide-content">
         <p class="prototype-note">{{ help.developmentNote }}</p>
@@ -15,9 +33,17 @@
           @for (step of help.steps; track step.id; let index = $index) {
             <li>
               <span class="step-number" aria-hidden="true">0{{ index + 1 }}</span>
-              <div class="step-copy"><h3>{{ step.title }}</h3><p>{{ step.body }}</p><div class="step-links">
-                @for (link of step.links; track link.page) { <a [routerLink]="help.pages[link.page].route">{{ link.label }} <span aria-hidden="true">→</span></a> }
-              </div></div>
+              <div class="step-copy">
+                <h3>{{ step.title }}</h3>
+                <p>{{ step.body }}</p>
+                <div class="step-links">
+                  @for (link of step.links; track link.page) {
+                    <a [routerLink]="help.pages[link.page].route"
+                      >{{ link.label }} <span aria-hidden="true">→</span></a
+                    >
+                  }
+                </div>
+              </div>
             </li>
           }
         </ol>
