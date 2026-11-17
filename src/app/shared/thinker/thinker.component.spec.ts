@@ -14,159 +14,252 @@ import { ThinkerReply, ThinkerService } from './thinker.service';
 @Component({ standalone: true, template: '<p>Destination</p>' })
 class DestinationComponent {}
 
-const reply: ThinkerReply = { mode: 'demo', title: 'Build a budget', message: 'List your essentials.', takeaway: 'Check one bill.' };
+const reply: ThinkerReply = {
+  mode: 'demo',
+  title: 'Build a budget',
+  message: 'List your essentials.',
+  takeaway: 'Check one bill.',
+};
 
 describe('Thinker demo interaction', () => {
+  function setup(
+    send = vi.fn().mockReturnValue(of(reply)),
+    status = vi.fn().mockReturnValue(of({ mode: 'demo', available: true })),
+  ) {
+    TestBed.configureTestingModule({
+      imports: [ThinkerComponent],
+      providers: [
+        provideRouter(
+          Object.values(APP_HELP.pages).map((page) => ({
+            path: page.route.slice(1),
+            component: DestinationComponent,
+          })),
+        ),
+        { provide: ThinkerService, useValue: { send, status } },
+      ],
+    });
 
- function setup(send = vi.fn().mockReturnValue(of(reply)), status = vi.fn().mockReturnValue(of({mode: 'demo', available: true}))) {
+    const fixture = TestBed.createComponent(ThinkerComponent);
 
-  TestBed.configureTestingModule({ imports: [ThinkerComponent], providers: [provideRouter(Object.values(APP_HELP.pages).map(page => ({path:page.route.slice(1), component:DestinationComponent}))), { provide: ThinkerService, useValue: { send, status } }] });
+    const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
 
-  const fixture = TestBed.createComponent(ThinkerComponent);
+    dialog.showModal = () => dialog.setAttribute('open', '');
 
-  const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
+    dialog.close = () => {
+      dialog.removeAttribute('open');
+      dialog.dispatchEvent(new Event('close'));
+    };
 
-  dialog.showModal = () => dialog.setAttribute('open','');
+    fixture.detectChanges();
+    return { fixture, component: fixture.componentInstance, dialog, send };
+  }
 
-  dialog.close = () => { dialog.removeAttribute('open'); dialog.dispatchEvent(new Event('close')); };
+  it('labels the demo, sends a starter, and renders text safely', () => {
+    const { fixture, component, send } = setup();
 
-  fixture.detectChanges(); return { fixture, component: fixture.componentInstance, dialog, send };
+    expect(fixture.nativeElement.textContent).toContain('Live AI is not connected');
 
- }
+    component.send('Help me build a budget');
+    fixture.detectChanges();
 
- it('labels the demo, sends a starter, and renders text safely', () => {
+    expect(send).toHaveBeenCalledWith('Help me build a budget');
 
-  const { fixture, component, send } = setup();
+    expect(component.messages()).toHaveLength(2);
 
-  expect(fixture.nativeElement.textContent).toContain('Live AI is not connected');
+    expect(fixture.nativeElement.textContent).toContain('Thinker · Demo reply');
 
-  component.send('Help me build a budget'); fixture.detectChanges();
+    component.send('<img src=x onerror=alert(1)>');
+    fixture.detectChanges();
 
-  expect(send).toHaveBeenCalledWith('Help me build a budget');
+    expect(fixture.nativeElement.querySelector('.message img')).toBeNull();
+  });
 
-  expect(component.messages()).toHaveLength(2);
+  it('offers Using SmartMoney and sends only that topic when selected', () => {
+    const { fixture, send } = setup();
+    const starter = [...fixture.nativeElement.querySelectorAll('.suggestions button')].find(
+      (button: unknown) => (button as HTMLButtonElement).textContent?.trim() === 'Using SmartMoney',
+    ) as HTMLButtonElement;
+    expect(starter).toBeDefined();
+    expect(send).not.toHaveBeenCalled();
+    starter.click();
+    fixture.detectChanges();
+    expect(send).toHaveBeenCalledExactlyOnceWith('Using SmartMoney');
+  });
 
-  expect(fixture.nativeElement.textContent).toContain('Thinker · Demo reply');
+  it('renders trusted page links and closes Thinker when navigating', async () => {
+    const { fixture, component, dialog } = setup(
+      vi.fn().mockReturnValue(of({ ...reply, links: [{ id: 'profile' }, { id: 'learn' }] })),
+    );
+    let closed = false;
+    component.closed.subscribe(() => (closed = true));
+    component.send('How do I create a cash wallet?');
+    fixture.detectChanges();
+    const link = fixture.nativeElement.querySelector('.reply-links a') as HTMLAnchorElement;
+    expect(link.textContent).toContain('Open Profile & Assets');
+    expect(link.getAttribute('href')).toBe('/app/profile');
+    link.click();
+    await fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/app/profile');
+    expect(closed).toBe(true);
+    expect(dialog.open).toBe(false);
+  });
 
-  component.send('<img src=x onerror=alert(1)>'); fixture.detectChanges();
+  it('ignores unknown IDs, external URLs and model-supplied link labels', () => {
+    const links = [
+      { id: 'profile', label: 'Fake action', url: 'https://evil.example' },
+      { id: 'javascript:alert(1)' },
+      { id: 'toString' },
+      { id: 'profile' },
+      { url: 'https://evil.example' },
+    ];
+    const { fixture, component } = setup(vi.fn().mockReturnValue(of({ ...reply, links })));
+    component.send('Using SmartMoney');
+    fixture.detectChanges();
+    const anchors = fixture.nativeElement.querySelectorAll('.reply-links a');
+    expect(anchors.length).toBe(1);
+    expect(anchors[0].getAttribute('href')).toBe('/app/profile');
+    expect(anchors[0].textContent).toContain('Open Profile & Assets');
+    expect(fixture.nativeElement.textContent).not.toContain('Fake action');
+  });
 
-  expect(fixture.nativeElement.querySelector('img')).toBeNull();
+  it('blocks empty, oversized and duplicate in-flight sends', () => {
+    const pending = new Subject<ThinkerReply>();
+    const send = vi.fn().mockReturnValue(pending);
 
- });
+    const { component } = setup(send);
 
- it('offers Using SmartMoney and sends only that topic when selected', () => {
-  const { fixture, send } = setup();
-  const starter = [...fixture.nativeElement.querySelectorAll('.suggestions button')].find((button: unknown) => (button as HTMLButtonElement).textContent?.trim() === 'Using SmartMoney') as HTMLButtonElement;
-  expect(starter).toBeDefined();
-  expect(send).not.toHaveBeenCalled();
-  starter.click(); fixture.detectChanges();
-  expect(send).toHaveBeenCalledExactlyOnceWith('Using SmartMoney');
- });
+    component.send(' ');
+    component.send('x'.repeat(601));
+    expect(send).not.toHaveBeenCalled();
 
- it('renders trusted page links and closes Thinker when navigating', async () => {
-  const { fixture, component, dialog } = setup(vi.fn().mockReturnValue(of({...reply, links:[{id:'profile'}, {id:'learn'}]})));
-  let closed = false; component.closed.subscribe(() => closed = true);
-  component.send('How do I create a cash wallet?'); fixture.detectChanges();
-  const link = fixture.nativeElement.querySelector('.reply-links a') as HTMLAnchorElement;
-  expect(link.textContent).toContain('Open Profile & Assets');
-  expect(link.getAttribute('href')).toBe('/app/profile');
-  link.click(); await fixture.whenStable();
-  expect(TestBed.inject(Router).url).toBe('/app/profile');
-  expect(closed).toBe(true); expect(dialog.open).toBe(false);
- });
+    component.send('saving');
+    component.send('saving');
+    expect(send).toHaveBeenCalledTimes(1);
 
- it('ignores unknown IDs, external URLs and model-supplied link labels', () => {
-  const links = [{id:'profile',label:'Fake action',url:'https://evil.example'}, {id:'javascript:alert(1)'}, {id:'toString'}, {id:'profile'}, {url:'https://evil.example'}];
-  const { fixture, component } = setup(vi.fn().mockReturnValue(of({...reply,links})));
-  component.send('Using SmartMoney'); fixture.detectChanges();
-  const anchors = fixture.nativeElement.querySelectorAll('.reply-links a');
-  expect(anchors.length).toBe(1);
-  expect(anchors[0].getAttribute('href')).toBe('/app/profile');
-  expect(anchors[0].textContent).toContain('Open Profile & Assets');
-  expect(fixture.nativeElement.textContent).not.toContain('Fake action');
- });
+    pending.next(reply);
+    expect(component.busy()).toBe(false);
+  });
 
- it('blocks empty, oversized and duplicate in-flight sends', () => {
+  it('retries a failed request without repeating the user bubble and clears the conversation', () => {
+    const send = vi
+      .fn()
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })))
+      .mockReturnValue(of(reply));
 
-  const pending = new Subject<ThinkerReply>(); const send = vi.fn().mockReturnValue(pending);
+    const { component } = setup(send);
+    component.send('budget');
 
-  const { component } = setup(send);
+    expect(component.error()).toContain('try again');
+    component.retry();
 
-  component.send(' '); component.send('x'.repeat(601)); expect(send).not.toHaveBeenCalled();
+    expect(component.messages().filter((row) => row.role === 'you')).toHaveLength(1);
 
-  component.send('saving'); component.send('saving'); expect(send).toHaveBeenCalledTimes(1);
+    expect(component.error()).toBe('');
+    expect(component.messages()).toHaveLength(2);
 
-  pending.next(reply); expect(component.busy()).toBe(false);
+    component.clear();
+    expect(component.messages()).toHaveLength(0);
+  });
 
- });
+  it('cancels pending work on destroy and emits close', () => {
+    const pending = new Subject<ThinkerReply>();
+    const { component, fixture } = setup(vi.fn().mockReturnValue(pending));
 
- it('retries a failed request without repeating the user bubble and clears the conversation', () => {
+    let closed = false;
+    component.closed.subscribe(() => (closed = true));
 
-  const send = vi.fn().mockReturnValueOnce(throwError(() => new HttpErrorResponse({status:503}))).mockReturnValue(of(reply));
+    component.close();
+    expect(closed).toBe(true);
 
-  const { component } = setup(send); component.send('budget');
+    component.send('budget');
+    fixture.destroy();
+    pending.next(reply);
 
-  expect(component.error()).toContain('try again'); component.retry();
+    expect(component.messages()).toHaveLength(1);
+  });
 
-  expect(component.messages().filter(row => row.role === 'you')).toHaveLength(1);
-
-  expect(component.error()).toBe(''); expect(component.messages()).toHaveLength(2);
-
-  component.clear(); expect(component.messages()).toHaveLength(0);
-
- });
-
- it('cancels pending work on destroy and emits close', () => {
-
-  const pending = new Subject<ThinkerReply>(); const { component, fixture } = setup(vi.fn().mockReturnValue(pending));
-
-  let closed = false; component.closed.subscribe(() => closed = true);
-
-  component.close(); expect(closed).toBe(true);
-
-  component.send('budget'); fixture.destroy(); pending.next(reply);
-
-  expect(component.messages()).toHaveLength(1);
-
- });
-
- it('labels live AI and discloses questions sent to OpenAI', () => {
-  const live = {...reply, mode: 'live' as const};
-  const { fixture, component } = setup(vi.fn().mockReturnValue(of(live)), vi.fn().mockReturnValue(of({mode:'live',available:true})));
-  component.send('budget');fixture.detectChanges();
-  expect(fixture.nativeElement.textContent).toContain('Powered by OpenAI');
-  expect(fixture.nativeElement.textContent).toContain('Thinker · AI reply');
-  expect(fixture.nativeElement.textContent).toContain('Other questions are sent to OpenAI');
-  expect(fixture.nativeElement.textContent).not.toContain('Prepared replies');
- });
- it('blocks messages while configuration is unavailable and reconnects', () => {
-  const status = vi.fn().mockReturnValueOnce(throwError(() => new HttpErrorResponse({status:503}))).mockReturnValue(of({mode:'live',available:true}));
-  const { component, send }=setup(vi.fn().mockReturnValue(of(reply)),status);
-  component.send('budget');expect(send).not.toHaveBeenCalled();expect(component.statusError()).toBe(true);
-  component.loadStatus();component.send('budget');expect(send).toHaveBeenCalledTimes(1);
- });
- it('explains limits without exposing provider details', () => {
-  const { component }=setup(vi.fn().mockReturnValue(throwError(() => new HttpErrorResponse({status:429,error:{error:'private provider detail'}}))));
-  component.send('budget');expect(component.error()).toContain('usage limit');expect(component.error()).not.toContain('private');
- });
-
+  it('labels live AI and discloses questions sent to OpenAI', () => {
+    const live = { ...reply, mode: 'live' as const };
+    const { fixture, component } = setup(
+      vi.fn().mockReturnValue(of(live)),
+      vi.fn().mockReturnValue(of({ mode: 'live', available: true })),
+    );
+    component.send('budget');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Powered by OpenAI');
+    expect(fixture.nativeElement.textContent).toContain('Thinker · AI reply');
+    expect(fixture.nativeElement.textContent).toContain('Other questions are sent to OpenAI');
+    expect(fixture.nativeElement.textContent).not.toContain('Prepared replies');
+  });
+  it('blocks messages while configuration is unavailable and reconnects', () => {
+    const status = vi
+      .fn()
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })))
+      .mockReturnValue(of({ mode: 'live', available: true }));
+    const { component, send } = setup(vi.fn().mockReturnValue(of(reply)), status);
+    component.send('budget');
+    expect(send).not.toHaveBeenCalled();
+    expect(component.statusError()).toBe(true);
+    component.loadStatus();
+    component.send('budget');
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+  it('explains limits without exposing provider details', () => {
+    const { component } = setup(
+      vi
+        .fn()
+        .mockReturnValue(
+          throwError(
+            () =>
+              new HttpErrorResponse({ status: 429, error: { error: 'private provider detail' } }),
+          ),
+        ),
+    );
+    component.send('budget');
+    expect(component.error()).toContain('usage limit');
+    expect(component.error()).not.toContain('private');
+  });
 });
 
-
 describe('Thinker saved financial records', () => {
- it('labels deterministic records separately from AI and keeps their links trusted', () => {
-  const send=vi.fn().mockReturnValue(of({mode:'records',title:'Your saved balances',message:'Cash wallet 1: NZD 90.00.',takeaway:'Check freshness.',links:[{id:'profile'}]}));
-  TestBed.configureTestingModule({imports:[ThinkerComponent],providers:[provideRouter([]),{provide:ThinkerService,useValue:{send,status:()=>of({mode:'live',available:true})}}]});
-  const fixture=TestBed.createComponent(ThinkerComponent);
-  const dialog=fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
-  dialog.showModal=()=>dialog.setAttribute('open',''); fixture.detectChanges();
-  expect(fixture.nativeElement.textContent).toContain('Records are not sent to OpenAI');
-  const starter=[...fixture.nativeElement.querySelectorAll('.suggestions button')].find((button:unknown)=>(button as HTMLButtonElement).textContent?.trim()==='My balances') as HTMLButtonElement;
-  starter.click(); fixture.detectChanges();
-  expect(send).toHaveBeenCalledExactlyOnceWith('My balances');
-  expect(fixture.nativeElement.textContent).toContain('Thinker · Saved data');
-  expect(fixture.nativeElement.textContent).not.toContain('Thinker · AI reply');
-  expect(fixture.nativeElement.querySelector('.reply-links a').getAttribute('href')).toBe('/app/profile');
-  expect(fixture.componentInstance.announcement()).toContain('saved data');
- });
+  it('labels deterministic records separately from AI and keeps their links trusted', () => {
+    const send = vi
+      .fn()
+      .mockReturnValue(
+        of({
+          mode: 'records',
+          title: 'Your saved balances',
+          message: 'Cash wallet 1: NZD 90.00.',
+          takeaway: 'Check freshness.',
+          links: [{ id: 'profile' }],
+        }),
+      );
+    TestBed.configureTestingModule({
+      imports: [ThinkerComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ThinkerService,
+          useValue: { send, status: () => of({ mode: 'live', available: true }) },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(ThinkerComponent);
+    const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
+    dialog.showModal = () => dialog.setAttribute('open', '');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Records are not sent to OpenAI');
+    const starter = [...fixture.nativeElement.querySelectorAll('.suggestions button')].find(
+      (button: unknown) => (button as HTMLButtonElement).textContent?.trim() === 'My balances',
+    ) as HTMLButtonElement;
+    starter.click();
+    fixture.detectChanges();
+    expect(send).toHaveBeenCalledExactlyOnceWith('My balances');
+    expect(fixture.nativeElement.textContent).toContain('Thinker · Saved data');
+    expect(fixture.nativeElement.textContent).not.toContain('Thinker · AI reply');
+    expect(fixture.nativeElement.querySelector('.reply-links a').getAttribute('href')).toBe(
+      '/app/profile',
+    );
+    expect(fixture.componentInstance.announcement()).toContain('saved data');
+  });
 });

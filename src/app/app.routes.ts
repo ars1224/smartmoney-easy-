@@ -6,6 +6,7 @@ export const routes: Routes = [
   // Mock Bank OAuth callback
   {
     path: 'bank/callback',
+    title: 'Bank connection | SmartMoney! Easy',
     loadComponent: () =>
       import('./pages/bank-callback/bank-callback')
         .then((m) => m.BankCallbackPage),
@@ -18,18 +19,21 @@ export const routes: Routes = [
     children: [
       {
         path: 'login',
+        title: 'Log in | SmartMoney! Easy',
         loadComponent: () =>
           import('./pages/auth/login/login.page')
             .then((m) => m.LoginPage),
       },
       {
         path: 'register',
+        title: 'Create account | SmartMoney! Easy',
         loadComponent: () =>
           import('./pages/auth/register/register.page')
             .then((m) => m.RegisterPage),
       },
       {
         path: 'forgot-password',
+        title: 'Reset password | SmartMoney! Easy',
         loadComponent: () =>
           import('./pages/route-placeholder/route-placeholder.page')
             .then((m) => m.RoutePlaceholderPage),
@@ -54,6 +58,7 @@ export const routes: Routes = [
   // First-time onboarding
   {
     path: 'onboarding',
+    title: 'Getting started | SmartMoney! Easy',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./pages/onboarding/onboarding.page')
@@ -63,6 +68,7 @@ export const routes: Routes = [
   // Protected SmartMoney application
   {
     path: 'app',
+    title: 'SmartMoney! Easy',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
       import('./shell/app-shell.component')
@@ -70,6 +76,7 @@ export const routes: Routes = [
     children: [
       {
         path: 'dashboard',
+        title: 'Dashboard | SmartMoney! Easy',
         loadComponent: () =>
       import('./pages/dashboard/dashboard.page')
         .then((m) => m.DashboardPage),
@@ -85,6 +92,7 @@ export const routes: Routes = [
 
       {
         path: 'activity/add',
+        title: 'Add transaction | SmartMoney! Easy',
         loadComponent: () =>
           import('./pages/add-transaction/add-transaction').then(
             (m) => m.AddTransactionPage
@@ -94,6 +102,7 @@ export const routes: Routes = [
 
       {
         path: 'activity/edit/:id',
+        title: 'Edit transaction | SmartMoney! Easy',
         loadComponent: () =>
         import('./pages/add-transaction/add-transaction').then(
           (m) => m.AddTransactionPage
@@ -103,6 +112,7 @@ export const routes: Routes = [
 
       {
         path: 'activity',
+        title: 'Activity | SmartMoney! Easy',
         loadComponent: () =>
         import('./pages/activity/activity')
           .then((m) => m.ActivityPage),
@@ -110,6 +120,7 @@ export const routes: Routes = [
 
       {
         path: 'budgets',
+        title: 'Budgets | SmartMoney! Easy',
         loadComponent: () =>
         import('./pages/budgets/budgets')
           .then((m) => m.BudgetsPage),
@@ -118,12 +129,14 @@ export const routes: Routes = [
       // Savings Goals — Aries
       {
         path: 'goals',
+        title: 'Goals | SmartMoney! Easy',
         loadComponent: () =>
           import('./pages/savings-goals/savings-goals')
             .then((m) => m.SavingsGoalsPage),
       },
       {
         path: 'reports',
+        title: 'Reports | SmartMoney! Easy',
         loadComponent: () =>
           import('./pages/reports/reports.page')
             .then((m) => m.ReportsPage),
@@ -136,6 +149,7 @@ export const routes: Routes = [
       },
       {
         path: 'learn',
+        title: 'Learn | SmartMoney! Easy',
         loadComponent: () =>
           import('./pages/learn/learn.page')
             .then((m) => m.LearnPage),
@@ -148,6 +162,7 @@ export const routes: Routes = [
       },
       {
         path: 'bank/connect',
+        title: 'Bank connection | SmartMoney! Easy',
         loadComponent: () =>
           import('./pages/bank-callback/bank-callback')
             .then((m) => m.BankCallbackPage),
@@ -155,6 +170,7 @@ export const routes: Routes = [
 
       {
         path: 'bank/accounts/:accountId',
+        title: 'Bank account | SmartMoney! Easy',
         loadComponent: () =>
           import('./pages/bank-account-details/bank-account-details')
             .then((m) => m.BankAccountDetailsPage),
@@ -163,6 +179,7 @@ export const routes: Routes = [
 
       {
         path: 'profile/settings',
+        title: 'Profile settings | SmartMoney! Easy',
         loadComponent: () =>
           import('./pages/profile-settings/profile-settings.page').then(
             (m) => m.ProfileSettingsPage,
@@ -170,6 +187,7 @@ export const routes: Routes = [
       },
       {
         path: 'profile',
+        title: 'Profile & Assets | SmartMoney! Easy',
         loadComponent: () =>
           import('./pages/profile-assets/profile-assets')
             .then((m) => m.ProfileAssetsPage),
@@ -186,6 +204,7 @@ export const routes: Routes = [
   // Public information pages
   {
     path: 'about',
+    title: 'About | SmartMoney! Easy',
     loadComponent: () =>
       import('./pages/route-placeholder/route-placeholder.page')
         .then((m) => m.RoutePlaceholderPage),
@@ -201,6 +220,7 @@ export const routes: Routes = [
   },
   {
     path: 'privacy',
+    title: 'Privacy | SmartMoney! Easy',
     loadComponent: () =>
       import('./pages/route-placeholder/route-placeholder.page')
         .then((m) => m.RoutePlaceholderPage),

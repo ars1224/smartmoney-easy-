@@ -84,3 +84,85 @@ textarea {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Shared main-page heading, based on the Goals hierarchy.
+   Opt-in classes keep form, dialog and authentication headings unchanged. */
+:root .sm-page-heading {
+  font-family: var(--ion-font-family);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sm-space-4);
+  margin-bottom: var(--sm-space-6);
+}
+:root .sm-page-heading .sm-heading-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+:root .sm-page-heading .sm-heading-copy > .sm-page-eyebrow {
+  margin: 0;
+  color: var(--sm-color-teal-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+:root .sm-page-heading .sm-heading-copy > .sm-page-title {
+  margin: 0.375rem 0 0.5rem;
+  color: var(--sm-color-navy);
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+}
+:root .sm-page-heading .sm-heading-copy > .sm-page-subtitle {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--sm-color-text-muted);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.6;
+}
+:root .sm-page-heading .sm-heading-copy > .sm-page-meta {
+  margin: var(--sm-space-2) 0 0;
+  color: var(--sm-color-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+/* Main destinations share one alignment grid; forms and dialogs keep their own widths. */
+:root .app-shell .sm-page-layout {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 88rem;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 2rem 2rem calc(5rem + env(safe-area-inset-bottom));
+}
+
+/* Keep content centred consistently on pages with and without a scrollbar. */
+:root .app-shell__body {
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 767px) {
+  :root .app-shell .sm-page-layout {
+    padding: 1rem 1rem calc(6rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Settings uses Ionic's scroll area inside the shell's scrolling viewport. */
+:root app-profile-settings ion-content::part(scroll) {
+  scrollbar-width: none;
+}
+
+@media (max-width: 63.999rem) {
+  :root .app-shell .app-header__brand img {
+    width: clamp(100px, 33vw, 150px);
+    max-height: 44px;
+    object-fit: contain;
+  }
+}

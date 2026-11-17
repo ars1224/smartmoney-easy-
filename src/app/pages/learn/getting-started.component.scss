@@ -1,30 +1,186 @@
-:host { display: block; margin-bottom: 1.5rem; }
-:host ::ng-deep app-sm-card > .sm-card { padding: 0; overflow: hidden; border: 1px solid var(--sm-color-border); }
-summary { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.25rem; cursor: pointer; list-style: none; background: var(--sm-color-teal-soft); }
-summary::-webkit-details-marker { display: none; }
-.guide-intro { display: block; min-width: 0; }
-.eyebrow { display: block; color: var(--sm-color-teal-dark); font-size: .75rem; font-weight: 700; margin-bottom: .4rem; }
-h2 { font-size: clamp(1.1rem, 2.5vw, 1.3rem); line-height: 1.4; margin: 0 0 .4rem; color: var(--sm-color-text); }
-.intro-copy { color: var(--sm-color-text-muted); font-size: .85rem; line-height: 1.6; }
-.guide-toggle { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; gap: .6rem; min-height: 44px; border: 1px solid var(--sm-color-teal-dark); padding: .4rem .8rem; border-radius: var(--sm-radius-md, .5rem); color: var(--sm-color-teal-dark); font-size: .8rem; font-weight: 650; }
-.when-open { display: none; }
-[open] .when-open { display: inline; }
-[open] .when-closed { display: none; }
-[open] .chevron { transform: rotate(180deg); }
-.guide-content { padding: 0 1.25rem 1.25rem; }
-.prototype-note, .return-note { color: var(--sm-color-text-muted); font-size: .78rem; line-height: 1.6; margin: 1.2rem 0 0; }
-.prototype-note { border-left: 3px solid var(--sm-color-yellow); padding-left: .75rem; }
-.guide-steps { padding: 0; margin: 1.25rem 0 0; list-style: none; }
-li { display: flex; gap: 1rem; padding: 1.1rem 0; border-bottom: 1px solid var(--sm-color-border); }
-li:first-child { padding-top: 0; }
-.step-number { flex: 0 0 2rem; height: 2rem; display: grid; place-items: center; border-radius: 50%; background: var(--sm-color-teal-soft); color: var(--sm-color-teal-dark); font-size: .75rem; font-weight: 700; }
-.step-copy { min-width: 0; max-width: 58rem; }
-h3 { font-size: .98rem; line-height: 1.5; margin: .1rem 0 .4rem; }
-.step-copy p { font-size: .85rem; line-height: 1.75; color: var(--sm-color-text-muted); margin: 0; }
-.step-copy strong { color: var(--sm-color-text); font-weight: 600; }
-a { display: inline-flex; align-items: center; gap: .6rem; min-height: 44px; color: var(--sm-color-teal-dark); font-size: .82rem; font-weight: 650; text-decoration: underline; text-underline-offset: .2em; }
-.step-links { display: flex; flex-wrap: wrap; gap: 0 1.5rem; }
-summary:focus-visible { outline: 3px solid var(--sm-color-teal-dark); outline-offset: -4px; }
-a:focus-visible { outline: 3px solid var(--sm-color-teal-dark); outline-offset: 3px; border-radius: 2px; }
-@media (max-width: 40rem) { summary { align-items: flex-start; flex-direction: column; gap: .85rem; } .guide-toggle { align-self: flex-start; } li { gap: .75rem; } }
-@media (min-width: 64rem) { summary { padding: 1.5rem; } .guide-content { padding: 0 1.5rem 1.5rem; } }
+:host {
+  display: block;
+  margin-bottom: 1.5rem;
+  font-family: var(--ion-font-family);
+}
+:host ::ng-deep app-sm-card > .sm-card {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--sm-color-border);
+}
+summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.25rem;
+  cursor: pointer;
+  list-style: none;
+  background: var(--sm-color-teal-soft);
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+.guide-intro {
+  display: block;
+  min-width: 0;
+}
+.eyebrow {
+  display: block;
+  color: var(--sm-color-teal-dark);
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+h2 {
+  font-size: clamp(1.2rem, 2.5vw, 1.4rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.4;
+  margin: 0 0 0.4rem;
+  color: var(--sm-color-text);
+}
+.intro-copy {
+  color: var(--sm-color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.guide-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 0.6rem;
+  min-height: 44px;
+  border: 1px solid var(--sm-color-teal-dark);
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--sm-radius-md, 0.5rem);
+  color: var(--sm-color-teal-dark);
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: var(--sm-color-surface);
+}
+.chevron {
+  display: block;
+  flex: 0 0 16px;
+}
+summary:hover .guide-toggle {
+  background: var(--sm-color-background);
+}
+.when-open {
+  display: none;
+}
+[open] .when-open {
+  display: inline;
+}
+[open] .when-closed {
+  display: none;
+}
+[open] .chevron {
+  transform: rotate(180deg);
+}
+.guide-content {
+  padding: 0 1.25rem 1.25rem;
+}
+.prototype-note,
+.return-note {
+  color: var(--sm-color-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  margin: 1.2rem 0 0;
+}
+.prototype-note {
+  border-left: 3px solid var(--sm-color-yellow);
+  padding-left: 0.75rem;
+}
+.guide-steps {
+  padding: 0;
+  margin: 1.25rem 0 0;
+  list-style: none;
+}
+li {
+  display: flex;
+  gap: 1rem;
+  padding: 1.1rem 0;
+  border-bottom: 1px solid var(--sm-color-border);
+}
+li:first-child {
+  padding-top: 0;
+}
+.step-number {
+  flex: 0 0 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--sm-color-teal-soft);
+  color: var(--sm-color-teal-dark);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.step-copy {
+  min-width: 0;
+  max-width: 58rem;
+}
+h3 {
+  font-size: 0.98rem;
+  line-height: 1.5;
+  margin: 0.1rem 0 0.4rem;
+}
+.step-copy p {
+  font-size: 0.85rem;
+  line-height: 1.75;
+  color: var(--sm-color-text-muted);
+  margin: 0;
+}
+.step-copy strong {
+  color: var(--sm-color-text);
+  font-weight: 600;
+}
+a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  color: var(--sm-color-teal-dark);
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.step-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+}
+summary:focus-visible {
+  outline: 3px solid var(--sm-color-teal-dark);
+  outline-offset: -4px;
+}
+a:focus-visible {
+  outline: 3px solid var(--sm-color-teal-dark);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+@media (max-width: 40rem) {
+  summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+  .guide-toggle {
+    align-self: stretch;
+    justify-content: space-between;
+  }
+  li {
+    gap: 0.75rem;
+  }
+}
+@media (min-width: 64rem) {
+  summary {
+    padding: 1.5rem;
+  }
+  .guide-content {
+    padding: 0 1.5rem 1.5rem;
+  }
+}

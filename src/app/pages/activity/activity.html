@@ -1,15 +1,18 @@
-<main class="activity-page">
+<main class="activity-page sm-page-layout">
 
   <!-- Activity Header -->
-  <header class="activity-header">
-    <div>
-      <h1>Activity</h1>
-      <p>Cash and bank transactions with editable categories.</p>
+  <header class="activity-header sm-page-heading">
+    <div class="sm-heading-copy">
+      <p class="sm-page-eyebrow">Track your money</p>
+      <h1 class="sm-page-title">Activity</h1>
+      <p class="sm-page-subtitle">Review and manage your cash and bank transactions.</p>
     </div>
   </header>
 
 
-<div class="activity-extra-filters">
+<div class="activity-extra-filters" role="group" aria-label="Activity filters">
+  <label class="activity-filter-field">
+    <span>Budget group</span>
   <select
     class="source-filter"
     aria-label="Filter by budget group"
@@ -20,7 +23,10 @@
     <option value="WANTS">WANTS</option>
     <option value="SAVINGS">SAVINGS</option>
   </select>
+  </label>
 
+  <label class="activity-filter-field">
+    <span>Category</span>
   <select
     class="source-filter"
     aria-label="Filter by category"
@@ -34,6 +40,7 @@
       </option>
     }
   </select>
+  </label>
 
   <button
     type="button"
