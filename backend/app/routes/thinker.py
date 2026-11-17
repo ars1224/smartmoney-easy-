@@ -10,9 +10,21 @@ from app.services.thinker import ThinkerError, get_reply, reserve_request
 thinker_bp = Blueprint("thinker", __name__, url_prefix="/api/thinker")
 
 TOPICS = {
-    "budget": ("Build a simple budget", "Start with money you have actually received. List essentials such as rent, groceries, transport and bills, including costs that do not happen every week. Then decide what you can set aside for savings and flexible spending. Review the plan when your income or costs change.", "Write down one bill due before your next payday."),
-    "saving": ("Plan a savings goal", "Choose a target and a realistic date. Divide the amount still needed by the number of weeks available. For example, saving $120 over six weeks means $20 per week. These are example figures, not a recommendation based on your finances.", "Pick one goal and work out a weekly amount you could review."),
-    "spending": ("Understand your spending", "Review your recorded transactions for the same period and group expenses by category. Check uncategorised entries and separate transfers between your own accounts from spending. A cash-flow total describes recorded movement; it is not an available bank balance.", "Check one recent transaction and confirm its category."),
+    "budget": (
+        "Build a simple budget",
+        "Start with money you have actually received. List essentials such as rent, groceries, transport and bills, including costs that do not happen every week. Then decide what you can set aside for savings and flexible spending. Review the plan when your income or costs change.",
+        "Write down one bill due before your next payday."
+    ),
+    "saving": (
+        "Plan a savings goal",
+        "Choose a target and a realistic date. Divide the amount still needed by the number of weeks available. For example, saving $120 over six weeks means $20 per week. These are example figures, not a recommendation based on your finances.",
+        "Pick one goal and work out a weekly amount you could review."
+    ),
+    "spending": (
+        "Understand your spending",
+        "Review your recorded transactions for the same period and group expenses by category. Check uncategorised entries and separate transfers between your own accounts from spending. A cash-flow total describes recorded movement; it is not an available bank balance.",
+        "Check one recent transaction and confirm its category."
+    ),
 }
 
 @thinker_bp.post("/messages")
@@ -43,7 +55,9 @@ def message():
             response.headers["Cache-Control"] = "private, no-store"
             return response
     if mode == "live":
-        if not current_app.config.get("OPENAI_API_KEY") or current_app.config.get("OPENAI_MODEL") != "gpt-5.4-mini":
+        if not current_app.config.get("OPENAI_API_KEY") or current_app.config.get(
+            "OPENAI_MODEL"
+        ) != "gpt-5.4-mini":
             return jsonify(error="Thinker is not configured. Please contact the project team."), 503
         try:
             reserve_request(current_app, get_authenticated_user_id())
@@ -73,8 +87,18 @@ def message():
         topic = "spending"
     else:
         topic = None
-    title, body, takeaway = TOPICS[topic] if topic else ("Try a demo topic", "This demo offers prepared explanations about budgeting, saving and understanding spending. It cannot answer other questions, view your accounts or remember earlier messages. Choose Using SmartMoney for app instructions.", "Choose one of the suggested topics below.")
-    response = jsonify(mode="demo", title=title, message=body, takeaway=takeaway, links=help_links(text))
+    title, body, takeaway = TOPICS[topic] if topic else (
+        "Try a demo topic",
+        "This demo offers prepared explanations about budgeting, saving and understanding spending. It cannot answer other questions, view your accounts or remember earlier messages. Choose Using SmartMoney for app instructions.",
+        "Choose one of the suggested topics below."
+    )
+    response = jsonify(
+        mode="demo",
+        title=title,
+        message=body,
+        takeaway=takeaway,
+        links=help_links(text)
+    )
     response.headers["Cache-Control"] = "private, no-store"
     return response
 
@@ -84,7 +108,14 @@ def status():
     if not get_authenticated_user_id():
         return jsonify(error="Sign in to use Thinker."), 401
     mode = current_app.config.get("THINKER_MODE", "demo")
-    available = mode == "demo" or (mode == "live" and bool(current_app.config.get("OPENAI_API_KEY")) and current_app.config.get("OPENAI_MODEL") == "gpt-5.4-mini")
-    response = jsonify(mode=mode if mode in ("demo", "live") else "unavailable", available=available)
+    available = mode == "demo" or (
+        mode == "live" and bool(current_app.config.get("OPENAI_API_KEY")) and current_app.config.get(
+            "OPENAI_MODEL"
+        ) == "gpt-5.4-mini"
+    )
+    response = jsonify(
+        mode=mode if mode in ("demo", "live") else "unavailable",
+        available=available
+    )
     response.headers["Cache-Control"] = "private, no-store"
     return response

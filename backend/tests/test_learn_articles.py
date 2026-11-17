@@ -2,10 +2,18 @@
 
 Uses mocked HTTP and signed test sessions; no database writes or external calls.
 """
+
 import unittest
 from unittest.mock import Mock, patch
+
 from app import create_app
-from app.services.learn_articles import YahooArticleFeed, parse_articles, is_yahoo_url, is_discovery_link, learning_topic
+from app.services.learn_articles import (
+    YahooArticleFeed,
+    parse_articles,
+    is_yahoo_url,
+    is_discovery_link,
+    learning_topic,
+)
 
 RSS = b'''<rss version="2.0"><channel>
 <item><title>Build a savings habit &amp; make a plan</title><link>https://finance.yahoo.com/news/saving.html</link><pubDate>Tue, 27 Oct 2026 01:00:00 GMT</pubDate></item>
@@ -36,7 +44,11 @@ class LearnArticleTests(unittest.TestCase):
         self.assertFalse(is_yahoo_url('https://finance.yahoo.com:444/feed', True))
 
     def test_accepts_current_yahoo_market_article_paths(self):
-        self.assertTrue(is_yahoo_url("https://finance.yahoo.com/markets/stocks/articles/example-123.html?.tsrc=rss"))
+        self.assertTrue(
+            is_yahoo_url(
+                "https://finance.yahoo.com/markets/stocks/articles/example-123.html?.tsrc=rss"
+            )
+        )
 
     def test_discovery_requires_yahoo_source_and_relevant_topics(self):
         content = b'''<rss><channel>
@@ -60,7 +72,9 @@ class LearnArticleTests(unittest.TestCase):
 
     def test_rejects_entities_and_oversize_content(self):
         with self.assertRaises(Exception):
-            parse_articles(b'<!DOCTYPE rss [<!ENTITY x "unsafe">]><rss><channel><item><title>&x;</title></item></channel></rss>')
+            parse_articles(
+                b'<!DOCTYPE rss [<!ENTITY x "unsafe">]><rss><channel><item><title>&x;</title></item></channel></rss>'
+            )
         with self.assertRaises(ValueError):
             parse_articles(b'x' * (1024 * 1024 + 1))
 
@@ -68,15 +82,29 @@ class LearnArticleTests(unittest.TestCase):
     def test_cache_and_stale_fallback(self, get):
         get.return_value = response()
         feed = YahooArticleFeed()
-        first = feed.load('https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US')
+        first = feed.load(
+            'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US'
+        )
         self.assertEqual(first['status'], 'available')
-        self.assertEqual(feed.load('https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US'), first)
+        self.assertEqual(
+            feed.load(
+                'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US'
+            ),
+            first,
+        )
         get.assert_called_once()
         feed._next_attempt = 0
         get.return_value = response(status=429)
-        self.assertEqual(feed.load('https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US')['status'], 'stale')
+        self.assertEqual(
+            feed.load(
+                'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US'
+            )['status'],
+            'stale',
+        )
         self.assertEqual(get.call_count, 2)
-        feed.load('https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US')
+        feed.load(
+            'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US'
+        )
         self.assertEqual(get.call_count, 2)
 
     @patch('app.services.learn_articles.requests.get')
@@ -86,7 +114,12 @@ class LearnArticleTests(unittest.TestCase):
         self.assertEqual(feed.load('https://example.com/feed')['status'], 'unavailable')
         get.assert_not_called()
         get.return_value = response(b'<not-xml')
-        self.assertEqual(feed.load('https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US')['articles'], [])
+        self.assertEqual(
+            feed.load(
+                'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US'
+            )['articles'],
+            [],
+        )
 
     @patch('app.services.learn_articles.requests.get')
     def test_route_requires_session_and_does_not_accept_query_url(self, get):
