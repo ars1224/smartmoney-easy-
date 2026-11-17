@@ -10,7 +10,10 @@ describe('LearnPage', () => {
   const endpoint = `${environment.apiUrl}/learn/articles`;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ imports: [LearnPage], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({
+      imports: [LearnPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
     http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => http.verify());
@@ -21,9 +24,11 @@ describe('LearnPage', () => {
     fixture.detectChanges();
     const page = fixture.componentInstance;
     expect(page.guides().length).toBe(4);
-    expect(fixture.nativeElement.textContent).toContain('Yahoo Finance articles are currently unavailable');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Yahoo Finance articles are currently unavailable',
+    );
     page.topic.set('Saving');
-    expect(page.guides().map(g => g.id)).toEqual(['saving']);
+    expect(page.guides().map((g) => g.id)).toEqual(['saving']);
     page.search.set('does not exist');
     expect(page.guides()).toEqual([]);
     page.resetFilters();
@@ -37,15 +42,27 @@ describe('LearnPage', () => {
     expect(page.listedGuides().length).toBe(4);
     page.hideImage('budget');
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('img[src="assets/learn/budget-notebook.jpg"]')).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('img[src="assets/learn/budget-notebook.jpg"]'),
+    ).toBeNull();
     expect(fixture.nativeElement.querySelector('.guide-placeholder')).not.toBeNull();
     page.topic.set('Budgeting');
-    expect(page.listedGuides().map(g => g.id)).toEqual(['budget']);
+    expect(page.listedGuides().map((g) => g.id)).toEqual(['budget']);
   });
 
   it('reveals three articles at a time and resets the limit when searching', () => {
     const fixture = TestBed.createComponent(LearnPage);
-    http.expectOne(endpoint).flush({ status: 'available', fetchedAt: null, articles: Array.from({ length: 7 }, (_, i) => ({ title: `Saving guide ${i}`, url: `https://finance.yahoo.com/news/${i}`, publishedAt: null })) });
+    http
+      .expectOne(endpoint)
+      .flush({
+        status: 'available',
+        fetchedAt: null,
+        articles: Array.from({ length: 7 }, (_, i) => ({
+          title: `Saving guide ${i}`,
+          url: `https://finance.yahoo.com/news/${i}`,
+          publishedAt: null,
+        })),
+      });
     const page = fixture.componentInstance;
     expect(page.visibleArticles().length).toBe(3);
     page.showMoreArticles();
@@ -58,10 +75,18 @@ describe('LearnPage', () => {
     const fixture = TestBed.createComponent(LearnPage);
     const request = http.expectOne(endpoint);
     expect(request.request.withCredentials).toBe(true);
-    request.flush({ status: 'available', fetchedAt: null, articles: [
-      { title: '<img src=x onerror=alert(1)> A headline', url: 'https://finance.yahoo.com/news/test.html', publishedAt: null },
-      { title: 'Unsafe', url: 'javascript:alert(1)', publishedAt: null },
-    ] });
+    request.flush({
+      status: 'available',
+      fetchedAt: null,
+      articles: [
+        {
+          title: '<img src=x onerror=alert(1)> A headline',
+          url: 'https://finance.yahoo.com/news/test.html',
+          publishedAt: null,
+        },
+        { title: 'Unsafe', url: 'javascript:alert(1)', publishedAt: null },
+      ],
+    });
     fixture.detectChanges();
     expect(fixture.componentInstance.articles().length).toBe(1);
     expect(fixture.nativeElement.querySelector('.news-card img')).toBeNull();
@@ -72,23 +97,48 @@ describe('LearnPage', () => {
 
   it('accepts explicitly attributed Google News article links and rejects other Google URLs', () => {
     const fixture = TestBed.createComponent(LearnPage);
-    http.expectOne(endpoint).flush({ status: 'available', fetchedAt: null, articles: [
-      { title: 'Budget guide - Yahoo Finance', url: 'https://news.google.com/rss/articles/example', publishedAt: '2026-10-08T07:00:00Z', via: 'Google News', topic: 'Budgeting' },
-      { title: 'Wrong path', url: 'https://news.google.com/search?q=budget', publishedAt: null, via: 'Google News' },
-      { title: 'Missing attribution', url: 'https://news.google.com/rss/articles/another', publishedAt: null },
-    ] });
+    http.expectOne(endpoint).flush({
+      status: 'available',
+      fetchedAt: null,
+      articles: [
+        {
+          title: 'Budget guide - Yahoo Finance',
+          url: 'https://news.google.com/rss/articles/example',
+          publishedAt: '2026-10-08T07:00:00Z',
+          via: 'Google News',
+          topic: 'Budgeting',
+        },
+        {
+          title: 'Wrong path',
+          url: 'https://news.google.com/search?q=budget',
+          publishedAt: null,
+          via: 'Google News',
+        },
+        {
+          title: 'Missing attribution',
+          url: 'https://news.google.com/rss/articles/another',
+          publishedAt: null,
+        },
+      ],
+    });
     fixture.detectChanges();
     expect(fixture.componentInstance.articles().length).toBe(1);
-    expect(fixture.nativeElement.querySelector('.news-card').textContent).toContain('via Google News');
+    expect(fixture.nativeElement.querySelector('.news-card').textContent).toContain(
+      'via Google News',
+    );
     expect(fixture.nativeElement.querySelector('.news-card').textContent).toContain('Feed date');
-    expect(fixture.nativeElement.querySelector('.news-card a').textContent).toContain('Read via Google News');
+    expect(fixture.nativeElement.querySelector('.news-card a').textContent).toContain(
+      'Read via Google News',
+    );
   });
 
   it('keeps app help available when the article feed fails or learning filters change', () => {
     const fixture = TestBed.createComponent(LearnPage);
     http.expectOne(endpoint).flush('Unavailable', { status: 503, statusText: 'Unavailable' });
     fixture.detectChanges();
-    const guide = fixture.nativeElement.querySelector('app-getting-started details') as HTMLDetailsElement;
+    const guide = fixture.nativeElement.querySelector(
+      'app-getting-started details',
+    ) as HTMLDetailsElement;
     guide.querySelector('summary')!.click();
     fixture.componentInstance.topic.set('Saving');
     fixture.componentInstance.setSearch('no matching guide');
@@ -104,11 +154,18 @@ describe('LearnPage', () => {
     http.expectOne(endpoint).flush({ articles: [], status: 'available', fetchedAt: null });
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('app-daily-challenge')).not.toBeNull();
-    const read = fixture.nativeElement.querySelector('button[aria-label="Read guide: Make a plan for payday"]') as HTMLButtonElement;
+    const read = fixture.nativeElement.querySelector(
+      'button[aria-label="Read guide: Make a plan for payday"]',
+    ) as HTMLButtonElement;
     // jsdom has no native dialog API; browser verification covers modal behavior.
-    const dialog = fixture.nativeElement.querySelector('app-guide-reader dialog') as HTMLDialogElement;
+    const dialog = fixture.nativeElement.querySelector(
+      'app-guide-reader dialog',
+    ) as HTMLDialogElement;
     dialog.showModal = () => dialog.setAttribute('open', '');
-    dialog.close = () => { dialog.removeAttribute('open'); dialog.dispatchEvent(new Event('close')); };
+    dialog.close = () => {
+      dialog.removeAttribute('open');
+      dialog.dispatchEvent(new Event('close'));
+    };
     read.click();
     fixture.detectChanges();
     expect(fixture.componentInstance.activeGuide()?.id).toBe('budget');

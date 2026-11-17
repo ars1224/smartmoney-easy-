@@ -8,12 +8,24 @@ import { CommonQuestionsComponent } from './common-questions.component';
 @Component({ standalone: true, template: '<p>Destination</p>' })
 class DestinationComponent {}
 
-const destinations = ['/onboarding', '/app/profile', '/app/activity', '/app/budgets', '/app/goals', '/app/dashboard', '/app/reports'];
+const destinations = [
+  '/onboarding',
+  '/app/profile',
+  '/app/activity',
+  '/app/budgets',
+  '/app/goals',
+  '/app/dashboard',
+  '/app/reports',
+];
 
 beforeEach(() => {
   TestBed.configureTestingModule({
     imports: [GettingStartedComponent, CommonQuestionsComponent],
-    providers: [provideRouter(destinations.map(path => ({ path: path.slice(1), component: DestinationComponent })))],
+    providers: [
+      provideRouter(
+        destinations.map((path) => ({ path: path.slice(1), component: DestinationComponent })),
+      ),
+    ],
   });
 });
 
@@ -43,7 +55,8 @@ describe('Getting started app guide', () => {
     fixture.detectChanges();
     fixture.nativeElement.querySelector('summary').click();
     const link = fixture.nativeElement.querySelector('a[href="/onboarding"]') as HTMLAnchorElement;
-    link.click(); await fixture.whenStable();
+    link.click();
+    await fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/onboarding');
   });
 
@@ -52,11 +65,16 @@ describe('Getting started app guide', () => {
     fixture.detectChanges();
     fixture.nativeElement.querySelector('summary').click();
     const links = [...fixture.nativeElement.querySelectorAll('a')] as HTMLAnchorElement[];
-    const childPaths = ['/onboarding', ...routes.find(route => route.path === 'app')!.children!.map(route => `/app/${route.path}`)];
-    expect(routes.some(route => route.path === 'onboarding')).toBe(true);
-    expect(links.map(link => link.getAttribute('href'))).toEqual(destinations);
+    const childPaths = [
+      '/onboarding',
+      ...routes
+        .find((route) => route.path === 'app')!
+        .children!.map((route) => `/app/${route.path}`),
+    ];
+    expect(routes.some((route) => route.path === 'onboarding')).toBe(true);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(destinations);
     for (const link of links) expect(childPaths).toContain(link.getAttribute('href'));
-    links.find(link => link.textContent?.includes('Open Budgets'))!.click();
+    links.find((link) => link.textContent?.includes('Open Budgets'))!.click();
     await fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/app/budgets');
   });
@@ -68,7 +86,7 @@ describe('Common questions', () => {
     fixture.detectChanges();
     const items = [...fixture.nativeElement.querySelectorAll('details')] as HTMLDetailsElement[];
     expect(items.length).toBe(8);
-    expect(items.every(item => !item.open)).toBe(true);
+    expect(items.every((item) => !item.open)).toBe(true);
     items[0].querySelector('summary')!.click();
     items[1].querySelector('summary')!.click();
     expect(items[0].open && items[1].open).toBe(true);
@@ -82,8 +100,10 @@ describe('Common questions', () => {
   it('explains optional payroll, mandatory allocation and current Goals controls', () => {
     const fixture = TestBed.createComponent(CommonQuestionsComponent);
     fixture.detectChanges();
-    const questions = fixture.nativeElement.querySelectorAll('details') as NodeListOf<HTMLDetailsElement>;
-    const text = [...questions].map(question => question.textContent).join(' ');
+    const questions = fixture.nativeElement.querySelectorAll(
+      'details',
+    ) as NodeListOf<HTMLDetailsElement>;
+    const text = [...questions].map((question) => question.textContent).join(' ');
     expect(text).toContain('Skip employment and payroll');
     expect(text).toContain('Finish Setup');
     expect(text).toContain('Allocate Funds');
