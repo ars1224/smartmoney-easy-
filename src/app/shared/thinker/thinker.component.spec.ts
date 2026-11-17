@@ -136,7 +136,7 @@ describe('Thinker demo interaction', () => {
   component.send('budget');fixture.detectChanges();
   expect(fixture.nativeElement.textContent).toContain('Powered by OpenAI');
   expect(fixture.nativeElement.textContent).toContain('Thinker · AI reply');
-  expect(fixture.nativeElement.textContent).toContain('Questions are sent to OpenAI');
+  expect(fixture.nativeElement.textContent).toContain('Other questions are sent to OpenAI');
   expect(fixture.nativeElement.textContent).not.toContain('Prepared replies');
  });
  it('blocks messages while configuration is unavailable and reconnects', () => {
@@ -150,4 +150,23 @@ describe('Thinker demo interaction', () => {
   component.send('budget');expect(component.error()).toContain('usage limit');expect(component.error()).not.toContain('private');
  });
 
+});
+
+
+describe('Thinker saved financial records', () => {
+ it('labels deterministic records separately from AI and keeps their links trusted', () => {
+  const send=vi.fn().mockReturnValue(of({mode:'records',title:'Your saved balances',message:'Cash wallet 1: NZD 90.00.',takeaway:'Check freshness.',links:[{id:'profile'}]}));
+  TestBed.configureTestingModule({imports:[ThinkerComponent],providers:[provideRouter([]),{provide:ThinkerService,useValue:{send,status:()=>of({mode:'live',available:true})}}]});
+  const fixture=TestBed.createComponent(ThinkerComponent);
+  const dialog=fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
+  dialog.showModal=()=>dialog.setAttribute('open',''); fixture.detectChanges();
+  expect(fixture.nativeElement.textContent).toContain('Records are not sent to OpenAI');
+  const starter=[...fixture.nativeElement.querySelectorAll('.suggestions button')].find((button:unknown)=>(button as HTMLButtonElement).textContent?.trim()==='My balances') as HTMLButtonElement;
+  starter.click(); fixture.detectChanges();
+  expect(send).toHaveBeenCalledExactlyOnceWith('My balances');
+  expect(fixture.nativeElement.textContent).toContain('Thinker · Saved data');
+  expect(fixture.nativeElement.textContent).not.toContain('Thinker · AI reply');
+  expect(fixture.nativeElement.querySelector('.reply-links a').getAttribute('href')).toBe('/app/profile');
+  expect(fixture.componentInstance.announcement()).toContain('saved data');
+ });
 });

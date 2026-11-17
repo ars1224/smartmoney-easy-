@@ -186,7 +186,7 @@
       "id": "thinker",
       "title": "What can Thinker help me with?",
       "paragraphs": [
-        "Thinker explains general budgeting, saving and spending ideas. It cannot see your financial records or earlier messages, change your accounts or move money. In live mode, your question is sent to OpenAI; avoid personal details, passwords and account information. AI can make mistakes and is not personalised financial advice."
+        "Thinker explains general budgeting, saving and spending ideas. Ask My latest transaction, My balances or My finances for a read-only saved-data reply from your signed-in account. These replies are calculated by SmartMoney without sending records to OpenAI. Bank figures may be stale or incomplete. Thinker cannot see earlier messages, change accounts or move money. In live mode, your question is sent to OpenAI; avoid personal details, passwords and account information. AI can make mistakes and is not personalised financial advice."
       ],
       "links": [],
       "action": "thinker"

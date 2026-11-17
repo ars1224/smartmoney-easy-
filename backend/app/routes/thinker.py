@@ -1,6 +1,9 @@
 """Authenticated educational replies; explicit demo/live modes."""
 from flask import Blueprint, jsonify, request, current_app
 from app.auth_security import get_authenticated_user_id, csrf_required
+from sqlalchemy.exc import SQLAlchemyError
+from app.extensions import db
+from app.services.thinker_finances import financial_reply
 from app.services.app_help import demo_app_reply, help_links
 from app.services.thinker import ThinkerError, get_reply, reserve_request
 
@@ -24,6 +27,21 @@ def message():
     if not isinstance(text, str) or not text.strip() or len(text) > 600:
         return jsonify(error="Enter a message between 1 and 600 characters."), 400
     mode = current_app.config.get("THINKER_MODE", "demo")
+    if mode in ("demo", "live"):
+        try:
+            saved_reply = financial_reply(get_authenticated_user_id(), text.strip())
+            if saved_reply:
+                response = jsonify(saved_reply)
+                response.headers["Cache-Control"] = "private, no-store"
+                return response
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+        except SQLAlchemyError:
+            db.session.rollback()
+            response = jsonify(error="Saved financial data is unavailable. Please try again.")
+            response.status_code = 503
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
     if mode == "live":
         if not current_app.config.get("OPENAI_API_KEY") or current_app.config.get("OPENAI_MODEL") != "gpt-5.4-mini":
             return jsonify(error="Thinker is not configured. Please contact the project team."), 503

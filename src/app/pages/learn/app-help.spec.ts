@@ -101,7 +101,7 @@ describe('Common questions', () => {
     const last = fixture.nativeElement.querySelectorAll('details')[5] as HTMLDetailsElement;
     last.querySelector('summary')!.click();
     expect(last.textContent).toContain('your question is sent to OpenAI');
-    expect(last.textContent).toContain('cannot see your financial records');
+    expect(last.textContent).toContain('without sending records to OpenAI');
     const dispatch = vi.spyOn(window, 'dispatchEvent');
     last.querySelector('button')!.click();
     expect(dispatch).toHaveBeenCalledTimes(1);

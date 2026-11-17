@@ -6,11 +6,11 @@
  } @else if (statusError()) { <span role="alert">Could not connect to Thinker.</span><button type="button" (click)="loadStatus()">Reconnect</button> } @else { <span role="status">Connecting to Thinker…</span> }</div>
  <div class="conversation" #conversation role="region" aria-label="Conversation" tabindex="0">
   @if (!messages().length) {
-   <div class="welcome"><div class="mark" aria-hidden="true">?</div><h3>A little clarity for your money</h3><p>Find your way around SmartMoney or explore budgeting, saving and spending.</p><p class="privacy">Your question is sent to OpenAI in live mode. Thinker cannot see your financial records or previous messages. Avoid personal or account details.</p></div>
+   <div class="welcome"><div class="mark" aria-hidden="true">?</div><h3>A little clarity for your money</h3><p>Find your way around SmartMoney or explore budgeting, saving and spending.</p><p class="privacy">Saved-data questions are answered privately by SmartMoney using your signed-in account. Records are not sent to OpenAI. Other questions use OpenAI in live mode. Avoid personal or account details.</p></div>
   }
   @for (message of messages(); track message.id) {
-   <article class="message" [class.you]="message.role === 'you'" [attr.aria-label]="message.role === 'you' ? 'Your message' : (message.mode === 'demo' ? 'Thinker demo reply' : 'Thinker AI reply')">
-    <span class="sender">{{ message.role === 'you' ? 'You' : (message.mode === 'demo' ? 'Thinker · Demo reply' : 'Thinker · AI reply') }}</span>
+   <article class="message" [class.you]="message.role === 'you'" [attr.aria-label]="message.role === 'you' ? 'Your message' : (message.mode === 'records' ? 'Thinker saved data reply' : message.mode === 'demo' ? 'Thinker demo reply' : 'Thinker AI reply')">
+    <span class="sender">{{ message.role === 'you' ? 'You' : (message.mode === 'records' ? 'Thinker · Saved data' : message.mode === 'demo' ? 'Thinker · Demo reply' : 'Thinker · AI reply') }}</span>
     @if (message.title) { <h3>{{ message.title }}</h3> }
     <p>{{ message.text }}</p>
     @if (message.links?.length) {
@@ -28,6 +28,6 @@
  <div class="composer">
   <div class="suggestions" aria-label="Suggested topics">@for (question of starters; track question) { <button type="button" [disabled]="busy() || !status()?.available" (click)="send(question)">{{ question }}</button> }</div>
   <form (ngSubmit)="send()"><label for="thinker-message">Your question</label><div class="input-row"><textarea id="thinker-message" name="message" rows="2" maxlength="600" [ngModel]="draft()" (ngModelChange)="draft.set($event)" placeholder="Ask how to use SmartMoney, budget or save" [disabled]="busy() || !status()?.available"></textarea><button class="send" type="submit" [disabled]="busy() || !draft().trim() || !status()?.available">Send</button></div><div class="form-meta"><span>{{ draft().length }}/600</span>@if (messages().length) { <button type="button" class="clear" (click)="clear()" [disabled]="busy()">Clear conversation</button> }</div></form>
-  <p class="disclaimer">General education only; AI can make mistakes. Questions are sent to OpenAI in live mode. No financial records or earlier messages are shared. Chat clears when closed.</p>
+  <p class="disclaimer">General education only; AI can make mistakes. Saved-data replies come from SmartMoney, not AI. Other questions are sent to OpenAI in live mode; no financial records or earlier messages are shared. Chat clears when closed.</p>
  </div>
 </dialog>
