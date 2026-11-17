@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { ThinkerReply, ThinkerService, ThinkerStatus } from './thinker.service';
-interface Message { id: number; role: 'you' | 'thinker'; text: string; title?: string; takeaway?: string; mode?: 'demo' | 'live'; links?: AppHelpPage[]; }
+interface Message { id: number; role: 'you' | 'thinker'; text: string; title?: string; takeaway?: string; mode?: 'demo' | 'live' | 'records'; links?: AppHelpPage[]; }
 @Component({ selector: 'app-thinker', standalone: true, imports: [FormsModule, RouterLink], templateUrl: './thinker.component.html', styleUrl: './thinker.component.scss' })
 export class ThinkerComponent implements AfterViewInit, OnDestroy {
  @ViewChild('panel', { static: true }) panel!: ElementRef<HTMLDialogElement>;
@@ -24,7 +24,7 @@ export class ThinkerComponent implements AfterViewInit, OnDestroy {
  readonly announcement = signal('');
  readonly draft = signal('');
  readonly failedMessage = signal('');
- readonly starters = ['Using SmartMoney', 'Budget basics', 'Savings goal', 'Spending review'];
+ readonly starters = ['Using SmartMoney', 'My latest transaction', 'My balances', 'My finances'];
  ngAfterViewInit(): void { this.panel.nativeElement.showModal(); this.loadStatus(); }
  loadStatus(): void {
   this.statusError.set(false);
@@ -42,7 +42,7 @@ export class ThinkerComponent implements AfterViewInit, OnDestroy {
   this.request = this.api.send(text).subscribe({
    next: (reply: ThinkerReply) => {
     this.messages.update(rows => [...rows, { id: this.nextId++, role: 'thinker', text: reply.message, title: reply.title, takeaway: reply.takeaway, mode: reply.mode, links: resolveAppHelpLinks(reply.links) }]);
-    this.busy.set(false); this.failedMessage.set(''); this.announcement.set(`Thinker ${reply.mode === 'demo' ? 'demo' : 'AI'}: ${reply.message}${reply.takeaway ? ' Next step: ' + reply.takeaway : ''}`); this.scrollToLatest();
+    this.busy.set(false); this.failedMessage.set(''); this.announcement.set(`Thinker ${reply.mode === 'records' ? 'saved data' : reply.mode === 'demo' ? 'demo' : 'AI'}: ${reply.message}${reply.takeaway ? ' Next step: ' + reply.takeaway : ''}`); this.scrollToLatest();
    },
    error: (error: HttpErrorResponse) => {
     this.busy.set(false);
