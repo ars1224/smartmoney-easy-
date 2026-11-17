@@ -1,9 +1,13 @@
 {
   "title": "Getting started with SmartMoney",
-  "intro": "Five practical steps. Pick the one you need, at your own pace.",
+  "intro": "Six practical steps, from first-time setup to everyday use.",
   "developmentNote": "This is a development app. Use test information and Mock Bank credentials only.",
-  "returnNote": "You can return to this guide in Learn whenever you need it. No steps are required to explore.",
+  "returnNote": "New accounts finish first-time setup before opening the main app. After setup, return to this guide in Learn whenever you need it.",
   "pages": {
+    "setup": {
+      "label": "Open first-time setup",
+      "route": "/onboarding"
+    },
     "profile": {
       "label": "Open Profile & Assets",
       "route": "/app/profile"
@@ -35,9 +39,20 @@
   },
   "steps": [
     {
+      "id": "onboarding",
+      "title": "Finish your first-time setup",
+      "body": "New accounts complete first-time setup before opening the main app. Employment and payroll details are optional: choose Skip employment and payroll or Skip payroll to continue without them. Enter Available monthly money (NZD), including 0.00 if needed, set Needs, Wants and Savings percentages totalling 100%, then choose Save monthly allocation. Continue to Review, then Finish Setup. Payroll figures are estimates, not recorded income. Accounts created before onboarding can continue normally.",
+      "links": [
+        {
+          "page": "setup",
+          "label": "Open first-time setup"
+        }
+      ]
+    },
+    {
       "id": "money-source",
       "title": "Add a money source",
-      "body": "In Profile & Assets, choose Add Cash Wallet to track cash. To import test bank activity, choose Connect Mock Bank, sign in there, then select accounts and choose Confirm selected accounts when you return.",
+      "body": "In Profile & Assets, choose Add Cash Wallet to track cash. For test bank activity, choose Connect Mock Bank and authorise accounts there. On return, SmartMoney automatically finishes connecting active authorised accounts and starts the initial sync. If the connection is incomplete, use Finish connecting. If sync needs another attempt, use Retry Synchronisation. Check the result and Last synced before refreshing your overview.",
       "links": [
         {
           "page": "profile",
@@ -70,7 +85,7 @@
     {
       "id": "goals",
       "title": "Set a savings goal",
-      "body": "In Goals, choose Create Goal, give it a name, target amount and target date. Use Add Contribution to record progress. This updates the goal; it does not move money from a bank account or cash wallet.",
+      "body": "In Goals, choose Create Goal and enter a name, Goal Type, target amount and target date. Open Manage Funds, choose Allocate funds or Release funds, a Funding Source and amount, then confirm. Eligible sources are connected active NZD Savings accounts and active NZD Cash Wallets with available funds. Allocation reserves money; it does not change the bank or wallet balance. Link eligible existing purchases from Activity to track spending. After achievement, use View Funding History to review the records.",
       "links": [
         {
           "page": "goals",
@@ -81,7 +96,7 @@
     {
       "id": "overview",
       "title": "Check the overview, explore the detail",
-      "body": "Home shows the current month's saved overview. Reports lets you choose a month and cash/bank source, then open an expense category to see its transactions. After a bank sync, refresh the page's figures. Net cash flow is income + refunds − expenses, not an available balance.",
+      "body": "Home shows the current month's saved overview. Reports lets you choose a month and cash/bank source, then open an expense category to see its transactions. After a bank sync, refresh the page's figures. Net cash flow is recorded income + refunds + uncategorised bank inflows − expenses. Review uncategorised inflows before treating them as income. Cash flow is not an available balance.",
       "links": [
         {
           "page": "home",
@@ -117,8 +132,8 @@
       "id": "bank-sync",
       "title": "Why haven't my bank transactions appeared?",
       "paragraphs": [
-        "Signing in to Mock Bank is only part of the connection. Back in SmartMoney, select your accounts and choose Confirm selected accounts. Check the connection result for any sync error, then check Last synced in Profile & Assets.",
-        "Refresh balances reloads saved balances; it does not start a bank sync. The app also attempts sync when the signed-in app opens. After sync completes, use Refresh on Home or Refresh report in Reports. Check the report month and source if records are still missing."
+        "After you authorise accounts in Mock Bank, SmartMoney automatically finishes connecting active authorised accounts and attempts the initial sync. If the automatic connection did not finish, use Finish connecting. If the connection is saved but sync failed or only partly completed, use Retry Synchronisation on the connection result page.",
+        "Check the sync result and Last synced in Profile & Assets. Refresh balances reloads saved balances; it does not start a bank sync. The app also attempts sync when the signed-in app opens. After sync completes, use Refresh on Home or Refresh report in Reports. Check the selected month and source if records are still missing."
       ],
       "links": [
         {
@@ -131,7 +146,7 @@
       "id": "cash-only",
       "title": "Do I need to connect a bank to use the app?",
       "paragraphs": [
-        "No. Create a cash wallet in Profile & Assets, then record manual income and expenses in Activity. Choose the wallet the entry belongs to. You can explore budgets, goals, Learn and Reports without connecting Mock Bank."
+        "You do not need Mock Bank to complete first-time setup. After setup, create a cash wallet in Profile & Assets and record manual income and expenses in Activity, selecting the wallet each entry belongs to. You can use budgets, Learn and Reports without a bank connection. Goals can reserve available funds from an active NZD Cash Wallet."
       ],
       "links": [
         {
@@ -144,7 +159,7 @@
       "id": "cash-flow",
       "title": "Is net cash flow the money I can spend?",
       "paragraphs": [
-        "No. It is recorded income + refunds − expenses for the selected month. It is not your bank balance or a safe-to-spend amount. Reports shows NZD records, excludes recognised transfers, and discloses foreign-currency or review-needed entries. Expected income in Budgets is a planning estimate."
+        "No. Net cash flow is recorded income + refunds + uncategorised bank inflows − expenses for the selected month. Uncategorised inflows are not confirmed income; review their categories in Activity. Cash flow is not a bank balance or a safe-to-spend amount. Reports shows NZD records, excludes recognised transfers, and discloses foreign-currency or review-needed entries. Expected income and payroll estimates are planning figures."
       ],
       "links": [
         {
@@ -155,9 +170,10 @@
     },
     {
       "id": "goal-contributions",
-      "title": "Does adding a goal contribution move my money?",
+      "title": "Does Manage Funds move money between accounts?",
       "paragraphs": [
-        "No. Add Contribution records progress against your goal. It does not transfer money from a bank account or cash wallet. Check and update your saved goal records so they reflect what you have actually set aside."
+        "Goals now uses Manage Funds. Choose Allocate funds or Release funds, select a Funding Source and enter an amount. Allocate Funds reserves money for the goal; Release Funds removes that reservation. Neither changes the source bank or Cash Wallet balance.",
+        "Funding needs an eligible connected active NZD Savings account or an active NZD Cash Wallet with available funds. The app limits allocations to available funds. After a goal is achieved, View Funding History remains available but funding changes are disabled."
       ],
       "links": [
         {
@@ -174,6 +190,42 @@
       ],
       "links": [],
       "action": "thinker"
+    },
+    {
+      "id": "onboarding",
+      "title": "Do I have to enter employment and payroll details?",
+      "paragraphs": [
+        "Employment and payroll details are optional. In first-time setup, choose Skip employment and payroll, or Skip payroll after choosing an employment type. You can enter your available monthly money manually, including NZD 0.00.",
+        "New accounts still need to save their monthly money and Needs, Wants and Savings allocation totalling 100%, continue to Review, and choose Finish Setup before opening the main app. The payroll screen shows estimates; actual payslip deductions may differ. Existing accounts created before onboarding are not required to repeat setup."
+      ],
+      "links": [
+        {
+          "page": "setup",
+          "label": "Review first-time setup"
+        },
+        {
+          "page": "budgets",
+          "label": "Open Budgets"
+        }
+      ]
+    },
+    {
+      "id": "goal-purchases",
+      "title": "How do I link a purchase or mark a goal as achieved?",
+      "paragraphs": [
+        "In Activity, choose Link to Goal on an eligible existing NZD expense, select a goal and choose Confirm Link. Transfers and refunds cannot be linked as goal purchases. Linking records the purchase against the goal and marks any reserved funds from the matching source as spent; it does not charge the bank or Cash Wallet again.",
+        "In Goals, Mark as Achieved becomes available when there is a linked purchase and no allocated funds remain. Release any remaining reservation first, then review and choose Confirm Achievement. Reaching the funding target alone does not mark a goal as achieved. After achievement, View Funding History remains available."
+      ],
+      "links": [
+        {
+          "page": "activity",
+          "label": "Review purchases in Activity"
+        },
+        {
+          "page": "goals",
+          "label": "Open Goals"
+        }
+      ]
     }
   ]
 }

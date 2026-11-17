@@ -7,25 +7,33 @@ APP_HELP = json.loads((Path(__file__).resolve().parents[1] / "content" / "app-he
 PAGES = APP_HELP["pages"]
 # Fail clearly if a content edit introduces a non-product destination.
 for page in PAGES.values():
-    if not re.fullmatch(r"/app/(profile|activity|budgets|goals|dashboard|reports|learn)", page["route"]):
+    if page["route"] != "/onboarding" and not re.fullmatch(r"/app/(profile|activity|budgets|goals|dashboard|reports|learn)", page["route"]):
         raise ValueError("App help destinations must be known local pages")
 PUBLIC_GUIDE = json.dumps(APP_HELP, ensure_ascii=False)
 if len(PUBLIC_GUIDE) > 20000:
     raise ValueError("App help exceeds the bounded instruction context")
 
 
+ONBOARDING_TERMS = (
+    "onboarding", "first-time", "first time", "new account", "registration",
+    "employment", "payroll", "take-home", "finish setup", "skip setup",
+)
+FUNDING_TERMS = ("contribution", "manage funds", "funding", "allocate funds", "release funds")
+
+
 def help_links(message):
     """Server-selected IDs only. Neither user nor model can supply a URL/label."""
     words = message.lower()
     if any(term in words for term in ("using smartmoney", "use smartmoney", "use this app", "use the app", "get started", "getting started")):
-        ids = ["profile", "activity", "budgets", "goals", "home", "reports", "learn"]
+        ids = ["setup", "profile", "activity", "budgets", "goals", "home", "reports", "learn"]
     else:
         ids = []
         groups = [
-            ("profile", ("wallet", "mock bank", "bank connect", "connect a bank", "bank account", "profile", "sync")),
-            ("activity", ("transaction", "categor", "activity", "manual entr")),
+            ("setup", ONBOARDING_TERMS),
+            ("profile", ("wallet", "mock bank", "bank connect", "connect a bank", "bank account", "profile", "sync", "finish connecting", "bank transactions")),
+            ("activity", ("transaction", "categor", "activity", "manual entr", "purchase", "link to goal")),
             ("budgets", ("budget", "allocation", "expected income")),
-            ("goals", ("goal", "contribution")),
+            ("goals", ("goal", "achiev", "manage funds", "funding", "allocate funds", "release funds", "contribution")),
             ("home", ("dashboard", "home")),
             ("reports", ("report", "cash flow", "cash-flow", "refund", "month", "balance")),
         ]
@@ -40,16 +48,21 @@ def demo_app_reply(message):
     """Prepared app help stays explicitly labelled demo, using the same source."""
     words = message.lower()
     app_question = any(term in words for term in ("smartmoney", "this app", "the app", "dashboard", "profile", "mock bank", "cash wallet", "contribution", "reports", "activity", "thinker", "bank transactions", "connect a bank", "need a bank", "cash flow", "cash-flow"))
+    app_question = app_question or any(term in words for term in ONBOARDING_TERMS + FUNDING_TERMS + ("finish connecting", "bank sync", "bank connection", "synchronisation", "synchronization"))
     app_question = app_question or (any(term in words for term in ("how", "where", "create", "add", "open", "edit", "set up")) and any(term in words for term in ("budget", "goal")))
     if not app_question:
         return None
     questions = {question["id"]: question for question in APP_HELP["questions"]}
     selected = None
-    if "contribution" in words:
+    if any(term in words for term in ONBOARDING_TERMS):
+        selected = questions["onboarding"]
+    elif ("goal" in words and any(term in words for term in ("purchase", "link", "achiev"))) or "mark as achieved" in words:
+        selected = questions["goal-purchases"]
+    elif any(term in words for term in FUNDING_TERMS) or ("goal" in words and "allocat" in words):
         selected = questions["goal-contributions"]
     elif "dashboard" in words and any(term in words for term in ("empty", "zero", "0", "missing", "unavailable")):
         selected = questions["empty-dashboard"]
-    elif "bank" in words and any(term in words for term in ("appear", "missing", "sync", "not show")):
+    elif ("bank" in words and any(term in words for term in ("appear", "missing", "sync", "not show"))) or any(term in words for term in ("finish connecting", "synchronisation", "synchronization")):
         selected = questions["bank-sync"]
     elif "bank" in words and any(term in words for term in ("need", "without")):
         selected = questions["cash-only"]

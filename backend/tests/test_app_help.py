@@ -19,14 +19,14 @@ class AppHelpTests(unittest.TestCase):
         return self.client.post("/api/thinker/messages", json={"message": message, **extra}, headers={"X-CSRF-Token": "help-csrf"})
 
     def test_shared_source_is_bounded_and_has_only_existing_app_destinations(self):
-        self.assertEqual(len(APP_HELP["steps"]), 5)
-        self.assertEqual(len(APP_HELP["questions"]), 6)
+        self.assertEqual(len(APP_HELP["steps"]), 6)
+        self.assertEqual(len(APP_HELP["questions"]), 8)
         self.assertLess(len(PUBLIC_GUIDE), 20000)
-        self.assertEqual(len({step["id"] for step in APP_HELP["steps"]}), 5)
+        self.assertEqual(len({step["id"] for step in APP_HELP["steps"]}), 6)
         for entry in APP_HELP["steps"] + APP_HELP["questions"]:
             for link in entry["links"]:
                 self.assertIn(link["page"], APP_HELP["pages"])
-        self.assertEqual({page["route"] for page in APP_HELP["pages"].values()}, {"/app/profile", "/app/activity", "/app/budgets", "/app/goals", "/app/dashboard", "/app/reports", "/app/learn"})
+        self.assertEqual({page["route"] for page in APP_HELP["pages"].values()}, {"/onboarding", "/app/profile", "/app/activity", "/app/budgets", "/app/goals", "/app/dashboard", "/app/reports", "/app/learn"})
 
     def test_using_smartmoney_demo_uses_shared_copy_without_provider_or_records(self):
         with patch("requests.sessions.Session.request", side_effect=AssertionError("No provider calls")):
@@ -45,7 +45,7 @@ class AppHelpTests(unittest.TestCase):
             expected = next(item for item in APP_HELP["questions"] if item["id"] == faq_id)
             self.assertEqual(reply["message"], "\n\n".join(expected["paragraphs"]))
         wallet = demo_app_reply("How do I create a cash wallet?")
-        self.assertEqual(wallet["message"], APP_HELP["steps"][0]["body"])
+        self.assertEqual(wallet["message"], next(step for step in APP_HELP["steps"] if step["id"] == "money-source")["body"])
         self.assertEqual(wallet["links"], [{"id": "profile"}, {"id": "learn"}])
 
     def test_unknown_app_feature_is_not_invented_and_general_demo_stays_available(self):
@@ -85,3 +85,51 @@ class AppHelpTests(unittest.TestCase):
         with self.client.session_transaction() as session:
             session.pop("user_id")
         self.assertEqual(self.send("Using SmartMoney").status_code, 401)
+
+    def test_onboarding_questions_distinguish_optional_payroll_from_required_setup(self):
+        for question in ["Can I skip onboarding?", "Do I need employment details?", "Can I skip payroll?", "How do I finish setup?"]:
+            reply = self.send(question)
+            self.assertEqual(reply.status_code, 200)
+            body = reply.json["message"]
+            self.assertIn("Employment and payroll details are optional", body)
+            self.assertIn("0.00", body)
+            self.assertIn("totalling 100%", body)
+            self.assertIn("Finish Setup", body)
+            self.assertIn({"id": "setup"}, reply.json["links"])
+        self.assertNotIn("No steps are required", PUBLIC_GUIDE)
+
+    def test_bank_help_matches_automatic_connection_and_retry_controls(self):
+        for question in ["Why haven't my bank transactions appeared?", "Where is Finish connecting?", "How do I retry bank sync?"]:
+            reply = self.send(question).json
+            self.assertIn("automatically finishes connecting", reply["message"])
+            self.assertIn("Finish connecting", reply["message"])
+            self.assertIn("Retry Synchronisation", reply["message"])
+            self.assertNotIn("Confirm selected accounts", reply["message"])
+            self.assertIn({"id": "profile"}, reply["links"])
+
+    def test_goal_funding_aliases_do_not_send_users_to_retired_contribution_control(self):
+        for question in ["How does Manage Funds work?", "How do I allocate funds?", "Can I release funds?", "Does adding a goal contribution move my money?"]:
+            reply = self.send(question).json
+            self.assertIn("Manage Funds", reply["message"])
+            self.assertIn("Allocate Funds", reply["message"])
+            self.assertIn("Release Funds", reply["message"])
+            self.assertIn("Neither changes", reply["message"])
+            self.assertIn("active NZD Savings account", reply["message"])
+            self.assertNotIn("Add Contribution", reply["message"])
+            self.assertIn({"id": "goals"}, reply["links"])
+
+    def test_goal_purchase_and_achievement_help_does_not_duplicate_transactions(self):
+        for question in ["How do I link a purchase to a goal?", "How can I mark my goal as achieved?"]:
+            reply = self.send(question).json
+            self.assertIn("Confirm Link", reply["message"])
+            self.assertIn("Transfers and refunds cannot be linked", reply["message"])
+            self.assertIn("does not charge", reply["message"])
+            self.assertIn("no allocated funds remain", reply["message"])
+            self.assertIn("Confirm Achievement", reply["message"])
+            self.assertIn({"id": "goals"}, reply["links"])
+
+    def test_cash_flow_help_includes_separate_uncategorised_inflows(self):
+        reply = self.send("Is net cash flow my available balance?").json
+        self.assertIn("income + refunds + uncategorised bank inflows", reply["message"])
+        self.assertIn("not confirmed income", reply["message"])
+        self.assertIn("not a bank balance", reply["message"])
