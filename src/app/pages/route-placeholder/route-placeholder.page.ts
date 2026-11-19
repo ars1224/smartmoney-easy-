@@ -10,9 +10,9 @@ interface PlaceholderData {
   title: string;
   description: string;
   publicPage?: boolean;
+  aboutPage?: boolean;
   nextLink?: string;
   nextLabel?: string;
-
   secondaryLink?: string;
   secondaryLabel?: string;
 }

@@ -86,6 +86,7 @@
         <select
           id="regular-income-type"
           name="regularIncomeType"
+          (ngModelChange)="onRegularIncomeTypeChange($event)"
           [(ngModel)]="regularIncomeType"
           [disabled]="regularIncomeSaving"
         >
@@ -505,16 +506,25 @@
           </h2>
 
           <p class="settings-modal__description">
-            Export information or remove imported bank history.
+            Manage your stored bank history and view upcoming privacy features.
           </p>
 
           <button
             type="button"
             class="privacy-modal__option"
-            (click)="showPrivacyMessage('export-data')"
+            disabled
+            aria-describedby="export-unavailable-note"
           >
-            Export my data
+            Export my data — Coming soon
           </button>
+
+          <p
+            id="export-unavailable-note"
+            class="privacy-modal__note"
+          >
+            Data export is not available in this version of SmartMoney! Easy.
+            Your saved information remains unchanged.
+          </p>
 
           <button
             type="button"
@@ -674,54 +684,31 @@
           tabindex="-1"
           (click)="$event.stopPropagation()"
         >
+
           <h2 id="delete-account-title">
-            Delete SmartMoney account?
+            Delete SmartMoney account
           </h2>
 
           <p class="settings-modal__description">
-            This permanently removes the profile and manually managed data.
+            Account deletion is not available in this version of SmartMoney! Easy.
+            This feature is planned for a future release.
           </p>
-          <div class="delete-account-modal__confirmation">
-            <label for="delete-confirmation">
-              Type DELETE to confirm
-            </label>
 
-            <input
-              id="delete-confirmation"
-              name="deleteConfirmation"
-              type="text"
-              placeholder="DELETE"
-              autocomplete="off"
-              [(ngModel)]="deleteConfirmation"
-            />
-          </div>
-          
-          @if (deleteAccountMessage) {
-            <p class="settings-modal__message" role="status">
-              {{ deleteAccountMessage}}
-            </p>
-          }
+          <p class="settings-modal__message" role="status">
+            Your account and saved data will not be deleted.
+          </p>
 
           <div class="settings-modal__actions">
-            <button
-              type="button"
-              class="settings-modal__primary settings-modal__primary--danger"
-              [disabled]="deleteConfirmation !== 'DELETE'"
-              (click)="confirmDeleteAccount()"
-            >
-              Delete
-            </button>
             <button
               type="button"
               class="settings-modal__secondary"
               (click)="closeModal()"
             >
-              Cancel
+              Close
             </button>
           </div>
         </section>
       </div>
     }
-
   </main>
 </ion-content>

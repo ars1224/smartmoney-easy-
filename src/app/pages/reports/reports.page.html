@@ -206,13 +206,19 @@
     </p>
     }
 
-    <!-- Cash flow explanation -->
+  <!-- Cash flow explanation -->
 
-    <p class="cash-flow-note">
+  <p class="cash-flow-note">
+    @if (data.transactionCount === 0) {
+      No included transactions for this period.
+    } @else {
       {{ cashFlowExplanation(data.netCashFlow) }}
+    }
 
-      <span> Not an available balance or expected income. </span>
-    </p>
+    <span>
+      Not an available balance or expected income.
+    </span>
+  </p>
   </section>
 
   <!-- ===================================================

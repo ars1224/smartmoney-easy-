@@ -33,6 +33,11 @@ import {
 
 import { HttpErrorResponse } from '@angular/common/http';
 
+import {
+  PayrollApiService,
+  PayrollFrequency,
+} from '../../core/services/payroll-api.service';
+
 type SettingsModal =
   | 'personal-details'
   | 'change-password'
@@ -64,6 +69,8 @@ export class ProfileSettingsPage {
     inject(MonthlyIncomeApiService);
   private readonly regularIncomeApi =
     inject(RegularIncomeApiService);
+  private readonly payrollApi =
+    inject(PayrollApiService);
   private regularIncomeRequestId = 0;
 
   incomeMonth = '';
@@ -218,10 +225,6 @@ private getCurrentNzMonth(): string {
   privacyMessage = '';
   bankDeleteLoading = false;
 
-  // Delete account
-  deleteConfirmation = '';
-  deleteAccountMessage = '';
-
   // Settings cards
   readonly settings = [
     {
@@ -241,7 +244,7 @@ private getCurrentNzMonth(): string {
     },
     {
       title: 'Export my data',
-      description: 'Manage this setting',
+      description: 'Coming soon — not available in this version',
       action: 'export-data',
     },
     {
@@ -257,7 +260,7 @@ private getCurrentNzMonth(): string {
     },
     {
       title: 'Delete SmartMoney account',
-      description: 'Permanent action requiring confirmation',
+      description: 'Coming soon — not available in this version',
       action: 'delete-account',
       danger: true,
     },
@@ -328,8 +331,6 @@ private getCurrentNzMonth(): string {
     }
 
     if (action === 'delete-account') {
-      this.deleteConfirmation = '';
-      this.deleteAccountMessage = '';
       this.activeModal = 'delete-account';
       this.notifyModalState(true);
       return;
@@ -371,7 +372,6 @@ private getCurrentNzMonth(): string {
     this.passwordMessage = '';
 
     this.privacyMessage = '';
-    this.deleteConfirmation = '';
     this.logoutError = '';
 
     // Return keyboard focus to the button that opened the modal.
@@ -581,18 +581,6 @@ private getCurrentNzMonth(): string {
     });
   }
 
-  // Validate the account deletion confirmation
-  confirmDeleteAccount(): void {
-    if (this.deleteConfirmation !== 'DELETE') {
-      return;
-    }
-
-    // Account deletion is not connected to the backend yet.
-    // Do not delete the account or log the user out.
-    this.deleteAccountMessage =
-      'Account data backend is not connected. Account deletion is not available yet and your account has not been deleted.';
-  }
-
   // Return to the Profile & Assets page
   goBack(): void {
     void this.router.navigateByUrl('/app/profile');
@@ -724,7 +712,82 @@ regularIncomeLoading = false;
 regularIncomeSaving = false;
 regularIncomeError = '';
 regularIncomeMessage = '';
+regularIncomePrefillMessage = '';
 
+private async prefillRegularIncomeFromPayroll(): Promise<void> {
+  const settingsResponse = await firstValueFrom(
+    this.payrollApi.getSettings()
+  );
+
+  const settings = settingsResponse.settings;
+
+  if (!settings) {
+    return;
+  }
+
+  const estimateResponse = await firstValueFrom(
+    this.payrollApi.getEstimate()
+  );
+
+  const estimate = estimateResponse.estimate;
+
+  const netPerPay = Number(estimate.netPerPay);
+
+  if (!Number.isFinite(netPerPay) || netPerPay < 0) {
+    return;
+  }
+
+  this.regularIncomeType = settings.incomeType;
+
+  if (settings.incomeType === 'SALARY') {
+    if (settings.payFrequency === 'FOUR_WEEKLY') {
+      // Regular Income does not support four-weekly frequency.
+      // Convert 13 four-weekly payments into 12 monthly periods.
+      this.regularIncomeAmount = Number(
+        ((netPerPay * 13) / 12).toFixed(2)
+      );
+
+      this.regularPayFrequency = 'MONTHLY';
+    } else {
+      this.regularIncomeAmount = Number(
+        netPerPay.toFixed(2)
+      );
+
+      this.regularPayFrequency = settings.payFrequency;
+    }
+
+    this.regularHoursPerWeek = null;
+  } else {
+    const hoursPerWeek = Number(settings.hoursPerWeek);
+
+    if (
+      !Number.isFinite(hoursPerWeek) ||
+      hoursPerWeek <= 0 ||
+      hoursPerWeek > 168
+    ) {
+      return;
+    }
+
+    const weeksPerPay: Record<PayrollFrequency, number> = {
+      WEEKLY: 1,
+      FORTNIGHTLY: 2,
+      FOUR_WEEKLY: 4,
+      MONTHLY: 52 / 12,
+    };
+
+    const hoursPerPay =
+      hoursPerWeek * weeksPerPay[settings.payFrequency];
+
+    this.regularIncomeAmount = Number(
+      (netPerPay / hoursPerPay).toFixed(2)
+    );
+
+    this.regularHoursPerWeek = hoursPerWeek;
+  }
+
+  this.regularIncomePrefillMessage =
+    'These values were estimated from your onboarding payroll settings. Review them and select Save regular pay to confirm.';
+}
 
 async loadRegularIncomeProfile(): Promise<void> {
   const requestId = ++this.regularIncomeRequestId;
@@ -732,6 +795,9 @@ async loadRegularIncomeProfile(): Promise<void> {
   this.regularIncomeLoading = true;
   this.regularIncomeError = '';
   this.regularIncomeMessage = '';
+  this.regularIncomePrefillMessage = '';
+
+  // Keep the remaining existing code unchanged.
 
   try {
     const profile = await firstValueFrom(
@@ -746,6 +812,7 @@ async loadRegularIncomeProfile(): Promise<void> {
     }
 
     this.regularIncomeProfile = profile;
+    this.regularIncomePrefillMessage = '';
 
     if (profile) {
       this.regularIncomeType = profile.incomeType;
@@ -761,6 +828,20 @@ async loadRegularIncomeProfile(): Promise<void> {
       this.regularIncomeAmount = null;
       this.regularPayFrequency = 'WEEKLY';
       this.regularHoursPerWeek = null;
+
+      try {
+        await this.prefillRegularIncomeFromPayroll();
+      } catch {
+        // Payroll information is optional.
+        // Users can still enter their regular income manually.
+      }
+
+      if (
+        requestId !== this.regularIncomeRequestId ||
+        this.activeModal !== 'expected-income'
+      ) {
+        return;
+      }
     }
 
   } catch {
@@ -860,7 +941,8 @@ async saveRegularIncome(): Promise<void> {
       })
     );
 
-        this.regularIncomeProfile = saved;
+    this.regularIncomeProfile = saved;
+    this.regularIncomePrefillMessage = '';
 
     // The regular income save succeeded.
     this.regularIncomeMessage =
@@ -889,4 +971,14 @@ async saveRegularIncome(): Promise<void> {
   }
 }
 
+  onRegularIncomeTypeChange(type: RegularIncomeType): void {
+    this.regularIncomeType = type;
+
+    this.regularIncomeAmount = null;
+    this.regularHoursPerWeek = null;
+
+    this.regularIncomeError = '';
+    this.regularIncomeMessage = '';
+    this.regularIncomePrefillMessage = '';
+  }
 }

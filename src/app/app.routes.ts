@@ -35,17 +35,8 @@ export const routes: Routes = [
         path: 'forgot-password',
         title: 'Reset password | SmartMoney! Easy',
         loadComponent: () =>
-          import('./pages/route-placeholder/route-placeholder.page')
-            .then((m) => m.RoutePlaceholderPage),
-        data: {
-          eyebrow: 'Account access',
-          title: 'Reset password',
-          description:
-            'Password recovery will be connected when the backend endpoint is ready.',
-          publicPage: true,
-          nextLink: '/auth/login',
-          nextLabel: 'Back to log in',
-        },
+          import('./pages/auth/forgot-password/forgot-password.page')
+            .then((m) => m.ForgotPasswordPage),
       },
       {
         path: '',
@@ -214,6 +205,7 @@ export const routes: Routes = [
       description:
         'A supportive financial-wellness app for tracking, planning and learning.',
       publicPage: true,
+      aboutPage: true,
       nextLink: '/auth/login',
       nextLabel: 'Back to log in',
     },

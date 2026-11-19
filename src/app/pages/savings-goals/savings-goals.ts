@@ -304,39 +304,39 @@ export class SavingsGoalsPage implements OnInit {
     };
 
   this.savingGoal = true;
-    try {
-      const savedGoal = await firstValueFrom(
-        this.editingGoalId
-          ? this.savingsApi.updateGoal(this.editingGoalId, payload)
-          : this.savingsApi.createGoal(payload)
+  try {
+    const savedGoal = await firstValueFrom(
+      this.editingGoalId
+        ? this.savingsApi.updateGoal(this.editingGoalId, payload)
+        : this.savingsApi.createGoal(payload)
+    );
+
+    if (this.editingGoalId) {
+      this.goals.update(current =>
+        current.map(goal =>
+          goal.id === savedGoal.id ? savedGoal : goal
+        )
       );
-
-      if (this.editingGoalId) {
-        this.goals.update(current =>
-          current.map(goal =>
-            goal.id === savedGoal.id ? savedGoal : goal
-          )
-        );
-      } else {
-        this.goals.update(current => [
-          savedGoal,
-          ...current,
-        ]);
-      }
-
-      this.closeGoalForm();
-
-    } catch (error: unknown) {
-      this.goalFormError =
-        error instanceof HttpErrorResponse &&
-        typeof error.error?.error === 'string'
-          ? error.error.error
-          : 'Unable to save your savings goal. Please try again.';
-
-    } finally {
-      this.savingGoal = false;
+    } else {
+      this.goals.update(current => [
+        savedGoal,
+        ...current,
+      ]);
     }
+
+    this.closeGoalForm();
+
+  } catch (error: unknown) {
+    this.goalFormError =
+      error instanceof HttpErrorResponse &&
+      typeof error.error?.error === 'string'
+        ? error.error.error
+        : 'Unable to save your savings goal. Please try again.';
+
+  } finally {
+    this.savingGoal = false;
   }
+}
 
 async openFunding(goal: SavingsGoal): Promise<void> {
   if (this.fundingBusy) {

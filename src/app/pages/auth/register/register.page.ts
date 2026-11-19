@@ -26,6 +26,9 @@ export class RegisterPage {
   readonly loading = signal(false);
   readonly serverError = signal('');
   readonly showPassword = signal(false);
+  readonly recoveryCode = signal('');
+  readonly recoveryCodeConfirmed = signal(false);
+  readonly recoveryCopyMessage = signal('');
   readonly form = this.fb.nonNullable.group(
     {
       name: ['', [Validators.required, Validators.minLength(2)]],
@@ -56,8 +59,53 @@ export class RegisterPage {
       .register(name, email, password)
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: () => void this.router.navigateByUrl('/onboarding'),
+        next: result => {
+          this.recoveryCode.set(result.recoveryCode);
+          this.recoveryCodeConfirmed.set(false);
+        },
         error: (error: Error) => this.serverError.set(error.message),
       });
   }
+
+  continueToOnboarding(): void {
+    if (
+      !this.recoveryCode() ||
+      !this.recoveryCodeConfirmed()
+    ) {
+      return;
+    }
+
+    this.recoveryCode.set('');
+
+    void this.router.navigateByUrl('/onboarding');
+  }
+
+async copyRecoveryCode(): Promise<void> {
+  const code = this.recoveryCode();
+
+  if (!code) {
+    return;
+  }
+
+  this.recoveryCopyMessage.set('');
+
+  if (!navigator.clipboard?.writeText) {
+    this.recoveryCopyMessage.set(
+      'Automatic copying is unavailable. Please select and copy your code manually.'
+    );
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(code);
+
+    this.recoveryCopyMessage.set(
+      'Recovery code copied successfully.'
+    );
+  } catch {
+    this.recoveryCopyMessage.set(
+      'Unable to copy automatically. Please select and copy your code manually.'
+    );
+  }
+}
 }
