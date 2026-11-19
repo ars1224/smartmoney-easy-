@@ -120,6 +120,10 @@ export class ProfileAssetsPage implements OnInit {
     readonly savingEditWallet = signal(false);
     readonly editWalletError = signal('');
 
+    readonly editOpeningBalanceLocked = signal(false);
+
+    private readonly openingBalanceLockedWalletIds = new Set<string>();
+
     editWalletName = '';
     editOpeningBalance: number | null = 0;
 
@@ -426,178 +430,235 @@ export class ProfileAssetsPage implements OnInit {
     }
 
 
-    openEditWalletModal(wallet: CashWallet): void {
-    if (
-        this.savingEditWallet() ||
-        this.showCreateWallet() ||
-        this.disconnectDialog()
-    ) {
+  openEditWalletModal(wallet: CashWallet): void {
+      if (
+          this.savingEditWallet() ||
+          this.showCreateWallet() ||
+          this.disconnectDialog()
+      ) {
+          return;
+      }
+
+      this.editWalletName = wallet.name;
+      this.editOpeningBalance = wallet.openingBalance;
+
+      this.editOpeningBalanceLocked.set(
+          this.openingBalanceLockedWalletIds.has(wallet.id)
+      );
+
+      this.editWalletError.set('');
+      this.editingWallet.set(wallet);
+  }
+
+closeEditWalletModal(): void {
+    if (this.savingEditWallet()) {
         return;
     }
-
-    this.editWalletName = wallet.name;
-    this.editOpeningBalance = wallet.openingBalance;
-    this.editWalletError.set('');
-    this.editingWallet.set(wallet);
-    }
-
-    closeEditWalletModal(): void {
-    if (this.savingEditWallet()) return;
 
     this.editingWallet.set(null);
     this.editWalletError.set('');
-    }
+}
 
-    async saveEditWallet(): Promise<void> {
+
+  async saveEditWallet(): Promise<void> {
     const wallet = this.editingWallet();
 
-    if (!wallet || this.savingEditWallet()) return;
-
-    const name = this.editWalletName.trim();
-    const balance = this.editOpeningBalance;
-
-    if (!name || name.length > 80) {
-        this.editWalletError.set(
-        'Enter a wallet name of up to 80 characters.'
-        );
-        return;
+    if (!wallet || this.savingEditWallet()) {
+      return;
     }
 
+    const name = this.editWalletName.trim();
+
+    const balance = this.editOpeningBalanceLocked()
+      ? wallet.openingBalance
+      : this.editOpeningBalance;
+
+    // Validate the wallet name.
+    if (!name || name.length > 80) {
+      this.editWalletError.set(
+        'Enter a wallet name of up to 80 characters.'
+      );
+
+      return;
+    }
+
+    // Validate the opening balance.
     if (
-        balance === null ||
-        !Number.isFinite(balance) ||
-        balance < 0 ||
-        !/^\d+(\.\d{1,2})?$/.test(String(balance))
+      balance === null ||
+      !Number.isFinite(balance) ||
+      balance < 0 ||
+      !/^\d+(\.\d{1,2})?$/.test(String(balance))
     ) {
-        this.editWalletError.set(
+      this.editWalletError.set(
         'Enter a valid opening balance with up to two decimal places.'
-        );
-        return;
+      );
+
+      return;
     }
 
     this.savingEditWallet.set(true);
     this.editWalletError.set('');
 
     try {
-        await firstValueFrom(
+      // Save changes through the backend API.
+      await firstValueFrom(
         this.walletApi.updateWallet(wallet.id, {
-            name,
-            openingBalance: balance,
+          name,
+          openingBalance: balance,
         })
+      );
+
+      // Close the modal after a successful update.
+      this.editingWallet.set(null);
+
+      // Reload wallets to update the displayed balances.
+      try {
+        await firstValueFrom(
+          this.walletService.loadWallets()
         );
-
-        this.editingWallet.set(null);
-
-        try {
-        await firstValueFrom(this.walletService.loadWallets());
-        } catch {
+      } catch {
         this.walletError.set(
-            'Wallet updated, but balances could not be refreshed. Please reload the page.'
+          'Wallet updated, but balances could not be refreshed. Please reload the page.'
         );
-        }
-    } catch {
-        this.editWalletError.set(
-        'Unable to update the wallet. Please check the details and try again.'
-        );
-    } finally {
-        this.savingEditWallet.set(false);
-    }
-    }
+      }
+    } catch (error: unknown) {
+      if (error instanceof HttpErrorResponse) {
+        const backendError = error.error?.error;
 
+        // Handle the restriction on opening-balance changes.
+        if (
+          error.status === 409 &&
+          typeof backendError === 'string' &&
+          backendError.includes(
+            'Opening balance cannot be changed after transactions'
+          )
+        ) {
+          // Remember that this wallet's opening balance is locked.
+          this.openingBalanceLockedWalletIds.add(wallet.id);
+
+          this.editOpeningBalanceLocked.set(true);
+
+          // Restore the original opening balance.
+          this.editOpeningBalance = wallet.openingBalance;
+        }
+
+        // Display the backend's actual validation error.
+        this.editWalletError.set(
+          typeof backendError === 'string'
+            ? backendError
+            : 'Unable to update the wallet. Please try again.'
+        );
+      } else {
+        this.editWalletError.set(
+          'Unable to update the wallet. Please try again.'
+        );
+      }
+    } finally {
+      this.savingEditWallet.set(false);
+    }
+  }
 
     openArchiveWalletModal(wallet: CashWallet): void {
     if (
-        wallet.isArchived ||
-        this.archivingWallet() ||
-        this.savingEditWallet() ||
-        this.savingWallet() ||
-        this.loading() ||
-        this.editingWallet() ||
-        this.showCreateWallet() ||
-        this.disconnectDialog()
+      wallet.isArchived ||
+      this.archivingWallet() ||
+      this.savingEditWallet() ||
+      this.savingWallet() ||
+      this.loading() ||
+      this.editingWallet() ||
+      this.showCreateWallet() ||
+      this.disconnectDialog()
     ) {
-        return;
+      return;
     }
 
     this.archiveWalletError.set('');
     this.archiveWalletNotice.set('');
     this.archiveWalletDialog.set(wallet);
-    }
+  }
 
-    closeArchiveWalletModal(): void {
-    if (this.archivingWallet()) return;
+  closeArchiveWalletModal(): void {
+    if (this.archivingWallet()) {
+      return;
+    }
 
     this.archiveWalletDialog.set(null);
     this.archiveWalletError.set('');
-    }
+  }
 
-
-    async confirmArchiveWallet(): Promise<void> {
+  async confirmArchiveWallet(): Promise<void> {
     const wallet = this.archiveWalletDialog();
 
-    if (!wallet || this.archivingWallet()) return;
+    if (!wallet || this.archivingWallet()) {
+      return;
+    }
 
     this.archivingWallet.set(true);
     this.archiveWalletError.set('');
     this.archiveWalletNotice.set('');
 
     try {
-        // Archive the selected wallet in PostgreSQL.
-
-        await firstValueFrom(
+      // Archive the selected wallet in the database.
+      await firstValueFrom(
         this.walletApi.archiveWallet(wallet.id)
-        );
+      );
 
+      // Close the confirmation modal.
+      this.archiveWalletDialog.set(null);
 
-        this.archiveWalletDialog.set(null);
-
-        this.archiveWalletNotice.set(
+      // Display a success message.
+      this.archiveWalletNotice.set(
         `${wallet.name} has been archived. Its transaction history is preserved.`
-        );
+      );
 
-        // Refresh active and archived wallets separately.
-        const [activeResult, archivedResult] =
+      // Refresh active and archived wallets separately.
+      const [activeResult, archivedResult] =
         await Promise.allSettled([
-            firstValueFrom(this.walletService.loadWallets()),
-            firstValueFrom(this.walletApi.getArchivedWallets()),
+          firstValueFrom(
+            this.walletService.loadWallets()
+          ),
+          firstValueFrom(
+            this.walletApi.getArchivedWallets()
+          ),
         ]);
 
-        if (activeResult.status === 'fulfilled') {
+      // Handle active wallet refresh.
+      if (activeResult.status === 'fulfilled') {
         this.walletError.set('');
-        } else {
+      } else {
         this.walletError.set(
-            'Wallet archived, but active wallets could not be refreshed. Please reload.'
+          'Wallet archived, but active wallets could not be refreshed. Please reload.'
         );
-        }
+      }
 
-        if (archivedResult.status === 'fulfilled') {
+      // Handle archived wallet refresh.
+      if (archivedResult.status === 'fulfilled') {
         this.archivedWallets.set(archivedResult.value);
         this.archivedWalletError.set('');
         this.showArchivedWallets.set(true);
-        } else {
+      } else {
         this.archivedWalletError.set(
-            'Wallet archived, but archived wallets could not be refreshed. Please reload.'
+          'Wallet archived, but archived wallets could not be refreshed. Please reload.'
         );
-        }
+      }
     } catch (error: unknown) {
-        if (error instanceof HttpErrorResponse) {
+      if (error instanceof HttpErrorResponse) {
         const backendError = error.error?.error;
 
         this.archiveWalletError.set(
-            typeof backendError === 'string'
+          typeof backendError === 'string'
             ? backendError
             : 'Unable to archive this wallet. Please try again.'
         );
-        } else {
+      } else {
         this.archiveWalletError.set(
-            'Unable to archive this wallet. Please try again.'
+          'Unable to archive this wallet. Please try again.'
         );
-        }
+      }
     } finally {
-        this.archivingWallet.set(false);
+      this.archivingWallet.set(false);
     }
-    }
-
+  }
 
   openRestoreWalletModal(wallet: CashWallet): void {
     if (
