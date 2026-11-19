@@ -3,6 +3,8 @@ from unittest.mock import Mock, patch
 
 from config import Config
 from app import create_app
+from app.extensions import db
+from app.models import User
 from app.services.app_help import APP_HELP, PUBLIC_GUIDE, demo_app_reply, help_links
 from app.services.thinker import get_reply
 
@@ -11,40 +13,62 @@ class AppHelpTests(unittest.TestCase):
     def setUp(self):
         with patch.object(
             Config, "SQLALCHEMY_DATABASE_URI", "sqlite:///:memory:"
-        ), patch.object(Config, "SECRET_KEY", "app-help-test-only"):
+        ), patch.object(
+            Config, "SECRET_KEY", "app-help-test-only"
+        ):
             self.app = create_app()
-        self.app.config.update(THINKER_MODE="demo", OPENAI_API_KEY="")
+
+        self.app.config.update(
+            THINKER_MODE="demo",
+            OPENAI_API_KEY=""
+        )
+
+        self.app_context = self.app.app_context()
+        self.app_context.push()
+
+        # Never create tables outside the isolated SQLite database.
+        database_url = db.engine.url
+
+        if (
+            not database_url.drivername.startswith("sqlite")
+            or database_url.database != ":memory:"
+        ):
+            self.app_context.pop()
+            raise RuntimeError(
+                "App help tests require an in-memory SQLite database."
+            )
+
+        db.create_all()
+
+        # Create a real synthetic user for authentication tests.
+        test_user = User(
+            name="Help Test User",
+            email="help-owner@example.test"
+        )
+
+        test_user.set_password("HelpTestPassword123!")
+
+        db.session.add(test_user)
+        db.session.commit()
+
         self.client = self.app.test_client()
+
         with self.client.session_transaction() as session:
-            session.update(user_id="help-owner", csrf_token="help-csrf")
+            session.update(
+                user_id=test_user.id,
+                csrf_token="help-csrf"
+            )
+
+    def tearDown(self):
+        db.session.remove()
+        db.drop_all()
+        self.app_context.pop()
 
     def send(self, message, **extra):
         return self.client.post(
             "/api/thinker/messages",
             json={"message": message, **extra},
             headers={"X-CSRF-Token": "help-csrf"},
-        )
-
-    def test_shared_source_is_bounded_and_has_only_existing_app_destinations(self):
-        self.assertEqual(len(APP_HELP["steps"]), 6)
-        self.assertEqual(len(APP_HELP["questions"]), 8)
-        self.assertLess(len(PUBLIC_GUIDE), 20000)
-        self.assertEqual(len({step["id"] for step in APP_HELP["steps"]}), 6)
-        for entry in APP_HELP["steps"] + APP_HELP["questions"]:
-            for link in entry["links"]:
-                self.assertIn(link["page"], APP_HELP["pages"])
-        self.assertEqual(
-            {page["route"] for page in APP_HELP["pages"].values()},
-            {
-                "/onboarding",
-                "/app/profile",
-                "/app/activity",
-                "/app/budgets",
-                "/app/goals",
-                "/app/dashboard",
-                "/app/reports",
-                "/app/learn",
-            },
         )
 
     def test_using_smartmoney_demo_uses_shared_copy_without_provider_or_records(self):

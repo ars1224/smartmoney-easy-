@@ -490,32 +490,32 @@ async continueToBudget(): Promise<void> {
 
 
 updateBudgetShare(
-  bucket: BudgetBucket,
-  rawValue: string
-): void {
-  const value = Number(rawValue);
+    bucket: BudgetBucket,
+    rawValue: string
+    ): void {
+    const value = Number(rawValue);
 
-  if (
-    rawValue.trim() === '' ||
-    !Number.isInteger(value) ||
-    value < 0 ||
-    value > 100
-  ) {
-    this.budgetError.set(
-      'Enter a whole percentage between 0 and 100.'
-    );
-    return;
-  }
+    if (
+        rawValue.trim() === '' ||
+        !Number.isInteger(value) ||
+        value < 0 ||
+        value > 100
+    ) {
+        this.budgetError.set(
+        'Enter a whole percentage between 0 and 100.'
+        );
+        return;
+    }
 
-  this.budgetShares.update(shares => ({
-    ...shares,
-    [bucket]: value,
-  }));
+    this.budgetShares.update(shares => ({
+        ...shares,
+        [bucket]: value,
+    }));
 
-  this.budgetError.set('');
+    this.budgetError.set('');
 
-this.allocationSaved.set(false);
-this.budgetSaveMessage.set('');
+    this.allocationSaved.set(false);
+    this.budgetSaveMessage.set('');
 
 
   if (this.budgetTotalPercent() !== 100) {

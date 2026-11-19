@@ -622,7 +622,12 @@
 
       <p class="setup-note">
         These percentages are suggestions and can be changed.
-        This is a preview; your allocation has not been saved yet.
+
+        @if (allocationSaved()) {
+          Your monthly allocation has been saved.
+        } @else {
+          This is a preview; your allocation has not been saved yet.
+        }
       </p>
     }
 

@@ -15,12 +15,13 @@ import {
   throwError,
 } from 'rxjs';
 
+import { environment } from '../../../environments/environment';
+
+
 export interface SmartMoneyUser {
   name: string;
   email: string;
 }
-
-import { environment } from '../../../environments/environment';
 
 interface BackendUser {
   id: string;
@@ -32,6 +33,28 @@ interface AuthResponse {
   message: string;
   user: BackendUser;
   csrf_token: string;
+}
+
+interface RegisterResponse extends AuthResponse {
+  recovery_code: string;
+}
+
+export interface RegisterResult {
+  user: SmartMoneyUser;
+  recoveryCode: string;
+}
+
+interface RecoveryVerificationResponse {
+  verified: boolean;
+}
+
+interface RecoveryResetResponse {
+  message: string;
+  recovery_code: string;
+}
+
+export interface RecoveryResetResult {
+  recoveryCode: string;
 }
 
 interface SessionResponse {
@@ -51,11 +74,13 @@ interface CsrfResponse {
   csrf_token: string;
 }
 
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
 
-private readonly apiBase = `${environment.apiUrl}/auth`;
+  private readonly apiBase = `${environment.apiUrl}/auth`;
+
   private readonly currentUserSignal =
     signal<SmartMoneyUser | null>(null);
 
@@ -75,17 +100,22 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
     () => this.currentUserSignal() !== null
   );
 
+
   private fetchCsrfToken(): Observable<string> {
     return this.http.get<CsrfResponse>(
       `${this.apiBase}/csrf`,
-      { withCredentials: true }
+      {
+        withCredentials: true,
+      }
     ).pipe(
       map(response => {
         this.csrfToken = response.csrf_token;
+
         return response.csrf_token;
       })
     );
   }
+
 
   getCsrfToken(): Observable<string> {
     if (this.csrfToken) {
@@ -94,6 +124,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
 
     return this.fetchCsrfToken();
   }
+
 
   login(
     email: string,
@@ -120,11 +151,15 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
         this.csrfToken = response.csrf_token;
 
         const user = this.mapUser(response.user);
+
         this.currentUserSignal.set(user);
         this.sessionExpiredSignal.set(false);
         this.sessionExpiryRedirected = false;
 
-        sessionStorage.setItem('smartmoney-had-session','true');
+        sessionStorage.setItem(
+          'smartmoney-had-session',
+          'true'
+        );
 
         return user;
       }),
@@ -134,14 +169,15 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
     );
   }
 
+
   register(
     name: string,
     email: string,
     password: string
-  ): Observable<SmartMoneyUser> {
+  ): Observable<RegisterResult> {
     return this.fetchCsrfToken().pipe(
       switchMap(token =>
-        this.http.post<AuthResponse>(
+        this.http.post<RegisterResponse>(
           `${this.apiBase}/register`,
           {
             name: name.trim(),
@@ -160,19 +196,106 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
         this.csrfToken = response.csrf_token;
 
         const user = this.mapUser(response.user);
+
         this.currentUserSignal.set(user);
         this.sessionExpiredSignal.set(false);
         this.sessionExpiryRedirected = false;
 
-        sessionStorage.setItem('smartmoney-had-session','true');
+        sessionStorage.setItem(
+          'smartmoney-had-session',
+          'true'
+        );
 
-        return user;
+        return {
+          user,
+          recoveryCode: response.recovery_code,
+        };
       }),
       catchError(error =>
         throwError(() => this.toError(error))
       )
     );
   }
+
+
+  verifyRecovery(
+    email: string,
+    name: string,
+    recoveryCode: string
+  ): Observable<void> {
+    return this.fetchCsrfToken().pipe(
+      switchMap(token =>
+        this.http.post<RecoveryVerificationResponse>(
+          `${this.apiBase}/recovery/verify`,
+          {
+            email: email.trim().toLowerCase(),
+            name: name.trim(),
+            recoveryCode: recoveryCode.trim().toUpperCase(),
+          },
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
+      ),
+      map(() => undefined),
+      catchError(error =>
+        throwError(() => this.toError(error))
+      )
+    );
+  }
+
+
+  resetPasswordWithRecovery(
+    email: string,
+    name: string,
+    recoveryCode: string,
+    newPassword: string,
+    confirmPassword: string
+  ): Observable<RecoveryResetResult> {
+    return this.fetchCsrfToken().pipe(
+      switchMap(token =>
+        this.http.post<RecoveryResetResponse>(
+          `${this.apiBase}/recovery/reset`,
+          {
+            email: email.trim().toLowerCase(),
+            name: name.trim(),
+            recoveryCode: recoveryCode.trim().toUpperCase(),
+            newPassword,
+            confirmPassword,
+          },
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': token,
+            },
+          }
+        )
+      ),
+      map(response => {
+        // Flask clears the session after a successful password reset.
+        // Clear Angular's authentication state to match.
+        this.clearLocalSession();
+
+        this.sessionExpiryRedirected = false;
+
+        sessionStorage.removeItem(
+          'smartmoney-had-session'
+        );
+
+        // Return the replacement code without storing it.
+        return {
+          recoveryCode: response.recovery_code,
+        };
+      }),
+      catchError(error =>
+        throwError(() => this.toError(error))
+      )
+    );
+  }
+
 
   verifySession(): Observable<boolean> {
     if (this.sessionVerification$) {
@@ -181,7 +304,9 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
 
     this.sessionVerification$ = this.http.get<SessionResponse>(
       `${this.apiBase}/me`,
-      { withCredentials: true }
+      {
+        withCredentials: true,
+      }
     ).pipe(
       tap(response => {
         this.currentUserSignal.set(
@@ -198,10 +323,15 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
           error.status === 401
         ) {
           const hadSession =
-            sessionStorage.getItem('smartmoney-had-session') === 'true';
+            sessionStorage.getItem(
+              'smartmoney-had-session'
+            ) === 'true';
 
           this.clearLocalSession();
-          this.sessionExpiredSignal.set(hadSession);
+
+          this.sessionExpiredSignal.set(
+            hadSession
+          );
 
           return of(false);
         }
@@ -234,8 +364,12 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
       ),
       tap(() => {
         this.clearLocalSession();
+
         this.sessionExpiryRedirected = false;
-        sessionStorage.removeItem('smartmoney-had-session');
+
+        sessionStorage.removeItem(
+          'smartmoney-had-session'
+        );
       }),
       map(() => undefined),
       catchError(error =>
@@ -267,7 +401,9 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
       ),
       map(response => {
         const user = this.mapUser(response.user);
+
         this.currentUserSignal.set(user);
+
         return user;
       }),
       catchError(error =>
@@ -275,6 +411,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
       )
     );
   }
+
 
   changePassword(
     currentPassword: string,
@@ -303,11 +440,17 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
     );
   }
 
+
   handleSessionExpired(): boolean {
     const hadSession =
-      sessionStorage.getItem('smartmoney-had-session') === 'true';
+      sessionStorage.getItem(
+        'smartmoney-had-session'
+      ) === 'true';
 
-    if (!hadSession || this.sessionExpiryRedirected) {
+    if (
+      !hadSession ||
+      this.sessionExpiryRedirected
+    ) {
       return false;
     }
 
@@ -327,12 +470,14 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
     this.sessionExpiredSignal.set(false);
   }
 
+
   private mapUser(user: BackendUser): SmartMoneyUser {
     return {
       email: user.email,
       name: user.name?.trim() || this.nameFromEmail(user.email),
     };
   }
+
 
   private nameFromEmail(email: string): string {
     const firstPart = email
@@ -349,6 +494,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
       character => character.toUpperCase()
     );
   }
+
 
   private toError(error: unknown): Error {
     if (error instanceof HttpErrorResponse) {
@@ -369,6 +515,9 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
       );
     }
 
-    return new Error('An unexpected error occurred.');
+    return new Error(
+      'An unexpected error occurred.'
+    );
   }
+
 }

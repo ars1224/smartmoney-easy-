@@ -5,6 +5,107 @@
     </div>
 
     <section class="auth-panel auth-card" aria-labelledby="register-title">
+
+      @if (recoveryCode()) {
+        <h1 id="register-title">Save your recovery code</h1>
+
+        <p class="auth-intro">
+          Your SmartMoney! Easy account has been created successfully!
+        </p>
+
+        <p class="auth-intro">
+          This is your personal password recovery code.
+          Save it somewhere safe. You will need it if you forget your password.
+        </p>
+
+      <div class="field">
+        <label for="register-recovery-code">
+          Your recovery code
+        </label>
+
+        <div class="recovery-code-wrap">
+          <input
+            id="register-recovery-code"
+            type="text"
+            [value]="recoveryCode()"
+            readonly
+            autocomplete="off"
+            spellcheck="false"
+          />
+
+          <button
+            class="copy-code-icon"
+            type="button"
+            aria-label="Copy recovery code"
+            title="Copy recovery code"
+            [disabled]="!recoveryCode()"
+            (click)="copyRecoveryCode()"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect
+                x="8"
+                y="8"
+                width="13"
+                height="13"
+                rx="2"
+              />
+
+              <path
+                d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+        @if (recoveryCopyMessage()) {
+          <p
+            class="privacy-consent"
+            role="status"
+            aria-live="polite"
+          >
+            {{ recoveryCopyMessage() }}
+          </p>
+        }
+
+        <p class="privacy-consent">
+          Important: This code is displayed only once.
+          SmartMoney! Easy cannot send it to your email.
+        </p>
+
+        <label class="privacy-consent" for="confirm-recovery-code">
+          <input
+            id="confirm-recovery-code"
+            type="checkbox"
+            [checked]="recoveryCodeConfirmed()"
+            (change)="recoveryCodeConfirmed.set($any($event.target).checked)"
+          />
+
+          I have saved my recovery code somewhere safe.
+        </label>
+
+        <button
+          class="submit-button"
+          type="button"
+          [disabled]="!recoveryCodeConfirmed()"
+          (click)="continueToOnboarding()"
+        >
+          Continue to Onboarding
+        </button>
+
+      } @else {
       <h1 id="register-title">Create account</h1>
       <p class="auth-intro">Start with your basic details. You can connect accounts later.</p>
 
@@ -73,6 +174,7 @@
         <a routerLink="/auth/login">Already registered? Log in</a>
         <a routerLink="/about">About SmartMoney! Easy</a>
       </nav>
+    }
     </section>
   </main>
 </ion-content>

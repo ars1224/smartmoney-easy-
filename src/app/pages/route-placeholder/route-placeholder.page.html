@@ -13,10 +13,17 @@
       <h1 id="placeholder-title">{{ data.title }}</h1>
       <p class="placeholder__description">{{ data.description }}</p>
 
-      <app-sm-alert
-        title="Phase 1 complete"
-        message="The responsive route and shared interface foundation are ready. Detailed feature content will be added in its assigned phase."
-      ></app-sm-alert>
+      @if (data.aboutPage) {
+        <app-sm-alert
+          title="Take control of your financial journey"
+          message="SmartMoney! Easy helps you track income and expenses, manage monthly budgets, set savings goals, connect to a simulated bank, and develop better money habits through financial learning tools."
+        ></app-sm-alert>
+      } @else {
+        <app-sm-alert
+          title="Information"
+          message="Please refer to the information provided on this page."
+        ></app-sm-alert>
+      }
 
       @if (!data.publicPage) {
         <div class="placeholder__sample" aria-label="Shared component preview">
@@ -35,9 +42,6 @@
           >
             {{ data.secondaryLabel }}
           </a>
-        }
-        @if (data.publicPage) {
-          <a class="placeholder__link" routerLink="/app/dashboard">Preview app shell</a>
         }
       </div>
     </app-sm-card>

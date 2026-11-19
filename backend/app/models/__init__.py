@@ -43,6 +43,30 @@ class User(db.Model):
         nullable=True
     )
 
+    # Account recovery
+    recovery_code_hash = db.Column(
+        db.String(255),
+        nullable=True
+    )
+
+    recovery_failed_attempts = db.Column(
+        db.Integer,
+        nullable=False,
+        default=0,
+        server_default="0"
+    )
+
+    recovery_locked_until = db.Column(
+        db.DateTime(timezone=True),
+        nullable=True
+    )
+
+        # Track credential changes to invalidate older sessions.
+    credentials_changed_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=True
+    )
+
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=utc_now,
