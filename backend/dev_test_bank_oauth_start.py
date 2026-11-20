@@ -33,6 +33,7 @@ try:
         response = client.post(
             "/api/auth/register",
             json={
+                "name": "OAuth Test User",
                 "email": test_email,
                 "password": test_password
             },
@@ -73,7 +74,7 @@ try:
 
         assert params["redirect_uri"] == [
             app.config["MOCK_BANK_OAUTH_REDIRECT_URI"]
-        ]
+        ], "OAuth redirect URI does not match the configured callback"
 
         print("Authorization URL: OK")
 
