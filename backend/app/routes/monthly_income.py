@@ -106,7 +106,12 @@ def get_monthly_income():
         user_id=user_id,
     ).all()
 
-    monthly_limits = {}
+    # Determine which budget limits apply to the selected month.
+    # A budget becomes effective in its starting month and
+    # carries forward until a newer monthly limit replaces it.
+
+    effective_limits = {}
+    budgets_with_history = set()
 
     if budgets:
         records = (
@@ -114,24 +119,52 @@ def get_monthly_income():
             .filter(
                 BudgetMonthlyLimit.budget_id.in_(
                     [budget.id for budget in budgets]
-                ),
-                BudgetMonthlyLimit.month == month,
+                )
+            )
+            .order_by(
+                BudgetMonthlyLimit.month.asc()
             )
             .all()
         )
 
-        monthly_limits = {
-            record.budget_id: record.monthly_limit
-            for record in records
-        }
+        for record in records:
+            budgets_with_history.add(
+                record.budget_id
+            )
+
+            # Only apply limits from the selected month
+            # or an earlier month.
+            if record.month <= month:
+                effective_limits[record.budget_id] = (
+                    record.monthly_limit
+                )
+
+    # Include budgets that were already effective.
+    # Preserve legacy budgets without monthly history,
+    # but never include them before their creation month.
+
+    visible_budgets = [
+        budget
+        for budget in budgets
+        if (
+            budget.id in effective_limits
+            or (
+                budget.id not in budgets_with_history
+                and budget.created_at.strftime("%Y-%m") <= month
+            )
+        )
+    ]
+
+    # Calculate allocated income using the same effective
+    # limits as the Budgets endpoint.
 
     allocated = sum(
         (
-            monthly_limits.get(
+            effective_limits.get(
                 budget.id,
                 budget.monthly_limit,
             )
-            for budget in budgets
+            for budget in visible_budgets
         ),
         Decimal("0.00"),
     )
