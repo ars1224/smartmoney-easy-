@@ -45,6 +45,10 @@ class Config:
         "MOCK_BANK_OAUTH_REDIRECT_URI"
     )
 
+    MOCK_BANK_OAUTH_REDIRECT_URI_LOCAL = os.getenv(
+            "MOCK_BANK_OAUTH_REDIRECT_URI_LOCAL"
+    )
+
     SESSION_COOKIE_NAME = "smartmoney_session"
 
     SESSION_COOKIE_HTTPONLY = True

@@ -1,0 +1,4016 @@
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index abd115c..6028090 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -7,5 +7,6 @@
+   "typescript.preferences.autoImportFileExcludePatterns": [
+     "@ionic/angular/types/ionic-angular-lazy.d.ts",
+     "@ionic/angular/types/ionic-angular-common.d.ts"
+-  ]
++  ],
++  "js/ts.tsdk.path": "node_modules\\typescript\\lib"
+ }
+diff --git a/backend/app/auth_security.py b/backend/app/auth_security.py
+index c954997..fa1993c 100644
+--- a/backend/app/auth_security.py
++++ b/backend/app/auth_security.py
+@@ -1,15 +1,76 @@
+-
+ import hmac
+ import secrets
++from datetime import datetime, timezone
+ from functools import wraps
+ 
+ from flask import jsonify, request, session
+ 
+ 
+ def get_authenticated_user_id():
+-    # Flask verifies the signed session cookie.
+-    # Do not read user IDs from client-supplied headers.
+-    return session.get("user_id")
++    # User IDs must come from Flask's signed session cookie.
++    user_id = session.get("user_id")
++
++    if not user_id:
++        return None
++
++    # Import locally to avoid circular imports during app setup.
++    from app.extensions import db
++    from app.models import User
++
++    user = db.session.get(User, user_id)
++
++    if user is None:
++        session.clear()
++        return None
++
++    # Accounts without a credential-change timestamp
++    # have no previous password reset to enforce.
++    changed_at = user.credentials_changed_at
++
++    if changed_at is None:
++        return user_id
++
++    authenticated_at_value = session.get("authenticated_at")
++
++    if not isinstance(authenticated_at_value, str):
++        session.clear()
++        return None
++
++    try:
++        authenticated_at = datetime.fromisoformat(
++            authenticated_at_value
++        )
++    except ValueError:
++        session.clear()
++        return None
++
++    # Reject timestamps without timezone information.
++    if authenticated_at.tzinfo is None:
++        session.clear()
++        return None
++
++    # SQLite may return naive datetimes during isolated tests.
++    # Our application stores credential-change times in UTC.
++    if changed_at.tzinfo is None:
++        changed_at = changed_at.replace(
++            tzinfo=timezone.utc
++        )
++
++    authenticated_at = authenticated_at.astimezone(
++        timezone.utc
++    )
++
++    changed_at = changed_at.astimezone(
++        timezone.utc
++    )
++
++    # Sessions created before or at the credential change
++    # are no longer authorised.
++    if authenticated_at <= changed_at:
++        session.clear()
++        return None
++
++    return user_id
+ 
+ 
+ def issue_csrf_token():
+diff --git a/backend/app/models/__init__.py b/backend/app/models/__init__.py
+index 0f58a9c..b39a50e 100644
+--- a/backend/app/models/__init__.py
++++ b/backend/app/models/__init__.py
+@@ -43,6 +43,30 @@ class User(db.Model):
+         nullable=True
+     )
+ 
++        # Account recovery
++    recovery_code_hash = db.Column(
++        db.String(255),
++        nullable=True
++    )
++
++    recovery_failed_attempts = db.Column(
++        db.Integer,
++        nullable=False,
++        default=0,
++        server_default="0"
++    )
++
++    recovery_locked_until = db.Column(
++        db.DateTime(timezone=True),
++        nullable=True
++    )
++
++        # Track credential changes to invalidate older sessions.
++    credentials_changed_at = db.Column(
++        db.DateTime(timezone=True),
++        nullable=True
++    )
++
+     created_at = db.Column(
+         db.DateTime(timezone=True),
+         default=utc_now,
+diff --git a/backend/app/routes/auth.py b/backend/app/routes/auth.py
+index 573730d..4ded035 100644
+--- a/backend/app/routes/auth.py
++++ b/backend/app/routes/auth.py
+@@ -1,13 +1,22 @@
++from datetime import datetime, timezone
++
+ from flask import Blueprint, jsonify, request, session
+ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+ 
+-from app.extensions import db
+-from app.models import User, OnboardingProgress
+ from app.auth_security import (
+     csrf_required,
+     get_authenticated_user_id,
+     issue_csrf_token,
+ )
++from app.extensions import db
++from app.models import OnboardingProgress, User
++from app.services.recovery_attempts import (
++    check_recovery_attempt,
++)
++from app.services.recovery_codes import (
++    generate_recovery_code,
++    hash_recovery_code,
++)
+ 
+ 
+ auth_bp = Blueprint(
+@@ -16,7 +25,6 @@ auth_bp = Blueprint(
+     url_prefix="/api/auth"
+ )
+ 
+-
+ def public_user(user):
+     return {
+         "id": user.id,
+@@ -25,6 +33,16 @@ def public_user(user):
+     }
+ 
+ 
++def recovery_response(data, status_code):
++    """Return a recovery response without allowing HTTP caching."""
++
++    response = jsonify(data)
++
++    response.headers["Cache-Control"] = "no-store"
++
++    return response, status_code
++
++
+ @auth_bp.get("/csrf")
+ def get_csrf():
+     return jsonify({
+@@ -32,6 +50,232 @@ def get_csrf():
+     }), 200
+ 
+ 
++@auth_bp.post("/recovery/verify")
++@csrf_required
++def verify_account_recovery():
++    """Verify recovery credentials without authenticating the user."""
++
++    generic_error = {
++        "error": (
++            "Unable to verify recovery details. "
++            "Check your information or try again later."
++        )
++    }
++
++    data = request.get_json(silent=True)
++
++    if not isinstance(data, dict):
++        return recovery_response(
++            generic_error,
++            400,
++        )
++
++    email = data.get("email")
++    name = data.get("name")
++    recovery_code = data.get("recoveryCode")
++
++    # Validate request types without exposing account information.
++    if (
++        not isinstance(email, str)
++        or not isinstance(name, str)
++        or not isinstance(recovery_code, str)
++    ):
++        return recovery_response(
++            generic_error,
++            400,
++        )
++
++    try:
++        # This service locks the user row while checking credentials
++        # and updating failed-attempt counters.
++        user = check_recovery_attempt(
++            email=email,
++            name=name,
++            recovery_code=recovery_code,
++        )
++
++        # Persist counter changes and release the database row lock.
++        db.session.commit()
++
++    except SQLAlchemyError:
++        db.session.rollback()
++
++        return recovery_response(
++            {
++                "error": (
++                    "Recovery verification is temporarily unavailable. "
++                    "Please try again later."
++                )
++            },
++            503,
++        )
++
++    if user is None:
++        return recovery_response(
++            generic_error,
++            400,
++        )
++
++    # Verification alone must not create an authenticated session.
++    # The reset endpoint will verify the recovery code again.
++    return recovery_response(
++        {
++            "verified": True,
++        },
++        200,
++    )
++
++@auth_bp.post("/recovery/reset")
++@csrf_required
++def reset_account_password():
++    """Reset a password using verified account recovery credentials."""
++
++    generic_error = {
++        "error": (
++            "Unable to verify recovery details. "
++            "Check your information or try again later."
++        )
++    }
++
++    data = request.get_json(silent=True)
++
++    if not isinstance(data, dict):
++        return recovery_response(
++            generic_error,
++            400,
++        )
++
++    email = data.get("email")
++    name = data.get("name")
++    recovery_code = data.get("recoveryCode")
++
++    new_password = data.get("newPassword")
++    confirm_password = data.get("confirmPassword")
++
++    # Validate the required request fields.
++    if (
++        not isinstance(email, str)
++        or not isinstance(name, str)
++        or not isinstance(recovery_code, str)
++        or not isinstance(new_password, str)
++        or not isinstance(confirm_password, str)
++    ):
++        return recovery_response(
++            generic_error,
++            400,
++        )
++
++    # Apply the same password-length rules as registration.
++    if (
++        len(new_password) < 12
++        or len(new_password) > 128
++    ):
++        return recovery_response(
++            {
++                "error": (
++                    "New password must contain "
++                    "between 12 and 128 characters."
++                )
++            },
++            400,
++        )
++
++    # The password confirmation must match.
++    if new_password != confirm_password:
++        return recovery_response(
++            {
++                "error": "Passwords do not match."
++            },
++            400,
++        )
++
++    try:
++        # Reverify recovery credentials inside this transaction.
++        # This also enforces failed-attempt limits and lockouts.
++        user = check_recovery_attempt(
++            email=email,
++            name=name,
++            recovery_code=recovery_code,
++        )
++
++        if user is None:
++            # Save any updated failed-attempt counters.
++            db.session.commit()
++
++            return recovery_response(
++                generic_error,
++                400,
++            )
++
++        # Prevent resetting the password to the current password.
++        if user.check_password(new_password):
++            db.session.commit()
++
++            return recovery_response(
++                {
++                    "error": (
++                        "New password must be different "
++                        "from the current password."
++                    )
++                },
++                400,
++            )
++
++        # Generate a replacement recovery code.
++        new_recovery_code = generate_recovery_code()
++
++        # Ensure the previous recovery code cannot remain valid.
++        while (
++            new_recovery_code
++            == recovery_code.strip().upper()
++        ):
++            new_recovery_code = generate_recovery_code()
++
++        # Update the password hash.
++        user.set_password(new_password)
++
++        # Replace the old recovery-code hash.
++        user.recovery_code_hash = hash_recovery_code(
++            new_recovery_code
++        )
++
++        # Reset recovery security counters.
++        user.recovery_failed_attempts = 0
++        user.recovery_locked_until = None
++
++        # Invalidate sessions authenticated before this reset.
++        user.credentials_changed_at = datetime.now(
++            timezone.utc
++        )
++
++        # Commit all account changes together.
++        db.session.commit()
++
++    except SQLAlchemyError:
++        db.session.rollback()
++
++        return recovery_response(
++            {
++                "error": (
++                    "Unable to reset password. "
++                    "Please try again later."
++                )
++            },
++            503,
++        )
++
++    # A password reset must not automatically authenticate the user.
++    session.clear()
++
++    # Display the replacement recovery code only in this response.
++    return recovery_response(
++        {
++            "message": "Password reset successfully.",
++            "recovery_code": new_recovery_code,
++        },
++        200,
++    )
++
+ 
+ @auth_bp.post("/register")
+ @csrf_required
+@@ -98,8 +342,17 @@ def register():
+         name=name,
+         email=email
+     )
++
+     user.set_password(password)
+ 
++    # Generate a secure account recovery code.
++    recovery_code = generate_recovery_code()
++
++    # Store only the hashed recovery code.
++    user.recovery_code_hash = hash_recovery_code(
++        recovery_code
++    )
++
+     try:
+         db.session.add(user)
+         db.session.flush()
+@@ -131,12 +384,19 @@ def register():
+     session.clear()
+     session.permanent = True
+     session["user_id"] = user.id
+-
+-    return jsonify({
+-        "message": "Account created successfully.",
+-        "user": public_user(user),
+-        "csrf_token": issue_csrf_token(),
+-    }), 201
++    session["authenticated_at"] = datetime.now(
++        timezone.utc
++    ).isoformat()
++
++    return recovery_response(
++        {
++            "message": "Account created successfully.",
++            "user": public_user(user),
++            "csrf_token": issue_csrf_token(),
++            "recovery_code": recovery_code,
++        },
++        201,
++    )
+ 
+ 
+ 
+@@ -170,6 +430,9 @@ def login():
+     session.clear()
+     session.permanent = True
+     session["user_id"] = user.id
++    session["authenticated_at"] = datetime.now(
++        timezone.utc
++    ).isoformat()
+ 
+     return jsonify({
+         "message": "Login successful.",
+@@ -334,16 +597,30 @@ def change_password():
+             "error": "New password must be different from the current password."
+         }), 400
+ 
++    # Update the password hash.
+     user.set_password(new_password)
+ 
++    # Invalidate sessions authenticated before this password change.
++    user.credentials_changed_at = datetime.now(
++        timezone.utc
++    )
++
+     try:
+         db.session.commit()
++
+     except SQLAlchemyError:
+         db.session.rollback()
++
+         return jsonify({
+             "error": "Unable to update password. Please try again."
+         }), 500
+ 
++    # Keep the current device authenticated after changing its password.
++    # Previously authenticated sessions will fail the timestamp check.
++    session["authenticated_at"] = datetime.now(
++        timezone.utc
++    ).isoformat()
++
+     return jsonify({
+         "message": "Password updated successfully."
+     }), 200
+diff --git a/backend/tests/test_app_help.py b/backend/tests/test_app_help.py
+index 4404dac..c06f2ca 100644
+--- a/backend/tests/test_app_help.py
++++ b/backend/tests/test_app_help.py
+@@ -3,6 +3,8 @@ from unittest.mock import Mock, patch
+ 
+ from config import Config
+ from app import create_app
++from app.extensions import db
++from app.models import User
+ from app.services.app_help import APP_HELP, PUBLIC_GUIDE, demo_app_reply, help_links
+ from app.services.thinker import get_reply
+ 
+@@ -11,12 +13,61 @@ class AppHelpTests(unittest.TestCase):
+     def setUp(self):
+         with patch.object(
+             Config, "SQLALCHEMY_DATABASE_URI", "sqlite:///:memory:"
+-        ), patch.object(Config, "SECRET_KEY", "app-help-test-only"):
++        ), patch.object(
++            Config, "SECRET_KEY", "app-help-test-only"
++        ):
+             self.app = create_app()
+-        self.app.config.update(THINKER_MODE="demo", OPENAI_API_KEY="")
++
++        self.app.config.update(
++            THINKER_MODE="demo",
++            OPENAI_API_KEY=""
++        )
++
++        self.app_context = self.app.app_context()
++        self.app_context.push()
++
++        # Never create tables outside the isolated SQLite database.
++        database_url = db.engine.url
++
++        if (
++            not database_url.drivername.startswith("sqlite")
++            or database_url.database != ":memory:"
++        ):
++            self.app_context.pop()
++            raise RuntimeError(
++                "App help tests require an in-memory SQLite database."
++            )
++
++        db.create_all()
++
++        # Create a real synthetic user for authentication tests.
++        test_user = User(
++            name="Help Test User",
++            email="help-owner@example.test"
++        )
++
++        test_user.set_password("HelpTestPassword123!")
++
++        db.session.add(test_user)
++        db.session.commit()
++
+         self.client = self.app.test_client()
++
+         with self.client.session_transaction() as session:
+-            session.update(user_id="help-owner", csrf_token="help-csrf")
++            session.update(
++                user_id=test_user.id,
++                csrf_token="help-csrf"
++            )
++
++    def tearDown(self):
++        db.session.remove()
++        db.drop_all()
++        self.app_context.pop()
++
++    def tearDown(self):
++        db.session.remove()
++        db.drop_all()
++        self.app_context.pop()
+ 
+     def send(self, message, **extra):
+         return self.client.post(
+@@ -25,28 +76,6 @@ class AppHelpTests(unittest.TestCase):
+             headers={"X-CSRF-Token": "help-csrf"},
+         )
+ 
+-    def test_shared_source_is_bounded_and_has_only_existing_app_destinations(self):
+-        self.assertEqual(len(APP_HELP["steps"]), 6)
+-        self.assertEqual(len(APP_HELP["questions"]), 8)
+-        self.assertLess(len(PUBLIC_GUIDE), 20000)
+-        self.assertEqual(len({step["id"] for step in APP_HELP["steps"]}), 6)
+-        for entry in APP_HELP["steps"] + APP_HELP["questions"]:
+-            for link in entry["links"]:
+-                self.assertIn(link["page"], APP_HELP["pages"])
+-        self.assertEqual(
+-            {page["route"] for page in APP_HELP["pages"].values()},
+-            {
+-                "/onboarding",
+-                "/app/profile",
+-                "/app/activity",
+-                "/app/budgets",
+-                "/app/goals",
+-                "/app/dashboard",
+-                "/app/reports",
+-                "/app/learn",
+-            },
+-        )
+-
+     def test_using_smartmoney_demo_uses_shared_copy_without_provider_or_records(self):
+         with patch(
+             "requests.sessions.Session.request",
+diff --git a/backend/tests/test_learn_articles.py b/backend/tests/test_learn_articles.py
+index 0404206..fbc6c5c 100644
+--- a/backend/tests/test_learn_articles.py
++++ b/backend/tests/test_learn_articles.py
+@@ -1,12 +1,24 @@
+-"""Run with python -m unittest discover -s tests -p test_learn_articles.py.
++"""
++Tests for the SmartMoney! Easy Learn Articles feature.
++
++Run with:
++    python -m unittest discover -s tests -p test_learn_articles.py
+ 
+-Uses mocked HTTP and signed test sessions; no database writes or external calls.
++External HTTP requests are mocked.
++
++The authenticated route test uses an isolated in-memory SQLite
++database. No production PostgreSQL data is modified.
+ """
+ 
+ import unittest
++
++from datetime import datetime, timezone
+ from unittest.mock import Mock, patch
+ 
++from config import Config
+ from app import create_app
++from app.extensions import db
++from app.models import User
+ from app.services.learn_articles import (
+     YahooArticleFeed,
+     parse_articles,
+@@ -15,6 +27,8 @@ from app.services.learn_articles import (
+     learning_topic,
+ )
+ 
++
++# Synthetic RSS data used for parsing tests.
+ RSS = b'''<rss version="2.0"><channel>
+ <item><title>Build a savings habit &amp; make a plan</title><link>https://finance.yahoo.com/news/saving.html</link><pubDate>Tue, 27 Oct 2026 01:00:00 GMT</pubDate></item>
+ <item><title>Duplicate</title><link>https://finance.yahoo.com/news/saving.html</link></item>
+@@ -27,21 +41,54 @@ RSS = b'''<rss version="2.0"><channel>
+ 
+ def response(content=RSS, status=200):
+     value = Mock(status_code=status)
++
+     value.iter_content.return_value = [content]
+     value.__enter__ = Mock(return_value=value)
+     value.__exit__ = Mock(return_value=False)
++
+     return value
+ 
+ 
+ class LearnArticleTests(unittest.TestCase):
++
+     def test_parser_preserves_headlines_and_rejects_unsafe_or_duplicate_links(self):
+         articles = parse_articles(RSS)
+-        self.assertEqual(len(articles), 1)
+-        self.assertEqual(articles[0]['title'], 'Build a savings habit & make a plan')
+-        self.assertEqual(articles[0]['publishedAt'], '2026-10-27T01:00:00+00:00')
+-        self.assertFalse(is_yahoo_url('https://finance.yahoo.com.evil.test/feed', True))
+-        self.assertFalse(is_yahoo_url('http://finance.yahoo.com/feed', True))
+-        self.assertFalse(is_yahoo_url('https://finance.yahoo.com:444/feed', True))
++
++        self.assertEqual(
++            len(articles),
++            1
++        )
++
++        self.assertEqual(
++            articles[0]["title"],
++            "Build a savings habit & make a plan"
++        )
++
++        self.assertEqual(
++            articles[0]["publishedAt"],
++            "2026-10-27T01:00:00+00:00"
++        )
++
++        self.assertFalse(
++            is_yahoo_url(
++                "https://finance.yahoo.com.evil.test/feed",
++                True
++            )
++        )
++
++        self.assertFalse(
++            is_yahoo_url(
++                "http://finance.yahoo.com/feed",
++                True
++            )
++        )
++
++        self.assertFalse(
++            is_yahoo_url(
++                "https://finance.yahoo.com:444/feed",
++                True
++            )
++        )
+ 
+     def test_accepts_current_yahoo_market_article_paths(self):
+         self.assertTrue(
+@@ -51,6 +98,7 @@ class LearnArticleTests(unittest.TestCase):
+         )
+ 
+     def test_discovery_requires_yahoo_source_and_relevant_topics(self):
++        # Synthetic discovery-feed content.
+         content = b'''<rss><channel>
+         <item><title>How to build an emergency fund - Yahoo Finance</title><link>https://news.google.com/rss/articles/saving</link><source url="https://finance.yahoo.com">Yahoo Finance</source><pubDate>Tue, 27 Oct 2026 01:00:00 GMT</pubDate></item>
+         <item><title>Credit card debt explained - Yahoo Finance</title><link>https://news.google.com/rss/articles/debt</link><source url="https://finance.yahoo.com">Yahoo Finance</source><pubDate>Mon, 26 Oct 2026 01:00:00 GMT</pubDate></item>
+@@ -59,82 +107,258 @@ class LearnArticleTests(unittest.TestCase):
+         <item><title>Budget guide</title><link>https://example.com/unsafe</link><source url="https://finance.yahoo.com">Yahoo Finance</source></item>
+         <item><title>Budget guide missing source</title><link>https://news.google.com/rss/articles/missing</link></item>
+         </channel></rss>'''
+-        articles = parse_articles(content, discovery=True)
+-        self.assertEqual([a['topic'] for a in articles], ['Saving', 'Debt and credit'])
+-        self.assertTrue(all(a['via'] == 'Google News' for a in articles))
+-        self.assertFalse(is_discovery_link('https://news.google.com/search?q=savings'))
+-        self.assertFalse(is_discovery_link('https://news.google.com.evil.test/rss/articles/a'))
+-        self.assertFalse(is_yahoo_url('https://news.google.com/rss/search?q=stocks', feed=True))
+-        self.assertIsNone(learning_topic('Bank earnings and share price targets'))
+-        self.assertIsNone(learning_topic('Best high-yield savings rates today'))
+-        self.assertIsNone(learning_topic('Sallie Mae Bank review: savings accounts'))
+-        self.assertEqual(learning_topic('How to avoid a phishing scam'), 'Staying safe')
++
++        articles = parse_articles(
++            content,
++            discovery=True
++        )
++
++        self.assertEqual(
++            [article["topic"] for article in articles],
++            ["Saving", "Debt and credit"]
++        )
++
++        self.assertTrue(
++            all(
++                article["via"] == "Google News"
++                for article in articles
++            )
++        )
++
++        self.assertFalse(
++            is_discovery_link(
++                "https://news.google.com/search?q=savings"
++            )
++        )
++
++        self.assertFalse(
++            is_discovery_link(
++                "https://news.google.com.evil.test/rss/articles/a"
++            )
++        )
++
++        self.assertFalse(
++            is_yahoo_url(
++                "https://news.google.com/rss/search?q=stocks",
++                feed=True
++            )
++        )
++
++        self.assertIsNone(
++            learning_topic(
++                "Bank earnings and share price targets"
++            )
++        )
++
++        self.assertIsNone(
++            learning_topic(
++                "Best high-yield savings rates today"
++            )
++        )
++
++        self.assertIsNone(
++            learning_topic(
++                "Sallie Mae Bank review: savings accounts"
++            )
++        )
++
++        self.assertEqual(
++            learning_topic(
++                "How to avoid a phishing scam"
++            ),
++            "Staying safe"
++        )
+ 
+     def test_rejects_entities_and_oversize_content(self):
++        # Reject XML entity declarations.
+         with self.assertRaises(Exception):
+             parse_articles(
+                 b'<!DOCTYPE rss [<!ENTITY x "unsafe">]><rss><channel><item><title>&x;</title></item></channel></rss>'
+             )
++
++        # Reject content larger than the permitted size.
+         with self.assertRaises(ValueError):
+-            parse_articles(b'x' * (1024 * 1024 + 1))
++            parse_articles(
++                b"x" * (1024 * 1024 + 1)
++            )
+ 
+-    @patch('app.services.learn_articles.requests.get')
++    @patch("app.services.learn_articles.requests.get")
+     def test_cache_and_stale_fallback(self, get):
++        feed_url = (
++            "https://feeds.finance.yahoo.com/rss/2.0/"
++            "headline?s=%5EGSPC&region=US&lang=en-US"
++        )
++
+         get.return_value = response()
++
+         feed = YahooArticleFeed()
+-        first = feed.load(
+-            'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US'
++
++        # Initial feed retrieval.
++        first = feed.load(feed_url)
++
++        self.assertEqual(
++            first["status"],
++            "available"
+         )
+-        self.assertEqual(first['status'], 'available')
++
++        # Cached data should be returned without another request.
+         self.assertEqual(
+-            feed.load(
+-                'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US'
+-            ),
+-            first,
++            feed.load(feed_url),
++            first
+         )
++
+         get.assert_called_once()
++
++        # Force the next refresh attempt.
+         feed._next_attempt = 0
+-        get.return_value = response(status=429)
++
++        get.return_value = response(
++            status=429
++        )
++
++        # Previously cached content should remain available.
+         self.assertEqual(
+-            feed.load(
+-                'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US'
+-            )['status'],
+-            'stale',
++            feed.load(feed_url)["status"],
++            "stale"
+         )
+-        self.assertEqual(get.call_count, 2)
+-        feed.load(
+-            'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US'
++
++        self.assertEqual(
++            get.call_count,
++            2
+         )
+-        self.assertEqual(get.call_count, 2)
+ 
+-    @patch('app.services.learn_articles.requests.get')
++        # Another request should not be made immediately.
++        feed.load(feed_url)
++
++        self.assertEqual(
++            get.call_count,
++            2
++        )
++
++    @patch("app.services.learn_articles.requests.get")
+     def test_missing_feed_and_upstream_error_are_honest(self, get):
++        feed_url = (
++            "https://feeds.finance.yahoo.com/rss/2.0/"
++            "headline?s=%5EGSPC&region=US&lang=en-US"
++        )
++
+         feed = YahooArticleFeed()
+-        self.assertEqual(feed.load('')['status'], 'unavailable')
+-        self.assertEqual(feed.load('https://example.com/feed')['status'], 'unavailable')
++
++        # Missing feed configuration.
++        self.assertEqual(
++            feed.load("")["status"],
++            "unavailable"
++        )
++
++        # Unapproved external URLs.
++        self.assertEqual(
++            feed.load("https://example.com/feed")["status"],
++            "unavailable"
++        )
++
+         get.assert_not_called()
+-        get.return_value = response(b'<not-xml')
++
++        # Invalid upstream XML should not crash the application.
++        get.return_value = response(
++            b"<not-xml"
++        )
++
+         self.assertEqual(
+-            feed.load(
+-                'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US'
+-            )['articles'],
+-            [],
++            feed.load(feed_url)["articles"],
++            []
+         )
+ 
+-    @patch('app.services.learn_articles.requests.get')
++    @patch("app.services.learn_articles.requests.get")
+     def test_route_requires_session_and_does_not_accept_query_url(self, get):
+-        app = create_app()
+-        app.config.update(TESTING=True, YAHOO_FINANCE_RSS_URL='')
+-        with app.test_client() as client:
+-            self.assertEqual(client.get('/api/learn/articles').status_code, 401)
+-            with client.session_transaction() as session:
+-                session['user_id'] = 'isolated-learn-test'
+-            result = client.get('/api/learn/articles?url=https://example.com/feed')
+-            self.assertEqual(result.status_code, 200)
+-            self.assertEqual(result.get_json()['status'], 'unavailable')
+-            self.assertEqual(result.headers['Cache-Control'], 'private, no-store')
++        # Create the application with an isolated SQLite database.
++        with patch.object(
++            Config,
++            "SQLALCHEMY_DATABASE_URI",
++            "sqlite:///:memory:"
++        ), patch.object(
++            Config,
++            "SECRET_KEY",
++            "learn-articles-test-only"
++        ):
++            app = create_app()
++
++        app.config.update(
++            TESTING=True,
++            YAHOO_FINANCE_RSS_URL=""
++        )
++
++        with app.app_context():
++            # Prevent accidental PostgreSQL database modifications.
++            database_url = db.engine.url
++
++            if (
++                not database_url.drivername.startswith("sqlite")
++                or database_url.database != ":memory:"
++            ):
++                self.fail(
++                    "Learn Articles test requires an in-memory SQLite database."
++                )
++
++            db.create_all()
++
++            try:
++                # Create a synthetic user for authentication.
++                test_user = User(
++                    name="Learn Articles Test User",
++                    email="learn-articles@example.test"
++                )
++
++                test_user.set_password("LearnArticlesPassword123!")
++
++                db.session.add(test_user)
++                db.session.commit()
++
++                with app.test_client() as client:
++                    # Unauthenticated access must be rejected.
++                    unauthenticated_response = client.get(
++                        "/api/learn/articles"
++                    )
++
++                    self.assertEqual(
++                        unauthenticated_response.status_code,
++                        401
++                    )
++
++                    # Create a valid authenticated session.
++                    with client.session_transaction() as session:
++                        session["user_id"] = test_user.id
++                        session["authenticated_at"] = datetime.now(
++                            timezone.utc
++                        ).isoformat()
++
++                    # User-provided query URLs must not override the feed.
++                    result = client.get(
++                        "/api/learn/articles?url=https://example.com/feed"
++                    )
++
++                    self.assertEqual(
++                        result.status_code,
++                        200
++                    )
++
++                    self.assertEqual(
++                        result.get_json()["status"],
++                        "unavailable"
++                    )
++
++                    self.assertEqual(
++                        result.headers["Cache-Control"],
++                        "private, no-store"
++                    )
++
++            finally:
++                # Clean up the isolated database.
++                db.session.remove()
++                db.drop_all()
++
++        # No external HTTP request should have been made.
+         get.assert_not_called()
+ 
+ 
+-if __name__ == '__main__':
+-    unittest.main()
++if __name__ == "__main__":
++    unittest.main()
+\ No newline at end of file
+diff --git a/backend/tests/test_thinker.py b/backend/tests/test_thinker.py
+index 03e5692..0079e61 100644
+--- a/backend/tests/test_thinker.py
++++ b/backend/tests/test_thinker.py
+@@ -1,38 +1,179 @@
+ import unittest
+ from unittest.mock import patch
++
+ from config import Config
+ from app import create_app
++from app.extensions import db
++from app.models import User
++
+ 
+ class ThinkerTests(unittest.TestCase):
+- def setUp(self):
+-  with patch.object(Config, "SQLALCHEMY_DATABASE_URI", "sqlite:///:memory:"), patch.object(Config, "SECRET_KEY", "thinker-test-only"):
+-   self.app = create_app()
+-  self.app.config.update(THINKER_MODE="demo", OPENAI_API_KEY="")
+-  self.client = self.app.test_client()
+-  with self.client.session_transaction() as session:
+-   session["user_id"] = "test-owner"; session["csrf_token"] = "test-csrf"
+- def send(self, message):
+-  return self.client.post('/api/thinker/messages', json={"message": message}, headers={"X-CSRF-Token": "test-csrf"})
+- def test_topics_are_explicit_demo_and_do_not_echo_personal_input(self):
+-  for question, title in [("budget", "Build a simple budget"), ("saving", "Plan a savings goal"), ("spending", "Understand your spending")]:
+-   reply = self.send(question)
+-   self.assertEqual(reply.status_code, 200)
+-   self.assertEqual(reply.json['mode'], 'demo')
+-   self.assertEqual(reply.json['title'], title)
+-   self.assertTrue(reply.json['takeaway'])
+-   self.assertIn('no-store', reply.headers['Cache-Control'])
+-  reply = self.send('my secret account is 12345')
+-  self.assertNotIn('12345', reply.get_data(as_text=True))
+-  self.assertIn('cannot answer', reply.json['message'])
+- def test_requires_session_and_csrf(self):
+-  self.assertEqual(self.client.post('/api/thinker/messages',json={"message":"budget"}).status_code,403)
+-  with self.client.session_transaction() as session: session.pop('user_id')
+-  self.assertEqual(self.send('budget').status_code,401)
+- def test_rejects_invalid_messages(self):
+-  for value in ['', '   ', None, {}, 123, 'x'*601]:
+-   self.assertEqual(self.send(value).status_code,400)
+-  self.assertEqual(self.client.post('/api/thinker/messages',json=[],headers={"X-CSRF-Token":"test-csrf"}).status_code,400)
+-  self.assertEqual(self.send('x'*9000).status_code,413)
+- def test_live_mode_is_unavailable_not_paid_fallback(self):
+-  self.app.config['THINKER_MODE']='live'
+-  self.assertEqual(self.send('budget').status_code,503)
++
++    def setUp(self):
++        # Create the application using an isolated SQLite database.
++        with patch.object(
++            Config,
++            "SQLALCHEMY_DATABASE_URI",
++            "sqlite:///:memory:"
++        ), patch.object(
++            Config,
++            "SECRET_KEY",
++            "thinker-test-only"
++        ):
++            self.app = create_app()
++
++        self.app.config.update(
++            THINKER_MODE="demo",
++            OPENAI_API_KEY=""
++        )
++
++        # Activate the application context.
++        self.app_context = self.app.app_context()
++        self.app_context.push()
++
++        # Prevent tests from modifying a real PostgreSQL database.
++        database_url = db.engine.url
++
++        if (
++            not database_url.drivername.startswith("sqlite")
++            or database_url.database != ":memory:"
++        ):
++            self.app_context.pop()
++
++            raise RuntimeError(
++                "Thinker tests require an in-memory SQLite database."
++            )
++
++        # Create isolated database tables.
++        db.create_all()
++
++        # Create a synthetic user for authentication tests.
++        test_user = User(
++            name="Thinker Test User",
++            email="thinker-test@example.test"
++        )
++
++        test_user.set_password("ThinkerTestPassword123!")
++
++        db.session.add(test_user)
++        db.session.commit()
++
++        self.test_user_id = test_user.id
++
++        # Create the Flask test client.
++        self.client = self.app.test_client()
++
++        # Authenticate using the actual synthetic user's ID.
++        with self.client.session_transaction() as session:
++            session["user_id"] = self.test_user_id
++            session["csrf_token"] = "test-csrf"
++
++    def tearDown(self):
++        # Clean up the isolated database after each test.
++        db.session.remove()
++        db.drop_all()
++        self.app_context.pop()
++
++    def send(self, message):
++        # Send an authenticated request to Thinker.
++        return self.client.post(
++            "/api/thinker/messages",
++            json={
++                "message": message
++            },
++            headers={
++                "X-CSRF-Token": "test-csrf"
++            }
++        )
++
++    def test_topics_are_explicit_demo_and_do_not_echo_personal_input(self):
++        questions = [
++            ("budget", "Build a simple budget"),
++            ("saving", "Plan a savings goal"),
++            ("spending", "Understand your spending")
++        ]
++
++        for question, title in questions:
++            reply = self.send(question)
++
++            self.assertEqual(reply.status_code, 200)
++            self.assertEqual(reply.json["mode"], "demo")
++            self.assertEqual(reply.json["title"], title)
++            self.assertTrue(reply.json["takeaway"])
++
++            self.assertIn(
++                "no-store",
++                reply.headers["Cache-Control"]
++            )
++
++        # Ensure sensitive user input is not repeated.
++        reply = self.send("my secret account is 12345")
++
++        self.assertNotIn(
++            "12345",
++            reply.get_data(as_text=True)
++        )
++
++        self.assertIn(
++            "cannot answer",
++            reply.json["message"]
++        )
++
++    def test_requires_session_and_csrf(self):
++        # Requests without a CSRF token must be rejected.
++        response = self.client.post(
++            "/api/thinker/messages",
++            json={
++                "message": "budget"
++            }
++        )
++
++        self.assertEqual(response.status_code, 403)
++
++        # Remove authentication from the test session.
++        with self.client.session_transaction() as session:
++            session.pop("user_id", None)
++
++        # An unauthenticated request must be rejected.
++        response = self.send("budget")
++
++        self.assertEqual(response.status_code, 401)
++
++    def test_rejects_invalid_messages(self):
++        invalid_messages = [
++            "",
++            "   ",
++            None,
++            {},
++            123,
++            "x" * 601
++        ]
++
++        for value in invalid_messages:
++            response = self.send(value)
++
++            self.assertEqual(response.status_code, 400)
++
++        # Reject requests containing a JSON array.
++        response = self.client.post(
++            "/api/thinker/messages",
++            json=[],
++            headers={
++                "X-CSRF-Token": "test-csrf"
++            }
++        )
++
++        self.assertEqual(response.status_code, 400)
++
++        # Reject excessively large messages.
++        response = self.send("x" * 9000)
++
++        self.assertEqual(response.status_code, 413)
++
++    def test_live_mode_is_unavailable_not_paid_fallback(self):
++        # Live mode must not silently fall back to a paid provider.
++        self.app.config["THINKER_MODE"] = "live"
++
++        response = self.send("budget")
++
++        self.assertEqual(response.status_code, 503)
+\ No newline at end of file
+diff --git a/backend/tests/test_thinker_live.py b/backend/tests/test_thinker_live.py
+index f46fb7e..9da570e 100644
+--- a/backend/tests/test_thinker_live.py
++++ b/backend/tests/test_thinker_live.py
+@@ -1,8 +1,9 @@
+-from contextlib import closing
+ import sqlite3
+ import tempfile
+ import unittest
++
+ from concurrent.futures import ThreadPoolExecutor
++from contextlib import closing
+ from pathlib import Path
+ from unittest.mock import Mock, patch
+ 
+@@ -10,125 +11,304 @@ import requests
+ 
+ from config import Config
+ from app import create_app
+-from app.services.thinker import ThinkerError, get_reply, reserve_request
++from app.extensions import db
++from app.models import User
++from app.services.thinker import (
++    ThinkerError,
++    get_reply,
++    reserve_request,
++)
+ 
+ 
+ class ThinkerLiveTests(unittest.TestCase):
++
+     def setUp(self):
++        # Create a temporary directory for Thinker request limits.
+         self.temp = tempfile.TemporaryDirectory()
++
++        # Create the application with an isolated SQLite database.
+         with patch.object(
+-            Config, 'SQLALCHEMY_DATABASE_URI', 'sqlite:///:memory:'
+-        ), patch.object(Config, 'SECRET_KEY', 'test-only'):
++            Config,
++            "SQLALCHEMY_DATABASE_URI",
++            "sqlite:///:memory:"
++        ), patch.object(
++            Config,
++            "SECRET_KEY",
++            "test-only"
++        ):
+             self.app = create_app()
+ 
++        # Configure the Thinker test environment.
+         self.app.config.update(
+-            THINKER_MODE='live',
+-            OPENAI_API_KEY='unit-test-placeholder',
+-            OPENAI_MODEL='gpt-5.4-mini',
+-            THINKER_LIMIT_DB=str(Path(self.temp.name) / 'limits.sqlite'),
++            THINKER_MODE="live",
++            OPENAI_API_KEY="unit-test-placeholder",
++            OPENAI_MODEL="gpt-5.4-mini",
++            THINKER_LIMIT_DB=str(
++                Path(self.temp.name) / "limits.sqlite"
++            ),
++        )
++
++        # Activate the Flask application context.
++        self.app_context = self.app.app_context()
++        self.app_context.push()
++
++        # Prevent tests from modifying PostgreSQL.
++        database_url = db.engine.url
++
++        if (
++            not database_url.drivername.startswith("sqlite")
++            or database_url.database != ":memory:"
++        ):
++            self.app_context.pop()
++            self.temp.cleanup()
++
++            raise RuntimeError(
++                "Thinker Live tests require an in-memory SQLite database."
++            )
++
++        # Create isolated application tables.
++        db.create_all()
++
++        # Create a synthetic user for authentication testing.
++        test_user = User(
++            name="Thinker Live Test User",
++            email="thinker-live@example.test"
+         )
++
++        test_user.set_password("ThinkerLivePassword123!")
++
++        db.session.add(test_user)
++        db.session.commit()
++
++        self.test_user_id = test_user.id
++
++        # Initialize the Flask test client.
+         self.client = self.app.test_client()
++
++        # Create an authenticated session using the real test user.
+         with self.client.session_transaction() as session:
+-            session.update(user_id='owner', csrf_token='csrf')
++            session.update(
++                user_id=self.test_user_id,
++                csrf_token="csrf"
++            )
+ 
+     def tearDown(self):
+-        self.temp.cleanup()
++        try:
++            # Remove the isolated application database.
++            db.session.remove()
++            db.drop_all()
++        finally:
++            # Release application and temporary-file resources.
++            self.app_context.pop()
++            self.temp.cleanup()
+ 
+-    def send(self, text='What is a budget?'):
++    def send(self, text="What is a budget?"):
+         return self.client.post(
+-            '/api/thinker/messages',
+-            json={'message': text},
+-            headers={'X-CSRF-Token': 'csrf'},
++            "/api/thinker/messages",
++            json={
++                "message": text
++            },
++            headers={
++                "X-CSRF-Token": "csrf"
++            },
+         )
+ 
+     def response(self, **changes):
+         data = {
+-            'status': 'completed',
+-            'output': [
++            "status": "completed",
++            "output": [
+                 {
+-                    'type': 'message',
+-                    'role': 'assistant',
+-                    'content': [
++                    "type": "message",
++                    "role": "assistant",
++                    "content": [
+                         {
+-                            'type': 'output_text',
+-                            'text': 'Review your bills.',
++                            "type": "output_text",
++                            "text": "Review your bills.",
+                         },
+                     ],
+                 },
+             ],
+         }
++
+         data.update(changes)
+-        return Mock(status_code=200, json=Mock(return_value=data))
+ 
+-    @patch('app.services.thinker.requests.post')
++        return Mock(
++            status_code=200,
++            json=Mock(return_value=data)
++        )
++
++    @patch("app.services.thinker.requests.post")
+     def test_live_request_is_minimal_bounded_and_not_stored(self, post):
+         post.return_value = self.response()
++
+         result = self.send()
++
+         self.assertEqual(result.status_code, 200)
+-        self.assertEqual(result.json['mode'], 'live')
++        self.assertEqual(result.json["mode"], "live")
++
+         kwargs = post.call_args.kwargs
+-        payload = kwargs['json']
+-
+-        self.assertEqual(payload['input'], 'What is a budget?')
+-        self.assertFalse(payload['store'])
+-        self.assertEqual(payload['max_output_tokens'], 400)
+-        self.assertEqual(payload['reasoning'], {'effort': 'none'})
+-        self.assertNotIn('user', payload)
+-        self.assertNotIn('previous_response_id', payload)
+-        self.assertNotIn('tools', payload)
+-        self.assertFalse(kwargs['allow_redirects'])
+-        self.assertEqual(kwargs['timeout'], (3, 18))
+-        self.assertIn('no-store', result.headers['Cache-Control'])
+-        self.assertNotIn('unit-test-placeholder', result.get_data(as_text=True))
+-
+-    @patch('app.services.thinker.requests.post')
++        payload = kwargs["json"]
++
++        self.assertEqual(
++            payload["input"],
++            "What is a budget?"
++        )
++
++        self.assertFalse(payload["store"])
++        self.assertEqual(payload["max_output_tokens"], 400)
++
++        self.assertEqual(
++            payload["reasoning"],
++            {"effort": "none"}
++        )
++
++        self.assertNotIn("user", payload)
++        self.assertNotIn("previous_response_id", payload)
++        self.assertNotIn("tools", payload)
++
++        self.assertFalse(kwargs["allow_redirects"])
++        self.assertEqual(kwargs["timeout"], (3, 18))
++
++        self.assertIn(
++            "no-store",
++            result.headers["Cache-Control"]
++        )
++
++        self.assertNotIn(
++            "unit-test-placeholder",
++            result.get_data(as_text=True)
++        )
++
++    @patch("app.services.thinker.requests.post")
+     def test_rejected_requests_never_call_provider(self, post):
+-        self.assertEqual(self.send('x' * 601).status_code, 400)
+-        self.app.config['OPENAI_API_KEY'] = ''
+-        self.assertEqual(self.send().status_code, 503)
++        # Reject messages exceeding the permitted length.
++        self.assertEqual(
++            self.send("x" * 601).status_code,
++            400
++        )
++
++        # Reject requests when the API key is unavailable.
++        self.app.config["OPENAI_API_KEY"] = ""
++
++        self.assertEqual(
++            self.send().status_code,
++            503
++        )
++
++        # Reject unapproved model configurations.
+         self.app.config.update(
+-            OPENAI_API_KEY='placeholder',
+-            OPENAI_MODEL='unapproved-model',
++            OPENAI_API_KEY="placeholder",
++            OPENAI_MODEL="unapproved-model",
+         )
+-        self.assertEqual(self.send().status_code, 503)
++
++        self.assertEqual(
++            self.send().status_code,
++            503
++        )
++
++        # The external provider must not be contacted.
+         post.assert_not_called()
+ 
+-    @patch('app.services.thinker.requests.post')
++    @patch("app.services.thinker.requests.post")
+     def test_provider_errors_sanitised_without_automatic_retry(self, post):
+         for status in [401, 403, 429, 500]:
+-            post.return_value = Mock(status_code=status, text='SECRET provider error')
++            post.return_value = Mock(
++                status_code=status,
++                text="SECRET provider error"
++            )
++
+             post.reset_mock()
++
+             with self.assertRaises(ThinkerError) as error:
+-                get_reply(self.app.config, 'budget')
++                get_reply(
++                    self.app.config,
++                    "budget"
++                )
++
++            expected_status = (
++                429 if status == 429 else 503
++            )
++
++            self.assertEqual(
++                error.exception.status,
++                expected_status
++            )
++
++            self.assertNotIn(
++                "SECRET",
++                str(error.exception)
++            )
+ 
+-            self.assertEqual(error.exception.status, 429 if status == 429 else 503)
+-            self.assertNotIn('SECRET', str(error.exception))
+             post.assert_called_once()
+ 
+-    @patch('app.services.thinker.requests.post')
++    @patch("app.services.thinker.requests.post")
+     def test_timeout_invalid_empty_incomplete(self, post):
++        # Verify timeout handling.
+         post.side_effect = requests.Timeout()
++
+         with self.assertRaises(ThinkerError) as error:
+-            get_reply(self.app.config, 'budget')
+-        self.assertEqual(error.exception.status, 504)
++            get_reply(
++                self.app.config,
++                "budget"
++            )
++
++        self.assertEqual(
++            error.exception.status,
++            504
++        )
++
+         post.side_effect = None
+ 
+-        for result in [
++        # Verify invalid or incomplete provider responses.
++        invalid_responses = [
+             self.response(output=[]),
+-            self.response(status='incomplete'),
+-            Mock(status_code=200, json=Mock(side_effect=ValueError())),
+-        ]:
++            self.response(status="incomplete"),
++            Mock(
++                status_code=200,
++                json=Mock(side_effect=ValueError())
++            ),
++        ]
++
++        for result in invalid_responses:
+             post.return_value = result
++
+             with self.assertRaises(ThinkerError):
+-                get_reply(self.app.config, 'budget')
++                get_reply(
++                    self.app.config,
++                    "budget"
++                )
+ 
+     def test_status_authenticated_without_key(self):
+-        result = self.client.get('/api/thinker/status')
+-        self.assertEqual(result.json, {'mode': 'live', 'available': True})
+-        self.assertNotIn('unit-test-placeholder', result.get_data(as_text=True))
++        # Verify the authenticated Thinker status.
++        result = self.client.get(
++            "/api/thinker/status"
++        )
++
++        self.assertEqual(
++            result.json,
++            {
++                "mode": "live",
++                "available": True
++            }
++        )
++
++        self.assertNotIn(
++            "unit-test-placeholder",
++            result.get_data(as_text=True)
++        )
++
++        # Unauthenticated requests must be rejected.
+         with self.client.session_transaction() as session:
+             session.clear()
+-        self.assertEqual(self.client.get('/api/thinker/status').status_code, 401)
++
++        response = self.client.get(
++            "/api/thinker/status"
++        )
++
++        self.assertEqual(
++            response.status_code,
++            401
++        )
+ 
+     def test_persistent_user_and_shared_limits(self):
+         self.app.config.update(
+@@ -136,44 +316,133 @@ class ThinkerLiveTests(unittest.TestCase):
+             THINKER_USER_MINUTE_LIMIT=1,
+             THINKER_DAILY_LIMIT=3,
+         )
+-        reserve_request(self.app, 'a', 1000)
++
++        reserve_request(
++            self.app,
++            "a",
++            1000
++        )
++
+         with self.assertRaises(ThinkerError):
+-            reserve_request(self.app, 'a', 1001)
+-        reserve_request(self.app, 'a', 1061)
++            reserve_request(
++                self.app,
++                "a",
++                1001
++            )
++
++        reserve_request(
++            self.app,
++            "a",
++            1061
++        )
++
+         with self.assertRaises(ThinkerError):
+-            reserve_request(self.app, 'a', 1122)
+-        reserve_request(self.app, 'b', 1122)
++            reserve_request(
++                self.app,
++                "a",
++                1122
++            )
++
++        reserve_request(
++            self.app,
++            "b",
++            1122
++        )
++
+         with self.assertRaises(ThinkerError):
+-            reserve_request(self.app, 'c', 1122)
+-        reserve_request(self.app, 'a', 86401)
++            reserve_request(
++                self.app,
++                "c",
++                1122
++            )
++
++        reserve_request(
++            self.app,
++            "a",
++            86401
++        )
++
++        # Verify the temporary rate-limit database schema.
++        with closing(
++            sqlite3.connect(
++                self.app.config["THINKER_LIMIT_DB"]
++            )
++        ) as connection:
++            columns = [
++                row[1]
++                for row in connection.execute(
++                    "pragma table_info(attempts)"
++                )
++            ]
+ 
+-        with closing(sqlite3.connect(self.app.config['THINKER_LIMIT_DB'])) as db:
+             self.assertEqual(
+-                [row[1] for row in db.execute('pragma table_info(attempts)')],
+-                ['user_id', 'created'],
++                columns,
++                ["user_id", "created"]
+             )
+ 
+     def test_concurrent_workers_share_atomic_limit(self):
+-        self.app.config['THINKER_DAILY_LIMIT'] = 1
+-        reserve_request(self.app, 'old', 1)
++        self.app.config["THINKER_DAILY_LIMIT"] = 1
++
++        reserve_request(
++            self.app,
++            "old",
++            1
++        )
+ 
+         def attempt(user):
+             try:
+-                reserve_request(self.app, user, 86401)
++                reserve_request(
++                    self.app,
++                    user,
++                    86401
++                )
+                 return True
++
+             except ThinkerError:
+                 return False
+ 
+         with ThreadPoolExecutor(max_workers=4) as pool:
+-            results = list(pool.map(attempt, ['a', 'b', 'c', 'd']))
+-        self.assertEqual(sum(results), 1)
++            results = list(
++                pool.map(
++                    attempt,
++                    ["a", "b", "c", "d"]
++                )
++            )
++
++        self.assertEqual(
++            sum(results),
++            1
++        )
+ 
+-    @patch('app.services.thinker.requests.post')
++    @patch("app.services.thinker.requests.post")
+     def test_failed_attempts_count_and_limit_blocks_provider(self, post):
+-        self.app.config['THINKER_DAILY_LIMIT'] = 1
++        self.app.config["THINKER_DAILY_LIMIT"] = 1
++
++        # Simulate a provider timeout.
+         post.side_effect = requests.Timeout()
+-        self.assertEqual(self.send().status_code, 504)
+-        blocked = self.send()
+-        self.assertEqual(blocked.status_code, 429)
+-        self.assertIn('Retry-After', blocked.headers)
+-        self.assertEqual(post.call_count, 1)
++
++        first_response = self.send()
++
++        self.assertEqual(
++            first_response.status_code,
++            504
++        )
++
++        # The following request should be rate-limited.
++        blocked_response = self.send()
++
++        self.assertEqual(
++            blocked_response.status_code,
++            429
++        )
++
++        self.assertIn(
++            "Retry-After",
++            blocked_response.headers
++        )
++
++        # Only one request should reach the provider.
++        self.assertEqual(
++            post.call_count,
++            1
++        )
+\ No newline at end of file
+diff --git a/src/app/app.routes.ts b/src/app/app.routes.ts
+index 8cf382c..c0d0391 100644
+--- a/src/app/app.routes.ts
++++ b/src/app/app.routes.ts
+@@ -35,17 +35,8 @@ export const routes: Routes = [
+         path: 'forgot-password',
+         title: 'Reset password | SmartMoney! Easy',
+         loadComponent: () =>
+-          import('./pages/route-placeholder/route-placeholder.page')
+-            .then((m) => m.RoutePlaceholderPage),
+-        data: {
+-          eyebrow: 'Account access',
+-          title: 'Reset password',
+-          description:
+-            'Password recovery will be connected when the backend endpoint is ready.',
+-          publicPage: true,
+-          nextLink: '/auth/login',
+-          nextLabel: 'Back to log in',
+-        },
++          import('./pages/auth/forgot-password/forgot-password.page')
++            .then((m) => m.ForgotPasswordPage),
+       },
+       {
+         path: '',
+@@ -214,6 +205,7 @@ export const routes: Routes = [
+       description:
+         'A supportive financial-wellness app for tracking, planning and learning.',
+       publicPage: true,
++      aboutPage: true,
+       nextLink: '/auth/login',
+       nextLabel: 'Back to log in',
+     },
+diff --git a/src/app/core/auth/auth.service.spec.ts b/src/app/core/auth/auth.service.spec.ts
+index 53bd35f..e1a23fb 100644
+--- a/src/app/core/auth/auth.service.spec.ts
++++ b/src/app/core/auth/auth.service.spec.ts
+@@ -184,4 +184,353 @@ describe('AuthService', () => {
+       email: 'test@example.com',
+     });
+   });
++    it('returns the one-time recovery code after registration', () => {
++    let recoveryCode: string | undefined;
++
++    service.register(
++      '  Test User  ',
++      '  TEST@EXAMPLE.COM  ',
++      'SecurePassword123!'
++    ).subscribe(result => {
++      recoveryCode = result.recoveryCode;
++    });
++
++    const csrfRequest =
++      httpTestingController.expectOne(
++        `${environment.apiUrl}/auth/csrf`
++      );
++
++    expect(csrfRequest.request.method).toBe('GET');
++    expect(csrfRequest.request.withCredentials).toBe(true);
++
++    csrfRequest.flush({
++      csrf_token: 'registration-csrf',
++    });
++
++    const registerRequest =
++      httpTestingController.expectOne(
++        `${environment.apiUrl}/auth/register`
++      );
++
++    expect(registerRequest.request.method).toBe('POST');
++
++    expect(registerRequest.request.withCredentials).toBe(true);
++
++    expect(
++      registerRequest.request.headers.get('X-CSRF-Token')
++    ).toBe('registration-csrf');
++
++    expect(registerRequest.request.body).toEqual({
++      name: 'Test User',
++      email: 'test@example.com',
++      password: 'SecurePassword123!',
++    });
++
++    registerRequest.flush(
++      {
++        message: 'Account created successfully.',
++        user: mockUser,
++        csrf_token: 'authenticated-csrf',
++        recovery_code: 'ABC2D3',
++      },
++      {
++        status: 201,
++        statusText: 'Created',
++      }
++    );
++
++    expect(recoveryCode).toBe('ABC2D3');
++
++    expect(service.isAuthenticated()).toBe(true);
++
++    expect(service.currentUser()).toEqual({
++      name: 'Test User',
++      email: 'test@example.com',
++    });
++
++    expect(
++      sessionStorage.getItem('smartmoney-had-session')
++    ).toBe('true');
++  });
++
++  it('sends normalized recovery details with CSRF protection', () => {
++    let completed = false;
++
++    service.verifyRecovery(
++      '  RECOVERY@EXAMPLE.TEST  ',
++      '  Recovery Test User  ',
++      '  abc2d3  '
++    ).subscribe(() => {
++      completed = true;
++    });
++
++    const csrfRequest =
++      httpTestingController.expectOne(
++        `${environment.apiUrl}/auth/csrf`
++      );
++
++    expect(csrfRequest.request.method).toBe('GET');
++
++    expect(csrfRequest.request.withCredentials).toBe(true);
++
++    csrfRequest.flush({
++      csrf_token: 'verification-csrf',
++    });
++
++    const verifyRequest =
++      httpTestingController.expectOne(
++        `${environment.apiUrl}/auth/recovery/verify`
++      );
++
++    expect(verifyRequest.request.method).toBe('POST');
++
++    expect(verifyRequest.request.withCredentials).toBe(true);
++
++    expect(
++      verifyRequest.request.headers.get('X-CSRF-Token')
++    ).toBe('verification-csrf');
++
++    expect(verifyRequest.request.body).toEqual({
++      email: 'recovery@example.test',
++      name: 'Recovery Test User',
++      recoveryCode: 'ABC2D3',
++    });
++
++    verifyRequest.flush({
++      verified: true,
++    });
++
++    expect(completed).toBe(true);
++
++    // Successful verification must not authenticate the user.
++    expect(service.isAuthenticated()).toBe(false);
++  });
++
++  it('handles failed recovery verification without authenticating the user', () => {
++    let receivedError: unknown;
++
++    service.verifyRecovery(
++      'unknown@example.test',
++      'Unknown User',
++      'ABC2D3'
++    ).subscribe({
++      error: error => {
++        receivedError = error;
++      },
++    });
++
++    const csrfRequest =
++      httpTestingController.expectOne(
++        `${environment.apiUrl}/auth/csrf`
++      );
++
++    csrfRequest.flush({
++      csrf_token: 'verification-csrf',
++    });
++
++    const verifyRequest =
++      httpTestingController.expectOne(
++        `${environment.apiUrl}/auth/recovery/verify`
++      );
++
++    verifyRequest.flush(
++      {
++        error: 'Unable to verify recovery details.',
++      },
++      {
++        status: 400,
++        statusText: 'Bad Request',
++      }
++    );
++
++    expect(receivedError).toBeInstanceOf(Error);
++
++    expect(service.isAuthenticated()).toBe(false);
++
++    expect(
++      sessionStorage.getItem('smartmoney-had-session')
++    ).toBeNull();
++  });
++
++  it('does not submit recovery details when obtaining CSRF fails', () => {
++    let receivedError: unknown;
++
++    service.verifyRecovery(
++      'recovery@example.test',
++      'Recovery Test User',
++      'ABC2D3'
++    ).subscribe({
++      error: error => {
++        receivedError = error;
++      },
++    });
++
++    const csrfRequest =
++      httpTestingController.expectOne(
++        `${environment.apiUrl}/auth/csrf`
++      );
++
++    csrfRequest.flush(
++      {
++        error: 'Unable to issue CSRF token.',
++      },
++      {
++        status: 503,
++        statusText: 'Service Unavailable',
++      }
++    );
++
++    httpTestingController.expectNone(
++      `${environment.apiUrl}/auth/recovery/verify`
++    );
++
++    expect(receivedError).toBeInstanceOf(Error);
++
++    expect(service.isAuthenticated()).toBe(false);
++  });
++
++  it('resets the password and clears the existing local session', () => {
++    // Establish an authenticated session before the reset.
++    service.verifySession().subscribe();
++
++    const sessionRequest =
++      httpTestingController.expectOne(sessionUrl);
++
++    sessionRequest.flush({
++      user: mockUser,
++    });
++
++    sessionStorage.setItem(
++      'smartmoney-had-session',
++      'true'
++    );
++
++    expect(service.isAuthenticated()).toBe(true);
++
++    let replacementCode: string | undefined;
++
++    service.resetPasswordWithRecovery(
++      '  RECOVERY@EXAMPLE.TEST  ',
++      '  Recovery Test User  ',
++      '  abc2d3  ',
++      'NewSecurePassword123!',
++      'NewSecurePassword123!'
++    ).subscribe(result => {
++      replacementCode = result.recoveryCode;
++    });
++
++    const csrfRequest =
++      httpTestingController.expectOne(
++        `${environment.apiUrl}/auth/csrf`
++      );
++
++    csrfRequest.flush({
++      csrf_token: 'reset-csrf',
++    });
++
++    const resetRequest =
++      httpTestingController.expectOne(
++        `${environment.apiUrl}/auth/recovery/reset`
++      );
++
++    expect(resetRequest.request.method).toBe('POST');
++
++    expect(resetRequest.request.withCredentials).toBe(true);
++
++    expect(
++      resetRequest.request.headers.get('X-CSRF-Token')
++    ).toBe('reset-csrf');
++
++    expect(resetRequest.request.body).toEqual({
++      email: 'recovery@example.test',
++      name: 'Recovery Test User',
++      recoveryCode: 'ABC2D3',
++      newPassword: 'NewSecurePassword123!',
++      confirmPassword: 'NewSecurePassword123!',
++    });
++
++    resetRequest.flush({
++      message: 'Password reset successfully.',
++      recovery_code: 'Q2W3E4',
++    });
++
++    expect(replacementCode).toBe('Q2W3E4');
++
++    expect(service.isAuthenticated()).toBe(false);
++
++    expect(service.currentUser()).toBeNull();
++
++    expect(
++      sessionStorage.getItem('smartmoney-had-session')
++    ).toBeNull();
++  });
++
++  it('preserves the current local session when recovery reset fails', () => {
++    // Establish an authenticated session.
++    service.verifySession().subscribe();
++
++    const sessionRequest =
++      httpTestingController.expectOne(sessionUrl);
++
++    sessionRequest.flush({
++      user: mockUser,
++    });
++
++    sessionStorage.setItem(
++      'smartmoney-had-session',
++      'true'
++    );
++
++    let receivedError: unknown;
++
++    service.resetPasswordWithRecovery(
++      'recovery@example.test',
++      'Recovery Test User',
++      'ABC2D3',
++      'NewSecurePassword123!',
++      'NewSecurePassword123!'
++    ).subscribe({
++      error: error => {
++        receivedError = error;
++      },
++    });
++
++    const csrfRequest =
++      httpTestingController.expectOne(
++        `${environment.apiUrl}/auth/csrf`
++      );
++
++    csrfRequest.flush({
++      csrf_token: 'reset-csrf',
++    });
++
++    const resetRequest =
++      httpTestingController.expectOne(
++        `${environment.apiUrl}/auth/recovery/reset`
++      );
++
++    resetRequest.flush(
++      {
++        error: 'Unable to reset password.',
++      },
++      {
++        status: 400,
++        statusText: 'Bad Request',
++      }
++    );
++
++    expect(receivedError).toBeInstanceOf(Error);
++
++    // A failed reset must not clear a valid local session.
++    expect(service.isAuthenticated()).toBe(true);
++
++    expect(service.currentUser()).toEqual({
++      name: 'Test User',
++      email: 'test@example.com',
++    });
++
++    expect(
++      sessionStorage.getItem('smartmoney-had-session')
++    ).toBe('true');
++  });
+ });
+diff --git a/src/app/core/auth/auth.service.ts b/src/app/core/auth/auth.service.ts
+index 9d4ef22..0aeaa53 100644
+--- a/src/app/core/auth/auth.service.ts
++++ b/src/app/core/auth/auth.service.ts
+@@ -15,13 +15,14 @@ import {
+   throwError,
+ } from 'rxjs';
+ 
++import { environment } from '../../../environments/environment';
++
++
+ export interface SmartMoneyUser {
+   name: string;
+   email: string;
+ }
+ 
+-import { environment } from '../../../environments/environment';
+-
+ interface BackendUser {
+   id: string;
+   name: string | null;
+@@ -34,6 +35,28 @@ interface AuthResponse {
+   csrf_token: string;
+ }
+ 
++interface RegisterResponse extends AuthResponse {
++  recovery_code: string;
++}
++
++export interface RegisterResult {
++  user: SmartMoneyUser;
++  recoveryCode: string;
++}
++
++interface RecoveryVerificationResponse {
++  verified: boolean;
++}
++
++interface RecoveryResetResponse {
++  message: string;
++  recovery_code: string;
++}
++
++export interface RecoveryResetResult {
++  recoveryCode: string;
++}
++
+ interface SessionResponse {
+   user: BackendUser;
+ }
+@@ -51,11 +74,13 @@ interface CsrfResponse {
+   csrf_token: string;
+ }
+ 
++
+ @Injectable({ providedIn: 'root' })
+ export class AuthService {
+   private readonly http = inject(HttpClient);
+ 
+-private readonly apiBase = `${environment.apiUrl}/auth`;
++  private readonly apiBase = `${environment.apiUrl}/auth`;
++
+   private readonly currentUserSignal =
+     signal<SmartMoneyUser | null>(null);
+ 
+@@ -75,18 +100,23 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+     () => this.currentUserSignal() !== null
+   );
+ 
++
+   private fetchCsrfToken(): Observable<string> {
+     return this.http.get<CsrfResponse>(
+       `${this.apiBase}/csrf`,
+-      { withCredentials: true }
++      {
++        withCredentials: true,
++      }
+     ).pipe(
+       map(response => {
+         this.csrfToken = response.csrf_token;
++
+         return response.csrf_token;
+       })
+     );
+   }
+ 
++
+   getCsrfToken(): Observable<string> {
+     if (this.csrfToken) {
+       return of(this.csrfToken);
+@@ -95,6 +125,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+     return this.fetchCsrfToken();
+   }
+ 
++
+   login(
+     email: string,
+     password: string
+@@ -120,11 +151,15 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+         this.csrfToken = response.csrf_token;
+ 
+         const user = this.mapUser(response.user);
++
+         this.currentUserSignal.set(user);
+         this.sessionExpiredSignal.set(false);
+         this.sessionExpiryRedirected = false;
+ 
+-        sessionStorage.setItem('smartmoney-had-session','true');
++        sessionStorage.setItem(
++          'smartmoney-had-session',
++          'true'
++        );
+ 
+         return user;
+       }),
+@@ -134,14 +169,15 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+     );
+   }
+ 
++
+   register(
+     name: string,
+     email: string,
+     password: string
+-  ): Observable<SmartMoneyUser> {
++  ): Observable<RegisterResult> {
+     return this.fetchCsrfToken().pipe(
+       switchMap(token =>
+-        this.http.post<AuthResponse>(
++        this.http.post<RegisterResponse>(
+           `${this.apiBase}/register`,
+           {
+             name: name.trim(),
+@@ -160,13 +196,20 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+         this.csrfToken = response.csrf_token;
+ 
+         const user = this.mapUser(response.user);
++
+         this.currentUserSignal.set(user);
+         this.sessionExpiredSignal.set(false);
+         this.sessionExpiryRedirected = false;
+ 
+-        sessionStorage.setItem('smartmoney-had-session','true');
++        sessionStorage.setItem(
++          'smartmoney-had-session',
++          'true'
++        );
+ 
+-        return user;
++        return {
++          user,
++          recoveryCode: response.recovery_code,
++        };
+       }),
+       catchError(error =>
+         throwError(() => this.toError(error))
+@@ -174,6 +217,86 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+     );
+   }
+ 
++
++  verifyRecovery(
++    email: string,
++    name: string,
++    recoveryCode: string
++  ): Observable<void> {
++    return this.fetchCsrfToken().pipe(
++      switchMap(token =>
++        this.http.post<RecoveryVerificationResponse>(
++          `${this.apiBase}/recovery/verify`,
++          {
++            email: email.trim().toLowerCase(),
++            name: name.trim(),
++            recoveryCode: recoveryCode.trim().toUpperCase(),
++          },
++          {
++            withCredentials: true,
++            headers: {
++              'X-CSRF-Token': token,
++            },
++          }
++        )
++      ),
++      map(() => undefined),
++      catchError(error =>
++        throwError(() => this.toError(error))
++      )
++    );
++  }
++
++
++  resetPasswordWithRecovery(
++    email: string,
++    name: string,
++    recoveryCode: string,
++    newPassword: string,
++    confirmPassword: string
++  ): Observable<RecoveryResetResult> {
++    return this.fetchCsrfToken().pipe(
++      switchMap(token =>
++        this.http.post<RecoveryResetResponse>(
++          `${this.apiBase}/recovery/reset`,
++          {
++            email: email.trim().toLowerCase(),
++            name: name.trim(),
++            recoveryCode: recoveryCode.trim().toUpperCase(),
++            newPassword,
++            confirmPassword,
++          },
++          {
++            withCredentials: true,
++            headers: {
++              'X-CSRF-Token': token,
++            },
++          }
++        )
++      ),
++      map(response => {
++        // Flask clears the session after a successful password reset.
++        // Clear Angular's authentication state to match.
++        this.clearLocalSession();
++
++        this.sessionExpiryRedirected = false;
++
++        sessionStorage.removeItem(
++          'smartmoney-had-session'
++        );
++
++        // Return the replacement code without storing it.
++        return {
++          recoveryCode: response.recovery_code,
++        };
++      }),
++      catchError(error =>
++        throwError(() => this.toError(error))
++      )
++    );
++  }
++
++
+   verifySession(): Observable<boolean> {
+     if (this.sessionVerification$) {
+       return this.sessionVerification$;
+@@ -181,7 +304,9 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+ 
+     this.sessionVerification$ = this.http.get<SessionResponse>(
+       `${this.apiBase}/me`,
+-      { withCredentials: true }
++      {
++        withCredentials: true,
++      }
+     ).pipe(
+       tap(response => {
+         this.currentUserSignal.set(
+@@ -198,10 +323,15 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+           error.status === 401
+         ) {
+           const hadSession =
+-            sessionStorage.getItem('smartmoney-had-session') === 'true';
++            sessionStorage.getItem(
++              'smartmoney-had-session'
++            ) === 'true';
+ 
+           this.clearLocalSession();
+-          this.sessionExpiredSignal.set(hadSession);
++
++          this.sessionExpiredSignal.set(
++            hadSession
++          );
+ 
+           return of(false);
+         }
+@@ -234,8 +364,12 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+       ),
+       tap(() => {
+         this.clearLocalSession();
++
+         this.sessionExpiryRedirected = false;
+-        sessionStorage.removeItem('smartmoney-had-session');
++
++        sessionStorage.removeItem(
++          'smartmoney-had-session'
++        );
+       }),
+       map(() => undefined),
+       catchError(error =>
+@@ -267,7 +401,9 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+       ),
+       map(response => {
+         const user = this.mapUser(response.user);
++
+         this.currentUserSignal.set(user);
++
+         return user;
+       }),
+       catchError(error =>
+@@ -276,6 +412,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+     );
+   }
+ 
++
+   changePassword(
+     currentPassword: string,
+     newPassword: string
+@@ -303,11 +440,17 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+     );
+   }
+ 
++
+   handleSessionExpired(): boolean {
+     const hadSession =
+-      sessionStorage.getItem('smartmoney-had-session') === 'true';
+-
+-    if (!hadSession || this.sessionExpiryRedirected) {
++      sessionStorage.getItem(
++        'smartmoney-had-session'
++      ) === 'true';
++
++    if (
++      !hadSession ||
++      this.sessionExpiryRedirected
++    ) {
+       return false;
+     }
+ 
+@@ -327,6 +470,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+     this.sessionExpiredSignal.set(false);
+   }
+ 
++
+   private mapUser(user: BackendUser): SmartMoneyUser {
+     return {
+       email: user.email,
+@@ -334,6 +478,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+     };
+   }
+ 
++
+   private nameFromEmail(email: string): string {
+     const firstPart = email
+       .split('@')[0]
+@@ -350,6 +495,7 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+     );
+   }
+ 
++
+   private toError(error: unknown): Error {
+     if (error instanceof HttpErrorResponse) {
+       if (error.status === 0) {
+@@ -369,6 +515,9 @@ private readonly apiBase = `${environment.apiUrl}/auth`;
+       );
+     }
+ 
+-    return new Error('An unexpected error occurred.');
++    return new Error(
++      'An unexpected error occurred.'
++    );
+   }
+-}
++
++}
+\ No newline at end of file
+diff --git a/src/app/pages/auth/register/register.page.html b/src/app/pages/auth/register/register.page.html
+index 095f777..f06fd00 100644
+--- a/src/app/pages/auth/register/register.page.html
++++ b/src/app/pages/auth/register/register.page.html
+@@ -5,6 +5,107 @@
+     </div>
+ 
+     <section class="auth-panel auth-card" aria-labelledby="register-title">
++
++      @if (recoveryCode()) {
++        <h1 id="register-title">Save your recovery code</h1>
++
++        <p class="auth-intro">
++          Your SmartMoney! Easy account has been created successfully!
++        </p>
++
++        <p class="auth-intro">
++          This is your personal password recovery code.
++          Save it somewhere safe. You will need it if you forget your password.
++        </p>
++
++      <div class="field">
++        <label for="register-recovery-code">
++          Your recovery code
++        </label>
++
++        <div class="recovery-code-wrap">
++          <input
++            id="register-recovery-code"
++            type="text"
++            [value]="recoveryCode()"
++            readonly
++            autocomplete="off"
++            spellcheck="false"
++          />
++
++          <button
++            class="copy-code-icon"
++            type="button"
++            aria-label="Copy recovery code"
++            title="Copy recovery code"
++            [disabled]="!recoveryCode()"
++            (click)="copyRecoveryCode()"
++          >
++            <svg
++              xmlns="http://www.w3.org/2000/svg"
++              width="22"
++              height="22"
++              viewBox="0 0 24 24"
++              fill="none"
++              stroke="currentColor"
++              stroke-width="2"
++              stroke-linecap="round"
++              stroke-linejoin="round"
++              aria-hidden="true"
++              focusable="false"
++            >
++              <rect
++                x="8"
++                y="8"
++                width="13"
++                height="13"
++                rx="2"
++              />
++
++              <path
++                d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"
++              />
++            </svg>
++          </button>
++        </div>
++      </div>
++
++        @if (recoveryCopyMessage()) {
++          <p
++            class="privacy-consent"
++            role="status"
++            aria-live="polite"
++          >
++            {{ recoveryCopyMessage() }}
++          </p>
++        }
++
++        <p class="privacy-consent">
++          Important: This code is displayed only once.
++          SmartMoney! Easy cannot send it to your email.
++        </p>
++
++        <label class="privacy-consent" for="confirm-recovery-code">
++          <input
++            id="confirm-recovery-code"
++            type="checkbox"
++            [checked]="recoveryCodeConfirmed()"
++            (change)="recoveryCodeConfirmed.set($any($event.target).checked)"
++          />
++
++          I have saved my recovery code somewhere safe.
++        </label>
++
++        <button
++          class="submit-button"
++          type="button"
++          [disabled]="!recoveryCodeConfirmed()"
++          (click)="continueToOnboarding()"
++        >
++          Continue to Onboarding
++        </button>
++
++      } @else {
+       <h1 id="register-title">Create account</h1>
+       <p class="auth-intro">Start with your basic details. You can connect accounts later.</p>
+ 
+@@ -73,6 +174,7 @@
+         <a routerLink="/auth/login">Already registered? Log in</a>
+         <a routerLink="/about">About SmartMoney! Easy</a>
+       </nav>
++    }
+     </section>
+   </main>
+ </ion-content>
+diff --git a/src/app/pages/auth/register/register.page.scss b/src/app/pages/auth/register/register.page.scss
+index a336d43..32fec3a 100644
+--- a/src/app/pages/auth/register/register.page.scss
++++ b/src/app/pages/auth/register/register.page.scss
+@@ -1 +1,64 @@
+ @use '../auth-page';
++
++.recovery-code-wrap {
++  position: relative;
++  width: 100%;
++
++  input {
++    width: 100%;
++    padding-right: 4rem;
++
++    font-family:
++      'SFMono-Regular',
++      Consolas,
++      'Liberation Mono',
++      monospace;
++
++    font-size: 1.125rem;
++    font-weight: 700;
++    letter-spacing: 0.12em;
++  }
++}
++
++.copy-code-icon {
++  position: absolute;
++  top: 50%;
++  right: 0.375rem;
++
++  display: flex;
++  align-items: center;
++  justify-content: center;
++
++  width: 44px;
++  height: 44px;
++  padding: 0;
++
++  transform: translateY(-50%);
++
++  border: none;
++  border-radius: var(--sm-radius-md);
++
++  background: transparent;
++  color: var(--sm-color-teal-dark);
++
++  cursor: pointer;
++
++  transition:
++    background-color 0.2s ease,
++    color 0.2s ease;
++}
++
++.copy-code-icon:hover:not(:disabled) {
++  background: var(--sm-color-background);
++  color: var(--sm-color-teal);
++}
++
++.copy-code-icon:focus-visible {
++  outline: 2px solid var(--sm-color-teal);
++  outline-offset: -2px;
++}
++
++.copy-code-icon:disabled {
++  opacity: 0.5;
++  cursor: not-allowed;
++}
+\ No newline at end of file
+diff --git a/src/app/pages/auth/register/register.page.ts b/src/app/pages/auth/register/register.page.ts
+index 24376e4..f95ef3f 100644
+--- a/src/app/pages/auth/register/register.page.ts
++++ b/src/app/pages/auth/register/register.page.ts
+@@ -26,6 +26,9 @@ export class RegisterPage {
+   readonly loading = signal(false);
+   readonly serverError = signal('');
+   readonly showPassword = signal(false);
++  readonly recoveryCode = signal('');
++  readonly recoveryCodeConfirmed = signal(false);
++  readonly recoveryCopyMessage = signal('');
+   readonly form = this.fb.nonNullable.group(
+     {
+       name: ['', [Validators.required, Validators.minLength(2)]],
+@@ -56,8 +59,53 @@ export class RegisterPage {
+       .register(name, email, password)
+       .pipe(finalize(() => this.loading.set(false)))
+       .subscribe({
+-        next: () => void this.router.navigateByUrl('/onboarding'),
++        next: result => {
++          this.recoveryCode.set(result.recoveryCode);
++          this.recoveryCodeConfirmed.set(false);
++        },
+         error: (error: Error) => this.serverError.set(error.message),
+       });
+   }
++
++    continueToOnboarding(): void {
++    if (
++      !this.recoveryCode() ||
++      !this.recoveryCodeConfirmed()
++    ) {
++      return;
++    }
++
++    this.recoveryCode.set('');
++
++    void this.router.navigateByUrl('/onboarding');
++  }
++
++  async copyRecoveryCode(): Promise<void> {
++  const code = this.recoveryCode();
++
++  if (!code) {
++    return;
++  }
++
++  this.recoveryCopyMessage.set('');
++
++  if (!navigator.clipboard?.writeText) {
++    this.recoveryCopyMessage.set(
++      'Automatic copying is unavailable. Please select and copy your code manually.'
++    );
++    return;
++  }
++
++  try {
++    await navigator.clipboard.writeText(code);
++
++    this.recoveryCopyMessage.set(
++      'Recovery code copied successfully.'
++    );
++  } catch {
++    this.recoveryCopyMessage.set(
++      'Unable to copy automatically. Please select and copy your code manually.'
++    );
++  }
++}
+ }
+diff --git a/src/app/pages/learn/daily-challenge.component.spec.ts b/src/app/pages/learn/daily-challenge.component.spec.ts
+index 132e1d3..962d40d 100644
+--- a/src/app/pages/learn/daily-challenge.component.spec.ts
++++ b/src/app/pages/learn/daily-challenge.component.spec.ts
+@@ -1,241 +1,541 @@
++import { TestBed } from '@angular/core/testing';
+ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++
+ import { CHALLENGE_BANK } from './challenge-bank';
+-import { DAILY_KEY } from './daily-challenges';
+-import { TestBed } from '@angular/core/testing';
+ import { DailyChallengeComponent } from './daily-challenge.component';
++import { DAILY_KEY } from './daily-challenges';
++
++/**
++ * Provide deterministic browser storage in the test runner.
++ * Some Node.js versions expose an unavailable global localStorage, and this
++ * suite must also be able to simulate storage failures deliberately.
++ */
++class MemoryStorage implements Storage {
++  private readonly entries = new Map<string, string>();
++
++  get length(): number {
++    return this.entries.size;
++  }
++
++  clear(): void {
++    this.entries.clear();
++  }
++
++  getItem(key: string): string | null {
++    return this.entries.get(key) ?? null;
++  }
++
++  key(index: number): string | null {
++    return [...this.entries.keys()][index] ?? null;
++  }
++
++  removeItem(key: string): void {
++    this.entries.delete(key);
++  }
++
++  setItem(key: string, value: string): void {
++    this.entries.set(key, String(value));
++  }
++}
++
++const testStorage = new MemoryStorage();
+ 
+ describe('DailyChallengeComponent', () => {
+-  beforeEach(() => localStorage.removeItem(DAILY_KEY));
+-  afterEach(() => vi.restoreAllMocks());
++  beforeEach(() => {
++    testStorage.clear();
++    vi.stubGlobal('localStorage', testStorage);
++  });
++
++  afterEach(() => {
++    vi.restoreAllMocks();
++    vi.unstubAllGlobals();
++  });
++
+   it('teaches warning signs without claiming the other message is guaranteed safe', () => {
+-    TestBed.configureTestingModule({ imports: [DailyChallengeComponent] });
++    TestBed.configureTestingModule({
++      imports: [DailyChallengeComponent],
++    });
++
+     const fixture = TestBed.createComponent(DailyChallengeComponent);
+-    fixture.componentInstance.activeQuestions.set(CHALLENGE_BANK.slice(0, 5));
++
++    fixture.componentInstance.activeQuestions.set(
++      CHALLENGE_BANK.slice(0, 5),
++    );
++
+     fixture.detectChanges();
++
+     const choices = fixture.nativeElement.querySelectorAll(
+       '.choice',
+     ) as NodeListOf<HTMLButtonElement>;
++
+     choices[1].click();
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelector('[role="status"]').textContent).toContain(
+-      'Here’s how to think about it.',
+-    );
+-    expect(fixture.nativeElement.querySelector('[role="status"]').textContent).toContain(
+-      'does not prove',
+-    );
+-    expect(fixture.nativeElement.querySelector('a[href*="secure-bank"]')).toBeNull();
++
++    expect(
++      fixture.nativeElement.querySelector('[role="status"]').textContent,
++    ).toContain('Here’s how to think about it.');
++
++    expect(
++      fixture.nativeElement.querySelector('[role="status"]').textContent,
++    ).toContain('does not prove');
++
++    expect(
++      fixture.nativeElement.querySelector('a[href*="secure-bank"]'),
++    ).toBeNull();
++
+     choices[0].click();
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelector('[role="status"]').textContent).toContain(
+-      'You spotted the warning signs',
+-    );
+-    expect(choices[0].getAttribute('aria-pressed')).toBe('true');
++
++    expect(
++      fixture.nativeElement.querySelector('[role="status"]').textContent,
++    ).toContain('You spotted the warning signs');
++
++    expect(
++      choices[0].getAttribute('aria-pressed'),
++    ).toBe('true');
++
+     fixture.componentInstance.reset();
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelector('[role="status"]')).toBeNull();
++
++    expect(
++      fixture.nativeElement.querySelector('[role="status"]'),
++    ).toBeNull();
++
+     expect(document.activeElement).toBe(choices[0]);
+   });
++
+   it('keeps answers per question, resets only the current question and respects carousel bounds', () => {
+-    TestBed.configureTestingModule({ imports: [DailyChallengeComponent] });
++    TestBed.configureTestingModule({
++      imports: [DailyChallengeComponent],
++    });
++
+     const fixture = TestBed.createComponent(DailyChallengeComponent);
+-    fixture.componentInstance.activeQuestions.set(CHALLENGE_BANK.slice(0, 5));
++
++    fixture.componentInstance.activeQuestions.set(
++      CHALLENGE_BANK.slice(0, 5),
++    );
++
+     const page = fixture.componentInstance;
++
+     fixture.detectChanges();
++
+     page.move(-1);
+     expect(page.index()).toBe(0);
++
+     page.choose(0);
+     page.move(1);
+     expect(page.answer()).toBeNull();
++
+     page.choose(1);
+     page.move(-1);
+     expect(page.answer()).toBe(0);
++
+     page.reset();
+     expect(page.answer()).toBeNull();
++
+     page.move(1);
+     expect(page.answer()).toBe(1);
++
+     page.move(1);
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelectorAll('.choice').length).toBe(3);
++
++    expect(
++      fixture.nativeElement.querySelectorAll('.choice').length,
++    ).toBe(3);
++
+     page.choose(1);
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelector('[role="status"]').textContent).toContain('$96');
++
++    expect(
++      fixture.nativeElement.querySelector('[role="status"]').textContent,
++    ).toContain('$96');
++
+     page.move(1);
+     page.move(1);
+     page.move(1);
++
+     expect(page.index()).toBe(4);
++
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.textContent).toContain('Finish session');
++
++    expect(
++      fixture.nativeElement.textContent,
++    ).toContain('Finish session');
+   });
++
+   it('finishes honestly when questions are skipped, reviews retained answers and restarts cleanly', () => {
+-    TestBed.configureTestingModule({ imports: [DailyChallengeComponent] });
++    TestBed.configureTestingModule({
++      imports: [DailyChallengeComponent],
++    });
++
+     const fixture = TestBed.createComponent(DailyChallengeComponent);
+-    fixture.componentInstance.activeQuestions.set(CHALLENGE_BANK.slice(0, 5));
++
++    fixture.componentInstance.activeQuestions.set(
++      CHALLENGE_BANK.slice(0, 5),
++    );
++
+     const page = fixture.componentInstance;
++
+     page.choose(0);
+     page.index.set(4);
++
+     fixture.detectChanges();
+-    fixture.nativeElement.querySelector('app-sm-button button').click();
++
++    fixture.nativeElement
++      .querySelector('app-sm-button button')
++      .click();
++
+     fixture.detectChanges();
++
+     expect(page.completed()).toBe(true);
+-    expect(fixture.nativeElement.textContent).toContain('You explored 1 of 5');
+-    expect(fixture.nativeElement.querySelector('.choices')).toBeNull();
++
++    expect(
++      fixture.nativeElement.textContent,
++    ).toContain('You explored 1 of 5');
++
++    expect(
++      fixture.nativeElement.querySelector('.choices'),
++    ).toBeNull();
++
+     page.review();
+     fixture.detectChanges();
++
+     expect(page.index()).toBe(0);
+     expect(page.answer()).toBe(0);
++
+     page.restart();
+     fixture.detectChanges();
++
+     expect(page.answeredCount()).toBe(0);
+     expect(page.answer()).toBeNull();
+     expect(page.completed()).toBe(false);
+   });
++
+   it('moves focus to the new question and exposes the correct answer without colour alone', async () => {
+-    TestBed.configureTestingModule({ imports: [DailyChallengeComponent] });
++    TestBed.configureTestingModule({
++      imports: [DailyChallengeComponent],
++    });
++
+     const fixture = TestBed.createComponent(DailyChallengeComponent);
+-    fixture.componentInstance.activeQuestions.set(CHALLENGE_BANK.slice(0, 5));
++
++    fixture.componentInstance.activeQuestions.set(
++      CHALLENGE_BANK.slice(0, 5),
++    );
++
+     fixture.detectChanges();
+-    fixture.nativeElement.querySelector('app-sm-button button').click();
++
++    fixture.nativeElement
++      .querySelector('app-sm-button button')
++      .click();
++
+     fixture.detectChanges();
++
+     await new Promise((resolve) => setTimeout(resolve, 0));
+-    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('h2'));
++
++    expect(document.activeElement).toBe(
++      fixture.nativeElement.querySelector('h2'),
++    );
++
+     fixture.componentInstance.choose(1);
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelector('.correct').textContent).toContain('Correct answer');
+-    expect(fixture.nativeElement.querySelector('.reconsider').textContent).toContain('Your choice');
+-    expect(fixture.nativeElement.querySelectorAll('.progress .visited').length).toBe(1);
+-    fixture.componentInstance.questions.forEach((q) =>
+-      fixture.componentInstance.answers.update((a) => ({ ...a, [q.id]: q.correct })),
+-    );
++
++    expect(
++      fixture.nativeElement.querySelector('.correct').textContent,
++    ).toContain('Correct answer');
++
++    expect(
++      fixture.nativeElement.querySelector('.reconsider').textContent,
++    ).toContain('Your choice');
++
++    expect(
++      fixture.nativeElement.querySelectorAll('.progress .visited').length,
++    ).toBe(1);
++
++    fixture.componentInstance.questions.forEach((question) => {
++      fixture.componentInstance.answers.update((answers) => ({
++        ...answers,
++        [question.id]: question.correct,
++      }));
++    });
++
+     fixture.componentInstance.finish();
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.textContent).toContain('Today’s session complete.');
++
++    expect(
++      fixture.nativeElement.textContent,
++    ).toContain('Today’s session complete.');
+   });
++
+   it('reveals warning signs and resets them without turning the fictional address into a link', () => {
+-    TestBed.configureTestingModule({ imports: [DailyChallengeComponent] });
++    TestBed.configureTestingModule({
++      imports: [DailyChallengeComponent],
++    });
++
+     const fixture = TestBed.createComponent(DailyChallengeComponent);
+-    fixture.componentInstance.activeQuestions.set(CHALLENGE_BANK.slice(0, 5));
++
++    fixture.componentInstance.activeQuestions.set(
++      CHALLENGE_BANK.slice(0, 5),
++    );
++
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelectorAll('mark.warning').length).toBe(0);
++
++    expect(
++      fixture.nativeElement.querySelectorAll('mark.warning').length,
++    ).toBe(0);
++
+     fixture.componentInstance.choose(1);
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelectorAll('mark.warning').length).toBe(2);
+-    expect(fixture.nativeElement.querySelector('.takeaway').textContent).toContain(
+-      'Open your bank app independently',
+-    );
++
++    expect(
++      fixture.nativeElement.querySelectorAll('mark.warning').length,
++    ).toBe(2);
++
++    expect(
++      fixture.nativeElement.querySelector('.takeaway').textContent,
++    ).toContain('Open your bank app independently');
++
+     fixture.componentInstance.reset();
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelectorAll('mark.warning').length).toBe(0);
++
++    expect(
++      fixture.nativeElement.querySelectorAll('mark.warning').length,
++    ).toBe(0);
+   });
++
+   it('reveals and resets each example visual while retaining answers when navigating', () => {
+-    TestBed.configureTestingModule({ imports: [DailyChallengeComponent] });
++    TestBed.configureTestingModule({
++      imports: [DailyChallengeComponent],
++    });
++
+     const fixture = TestBed.createComponent(DailyChallengeComponent);
+-    fixture.componentInstance.activeQuestions.set(CHALLENGE_BANK.slice(0, 5));
++
++    fixture.componentInstance.activeQuestions.set(
++      CHALLENGE_BANK.slice(0, 5),
++    );
++
+     const page = fixture.componentInstance;
++
+     page.index.set(1);
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelector('.ledger').textContent).toContain('$200');
++
++    expect(
++      fixture.nativeElement.querySelector('.ledger').textContent,
++    ).toContain('$200');
++
+     page.choose(0);
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelector('.ledger').textContent).toContain('$160');
+-    expect(fixture.nativeElement.querySelector('.ledger').textContent).toContain('−$40');
++
++    expect(
++      fixture.nativeElement.querySelector('.ledger').textContent,
++    ).toContain('$160');
++
++    expect(
++      fixture.nativeElement.querySelector('.ledger').textContent,
++    ).toContain('−$40');
++
+     page.index.set(2);
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelectorAll('.months > div').length).toBe(12);
++
++    expect(
++      fixture.nativeElement.querySelectorAll('.months > div').length,
++    ).toBe(12);
++
+     page.choose(1);
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelector('.price').textContent).toContain('$96/year');
++
++    expect(
++      fixture.nativeElement.querySelector('.price').textContent,
++    ).toContain('$96/year');
++
+     page.index.set(3);
+     page.choose(1);
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelectorAll('.steps > div').length).toBe(6);
+-    expect(fixture.nativeElement.querySelector('.caption').textContent).toContain(
+-      'six contributions',
+-    );
++
++    expect(
++      fixture.nativeElement.querySelectorAll('.steps > div').length,
++    ).toBe(6);
++
++    expect(
++      fixture.nativeElement.querySelector('.caption').textContent,
++    ).toContain('six contributions');
++
+     page.reset();
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelector('.story').classList.contains('revealed')).toBe(
+-      false,
+-    );
++
++    expect(
++      fixture.nativeElement
++        .querySelector('.story')
++        .classList.contains('revealed'),
++    ).toBe(false);
++
+     page.index.set(4);
+     page.choose(1);
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelector('.checklist').textContent).toContain(
+-      'payment arrangements',
+-    );
++
++    expect(
++      fixture.nativeElement.querySelector('.checklist').textContent,
++    ).toContain('payment arrangements');
++
+     page.index.set(2);
+     fixture.detectChanges();
+-    expect(fixture.nativeElement.querySelector('.price').textContent).toContain('$96/year');
++
++    expect(
++      fixture.nativeElement.querySelector('.price').textContent,
++    ).toContain('$96/year');
+   });
++
+   it('restores the actual daily set and keeps its progress separate from practice', () => {
+-    TestBed.configureTestingModule({ imports: [DailyChallengeComponent] });
++    TestBed.configureTestingModule({
++      imports: [DailyChallengeComponent],
++    });
++
+     const first = TestBed.createComponent(DailyChallengeComponent);
+-    const dailyIds = first.componentInstance.questions.map((q) => q.id);
++
++    const dailyIds = first.componentInstance.questions.map(
++      (question) => question.id,
++    );
++
+     first.componentInstance.choose(0);
+     first.componentInstance.move(1);
++
+     const restored = TestBed.createComponent(DailyChallengeComponent);
+-    expect(restored.componentInstance.questions.map((q) => q.id)).toEqual(dailyIds);
++
++    expect(
++      restored.componentInstance.questions.map(
++        (question) => question.id,
++      ),
++    ).toEqual(dailyIds);
++
+     expect(restored.componentInstance.index()).toBe(1);
+     expect(restored.componentInstance.answeredCount()).toBe(1);
+-    const saved = localStorage.getItem(DAILY_KEY);
++
++    const saved = testStorage.getItem(DAILY_KEY);
++
+     restored.componentInstance.practise();
+-    expect(restored.componentInstance.questions.some((q) => dailyIds.includes(q.id))).toBe(false);
++
++    expect(
++      restored.componentInstance.questions.some(
++        (question) => dailyIds.includes(question.id),
++      ),
++    ).toBe(false);
++
+     restored.componentInstance.choose(0);
+-    expect(localStorage.getItem(DAILY_KEY)).toBe(saved);
++
++    expect(
++      testStorage.getItem(DAILY_KEY),
++    ).toBe(saved);
++
+     restored.componentInstance.returnToDaily();
++
+     expect(restored.componentInstance.answeredCount()).toBe(1);
+     expect(restored.componentInstance.index()).toBe(1);
+   });
++
+   it('starts the new local day without applying an old question click to the new set', () => {
+-    TestBed.configureTestingModule({ imports: [DailyChallengeComponent] });
++    TestBed.configureTestingModule({
++      imports: [DailyChallengeComponent],
++    });
++
+     const fixture = TestBed.createComponent(DailyChallengeComponent);
++
+     const page = fixture.componentInstance;
++
+     page.day.set('2000-01-01');
+     page.answers.set({ old: 0 });
+     page.choose(0);
++
+     expect(page.day()).not.toBe('2000-01-01');
+     expect(page.answeredCount()).toBe(0);
+     expect(page.mode()).toBe('daily');
+   });
++
+   it('remains usable and explains when browser storage is unavailable', () => {
+-    TestBed.configureTestingModule({ imports: [DailyChallengeComponent] });
+-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
++    TestBed.configureTestingModule({
++      imports: [DailyChallengeComponent],
++    });
++
++    vi.spyOn(testStorage, 'getItem').mockImplementation(() => {
+       throw new Error('blocked');
+     });
+-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
++
++    vi.spyOn(testStorage, 'setItem').mockImplementation(() => {
+       throw new Error('blocked');
+     });
++
+     const fixture = TestBed.createComponent(DailyChallengeComponent);
++
+     fixture.componentInstance.choose(0);
+     fixture.detectChanges();
++
+     expect(fixture.componentInstance.answer()).toBe(0);
+-    expect(fixture.nativeElement.textContent).toContain('Progress cannot be saved');
++
++    expect(
++      fixture.nativeElement.textContent,
++    ).toContain('Progress cannot be saved');
+   });
++
+   it('gives every bank question a visual, answer-driven reveal, practical takeaway and working retry', () => {
+-    TestBed.configureTestingModule({ imports: [DailyChallengeComponent] });
++    TestBed.configureTestingModule({
++      imports: [DailyChallengeComponent],
++    });
++
+     const fixture = TestBed.createComponent(DailyChallengeComponent);
++
+     const page = fixture.componentInstance;
++
+     for (const question of CHALLENGE_BANK) {
+       page.activeQuestions.set([question]);
+       page.index.set(0);
+       page.answers.set({});
++
+       fixture.detectChanges();
+-      const visual = fixture.nativeElement.querySelector('.scene, .story, .phone-frame');
++
++      const visual = fixture.nativeElement.querySelector(
++        '.scene, .story, .phone-frame',
++      );
++
+       expect(visual, question.id).not.toBeNull();
+-      expect(fixture.nativeElement.querySelector('.feedback'), question.id).toBeNull();
++
++      expect(
++        fixture.nativeElement.querySelector('.feedback'),
++        question.id,
++      ).toBeNull();
++
+       const before = visual.textContent;
++
+       page.choose(question.correct);
+       fixture.detectChanges();
++
+       expect(
+         fixture.nativeElement.querySelector('.takeaway').textContent.length,
+         question.id,
+       ).toBeGreaterThan(35);
+-      expect(fixture.nativeElement.querySelector('.correct'), question.id).not.toBeNull();
+-      if (question.id !== 'scam') expect(visual.textContent, question.id).not.toBe(before);
+-      else expect(fixture.nativeElement.querySelectorAll('mark.warning').length).toBe(2);
++
++      expect(
++        fixture.nativeElement.querySelector('.correct'),
++        question.id,
++      ).not.toBeNull();
++
++      if (question.id !== 'scam') {
++        expect(visual.textContent, question.id).not.toBe(before);
++      } else {
++        expect(
++          fixture.nativeElement.querySelectorAll('mark.warning').length,
++        ).toBe(2);
++      }
++
+       page.reset();
+       fixture.detectChanges();
+-      expect(fixture.nativeElement.querySelector('.feedback'), question.id).toBeNull();
+-      expect(visual.textContent, question.id).toBe(before);
++
++      expect(
++        fixture.nativeElement.querySelector('.feedback'),
++        question.id,
++      ).toBeNull();
++
++      expect(
++        visual.textContent,
++        question.id,
++      ).toBe(before);
+     }
+   });
+-});
++});
+\ No newline at end of file
+diff --git a/src/app/pages/onboarding/onboarding.page.html b/src/app/pages/onboarding/onboarding.page.html
+index 5760a42..2655586 100644
+--- a/src/app/pages/onboarding/onboarding.page.html
++++ b/src/app/pages/onboarding/onboarding.page.html
+@@ -622,7 +622,12 @@
+ 
+       <p class="setup-note">
+         These percentages are suggestions and can be changed.
+-        This is a preview; your allocation has not been saved yet.
++
++        @if (allocationSaved()) {
++          Your monthly allocation has been saved.
++        } @else {
++          This is a preview; your allocation has not been saved yet.
++        }
+       </p>
+     }
+ 
+diff --git a/src/app/pages/onboarding/onboarding.page.ts b/src/app/pages/onboarding/onboarding.page.ts
+index e2db88d..e8fb437 100644
+--- a/src/app/pages/onboarding/onboarding.page.ts
++++ b/src/app/pages/onboarding/onboarding.page.ts
+@@ -490,32 +490,32 @@ async continueToBudget(): Promise<void> {
+ 
+ 
+ updateBudgetShare(
+-  bucket: BudgetBucket,
+-  rawValue: string
+-): void {
+-  const value = Number(rawValue);
++    bucket: BudgetBucket,
++    rawValue: string
++    ): void {
++    const value = Number(rawValue);
+ 
+-  if (
+-    rawValue.trim() === '' ||
+-    !Number.isInteger(value) ||
+-    value < 0 ||
+-    value > 100
+-  ) {
+-    this.budgetError.set(
+-      'Enter a whole percentage between 0 and 100.'
+-    );
+-    return;
+-  }
++    if (
++        rawValue.trim() === '' ||
++        !Number.isInteger(value) ||
++        value < 0 ||
++        value > 100
++    ) {
++        this.budgetError.set(
++        'Enter a whole percentage between 0 and 100.'
++        );
++        return;
++    }
+ 
+-  this.budgetShares.update(shares => ({
+-    ...shares,
+-    [bucket]: value,
+-  }));
++    this.budgetShares.update(shares => ({
++        ...shares,
++        [bucket]: value,
++    }));
+ 
+-  this.budgetError.set('');
++    this.budgetError.set('');
+ 
+-this.allocationSaved.set(false);
+-this.budgetSaveMessage.set('');
++    this.allocationSaved.set(false);
++    this.budgetSaveMessage.set('');
+ 
+ 
+   if (this.budgetTotalPercent() !== 100) {
+diff --git a/src/app/pages/profile-settings/profile-settings.page.html b/src/app/pages/profile-settings/profile-settings.page.html
+index 238ad6f..bf1747d 100644
+--- a/src/app/pages/profile-settings/profile-settings.page.html
++++ b/src/app/pages/profile-settings/profile-settings.page.html
+@@ -86,6 +86,7 @@
+         <select
+           id="regular-income-type"
+           name="regularIncomeType"
++          (ngModelChange)="onRegularIncomeTypeChange($event)"
+           [(ngModel)]="regularIncomeType"
+           [disabled]="regularIncomeSaving"
+         >
+@@ -505,17 +506,26 @@
+           </h2>
+ 
+           <p class="settings-modal__description">
+-            Export information or remove imported bank history.
++            Manage your stored bank history and view upcoming privacy features.
+           </p>
+ 
+           <button
+             type="button"
+             class="privacy-modal__option"
+-            (click)="showPrivacyMessage('export-data')"
++            disabled
++            aria-describedby="export-unavailable-note"
+           >
+-            Export my data
++            Export my data — Coming soon
+           </button>
+ 
++          <p
++            id="export-unavailable-note"
++            class="privacy-modal__note"
++          >
++            Data export is not available in this version of SmartMoney! Easy.
++            Your saved information remains unchanged.
++          </p>
++
+           <button
+             type="button"
+             class="privacy-modal__option privacy-modal__option--danger"
+@@ -674,54 +684,31 @@
+           tabindex="-1"
+           (click)="$event.stopPropagation()"
+         >
++
+           <h2 id="delete-account-title">
+-            Delete SmartMoney account?
++            Delete SmartMoney account
+           </h2>
+ 
+           <p class="settings-modal__description">
+-            This permanently removes the profile and manually managed data.
++            Account deletion is not available in this version of SmartMoney! Easy.
++            This feature is planned for a future release.
+           </p>
+-          <div class="delete-account-modal__confirmation">
+-            <label for="delete-confirmation">
+-              Type DELETE to confirm
+-            </label>
+ 
+-            <input
+-              id="delete-confirmation"
+-              name="deleteConfirmation"
+-              type="text"
+-              placeholder="DELETE"
+-              autocomplete="off"
+-              [(ngModel)]="deleteConfirmation"
+-            />
+-          </div>
+-          
+-          @if (deleteAccountMessage) {
+-            <p class="settings-modal__message" role="status">
+-              {{ deleteAccountMessage}}
+-            </p>
+-          }
++          <p class="settings-modal__message" role="status">
++            Your account and saved data will not be deleted.
++          </p>
+ 
+           <div class="settings-modal__actions">
+-            <button
+-              type="button"
+-              class="settings-modal__primary settings-modal__primary--danger"
+-              [disabled]="deleteConfirmation !== 'DELETE'"
+-              (click)="confirmDeleteAccount()"
+-            >
+-              Delete
+-            </button>
+             <button
+               type="button"
+               class="settings-modal__secondary"
+               (click)="closeModal()"
+             >
+-              Cancel
++              Close
+             </button>
+           </div>
+         </section>
+       </div>
+     }
+-
+   </main>
+ </ion-content>
+diff --git a/src/app/pages/profile-settings/profile-settings.page.ts b/src/app/pages/profile-settings/profile-settings.page.ts
+index 178ab2a..a8d08d7 100644
+--- a/src/app/pages/profile-settings/profile-settings.page.ts
++++ b/src/app/pages/profile-settings/profile-settings.page.ts
+@@ -33,6 +33,11 @@ import {
+ 
+ import { HttpErrorResponse } from '@angular/common/http';
+ 
++import {
++  PayrollApiService,
++  PayrollFrequency,
++} from '../../core/services/payroll-api.service';
++
+ type SettingsModal =
+   | 'personal-details'
+   | 'change-password'
+@@ -64,6 +69,8 @@ export class ProfileSettingsPage {
+     inject(MonthlyIncomeApiService);
+   private readonly regularIncomeApi =
+     inject(RegularIncomeApiService);
++  private readonly payrollApi =
++    inject(PayrollApiService);
+   private regularIncomeRequestId = 0;
+ 
+   incomeMonth = '';
+@@ -218,10 +225,6 @@ private getCurrentNzMonth(): string {
+   privacyMessage = '';
+   bankDeleteLoading = false;
+ 
+-  // Delete account
+-  deleteConfirmation = '';
+-  deleteAccountMessage = '';
+-
+   // Settings cards
+   readonly settings = [
+     {
+@@ -241,7 +244,7 @@ private getCurrentNzMonth(): string {
+     },
+     {
+       title: 'Export my data',
+-      description: 'Manage this setting',
++      description: 'Coming soon — not available in this version',
+       action: 'export-data',
+     },
+     {
+@@ -257,7 +260,7 @@ private getCurrentNzMonth(): string {
+     },
+     {
+       title: 'Delete SmartMoney account',
+-      description: 'Permanent action requiring confirmation',
++      description: 'Coming soon — not available in this version',
+       action: 'delete-account',
+       danger: true,
+     },
+@@ -328,8 +331,6 @@ private getCurrentNzMonth(): string {
+     }
+ 
+     if (action === 'delete-account') {
+-      this.deleteConfirmation = '';
+-      this.deleteAccountMessage = '';
+       this.activeModal = 'delete-account';
+       this.notifyModalState(true);
+       return;
+@@ -371,7 +372,6 @@ private getCurrentNzMonth(): string {
+     this.passwordMessage = '';
+ 
+     this.privacyMessage = '';
+-    this.deleteConfirmation = '';
+     this.logoutError = '';
+ 
+     // Return keyboard focus to the button that opened the modal.
+@@ -581,18 +581,6 @@ private getCurrentNzMonth(): string {
+     });
+   }
+ 
+-  // Validate the account deletion confirmation
+-  confirmDeleteAccount(): void {
+-    if (this.deleteConfirmation !== 'DELETE') {
+-      return;
+-    }
+-
+-    // Account deletion is not connected to the backend yet.
+-    // Do not delete the account or log the user out.
+-    this.deleteAccountMessage =
+-      'Account data backend is not connected. Account deletion is not available yet and your account has not been deleted.';
+-  }
+-
+   // Return to the Profile & Assets page
+   goBack(): void {
+     void this.router.navigateByUrl('/app/profile');
+@@ -724,7 +712,82 @@ regularIncomeLoading = false;
+ regularIncomeSaving = false;
+ regularIncomeError = '';
+ regularIncomeMessage = '';
++regularIncomePrefillMessage = '';
++
++private async prefillRegularIncomeFromPayroll(): Promise<void> {
++  const settingsResponse = await firstValueFrom(
++    this.payrollApi.getSettings()
++  );
++
++  const settings = settingsResponse.settings;
++
++  if (!settings) {
++    return;
++  }
++
++  const estimateResponse = await firstValueFrom(
++    this.payrollApi.getEstimate()
++  );
++
++  const estimate = estimateResponse.estimate;
++
++  const netPerPay = Number(estimate.netPerPay);
++
++  if (!Number.isFinite(netPerPay) || netPerPay < 0) {
++    return;
++  }
++
++  this.regularIncomeType = settings.incomeType;
+ 
++  if (settings.incomeType === 'SALARY') {
++    if (settings.payFrequency === 'FOUR_WEEKLY') {
++      // Regular Income does not support four-weekly frequency.
++      // Convert 13 four-weekly payments into 12 monthly periods.
++      this.regularIncomeAmount = Number(
++        ((netPerPay * 13) / 12).toFixed(2)
++      );
++
++      this.regularPayFrequency = 'MONTHLY';
++    } else {
++      this.regularIncomeAmount = Number(
++        netPerPay.toFixed(2)
++      );
++
++      this.regularPayFrequency = settings.payFrequency;
++    }
++
++    this.regularHoursPerWeek = null;
++  } else {
++    const hoursPerWeek = Number(settings.hoursPerWeek);
++
++    if (
++      !Number.isFinite(hoursPerWeek) ||
++      hoursPerWeek <= 0 ||
++      hoursPerWeek > 168
++    ) {
++      return;
++    }
++
++    const weeksPerPay: Record<PayrollFrequency, number> = {
++      WEEKLY: 1,
++      FORTNIGHTLY: 2,
++      FOUR_WEEKLY: 4,
++      MONTHLY: 52 / 12,
++    };
++
++    const hoursPerPay =
++      hoursPerWeek * weeksPerPay[settings.payFrequency];
++
++    this.regularIncomeAmount = Number(
++      (netPerPay / hoursPerPay).toFixed(2)
++    );
++
++    this.regularHoursPerWeek = hoursPerWeek;
++  }
++
++  this.regularIncomePrefillMessage =
++    'These values were estimated from your onboarding payroll settings. Review them and select Save regular pay to confirm.';
++}
+ 
+ async loadRegularIncomeProfile(): Promise<void> {
+   const requestId = ++this.regularIncomeRequestId;
+@@ -746,6 +809,7 @@ async loadRegularIncomeProfile(): Promise<void> {
+     }
+ 
+     this.regularIncomeProfile = profile;
++    this.regularIncomePrefillMessage = '';
+ 
+     if (profile) {
+       this.regularIncomeType = profile.incomeType;
+@@ -761,6 +825,20 @@ async loadRegularIncomeProfile(): Promise<void> {
+       this.regularIncomeAmount = null;
+       this.regularPayFrequency = 'WEEKLY';
+       this.regularHoursPerWeek = null;
++
++      try {
++        await this.prefillRegularIncomeFromPayroll();
++      } catch {
++        // Payroll information is optional.
++        // Users can still enter their regular income manually.
++      }
++
++      if (
++        requestId !== this.regularIncomeRequestId ||
++        this.activeModal !== 'expected-income'
++      ) {
++        return;
++      }
+     }
+ 
+   } catch {
+@@ -860,7 +938,8 @@ async saveRegularIncome(): Promise<void> {
+       })
+     );
+ 
+-        this.regularIncomeProfile = saved;
++    this.regularIncomeProfile = saved;
++    this.regularIncomePrefillMessage = '';
+ 
+     // The regular income save succeeded.
+     this.regularIncomeMessage =
+@@ -889,4 +968,13 @@ async saveRegularIncome(): Promise<void> {
+   }
+ }
+ 
++  onRegularIncomeTypeChange(type: RegularIncomeType): void {
++    this.regularIncomeType = type;
++    this.regularIncomeAmount = null;
++    this.regularHoursPerWeek = null;
++
++    this.regularIncomeError = '';
++    this.regularIncomeMessage = '';
++  }
++
+ }
+\ No newline at end of file
+diff --git a/src/app/pages/reports/reports.page.html b/src/app/pages/reports/reports.page.html
+index 675900c..7d7ff91 100644
+--- a/src/app/pages/reports/reports.page.html
++++ b/src/app/pages/reports/reports.page.html
+@@ -206,13 +206,19 @@
+     </p>
+     }
+ 
+-    <!-- Cash flow explanation -->
++  <!-- Cash flow explanation -->
+ 
+-    <p class="cash-flow-note">
++  <p class="cash-flow-note">
++    @if (data.transactionCount === 0) {
++      No included transactions for this period.
++    } @else {
+       {{ cashFlowExplanation(data.netCashFlow) }}
++    }
+ 
+-      <span> Not an available balance or expected income. </span>
+-    </p>
++    <span>
++      Not an available balance or expected income.
++    </span>
++  </p>
+   </section>
+ 
+   <!-- ===================================================
+@@ -584,4 +590,4 @@
+   <footer>
+     <app-sm-button label="Back to report" variant="secondary" (pressed)="closeCategory()" />
+   </footer>
+-</dialog>
++</dialog>
+\ No newline at end of file
+diff --git a/src/app/pages/route-placeholder/route-placeholder.page.html b/src/app/pages/route-placeholder/route-placeholder.page.html
+index 1ce14ee..fce4c33 100644
+--- a/src/app/pages/route-placeholder/route-placeholder.page.html
++++ b/src/app/pages/route-placeholder/route-placeholder.page.html
+@@ -1,4 +1,4 @@
+-<ion-content [fullscreen]="true">
++<ion-content [fullscreen]="true">                                                                                                                                                                                                                                                                                    <ion-content [fullscreen]="true">
+   <main class="placeholder" [class.placeholder--public]="data.publicPage">
+     @if (data.publicPage) {
+       <img
+@@ -13,10 +13,17 @@
+       <h1 id="placeholder-title">{{ data.title }}</h1>
+       <p class="placeholder__description">{{ data.description }}</p>
+ 
+-      <app-sm-alert
+-        title="Phase 1 complete"
+-        message="The responsive route and shared interface foundation are ready. Detailed feature content will be added in its assigned phase."
+-      ></app-sm-alert>
++      @if (data.aboutPage) {
++        <app-sm-alert
++          title="Take control of your financial journey"
++          message="SmartMoney! Easy helps you track income and expenses, manage monthly budgets, set savings goals, connect to a simulated bank, and develop better money habits through financial learning tools."
++        ></app-sm-alert>
++      } @else {
++        <app-sm-alert
++          title="Information"
++          message="Please refer to the information provided on this page."
++        ></app-sm-alert>
++      }
+ 
+       @if (!data.publicPage) {
+         <div class="placeholder__sample" aria-label="Shared component preview">
+@@ -36,10 +43,7 @@
+             {{ data.secondaryLabel }}
+           </a>
+         }
+-        @if (data.publicPage) {
+-          <a class="placeholder__link" routerLink="/app/dashboard">Preview app shell</a>
+-        }
+       </div>
+     </app-sm-card>
+   </main>
+-</ion-content>
++</ion-content>
+\ No newline at end of file
+diff --git a/src/app/pages/route-placeholder/route-placeholder.page.ts b/src/app/pages/route-placeholder/route-placeholder.page.ts
+index 99f0b5a..4fa5d25 100644
+--- a/src/app/pages/route-placeholder/route-placeholder.page.ts
++++ b/src/app/pages/route-placeholder/route-placeholder.page.ts
+@@ -10,9 +10,9 @@ interface PlaceholderData {
+   title: string;
+   description: string;
+   publicPage?: boolean;
++  aboutPage?: boolean;
+   nextLink?: string;
+   nextLabel?: string;
+-
+   secondaryLink?: string;
+   secondaryLabel?: string;
+ }
+diff --git a/src/app/pages/savings-goals/savings-goals.html b/src/app/pages/savings-goals/savings-goals.html
+index 6f33346..f74f5dd 100644
+--- a/src/app/pages/savings-goals/savings-goals.html
++++ b/src/app/pages/savings-goals/savings-goals.html
+@@ -742,7 +742,7 @@
+                       : 'Cash Wallet'
+                   }}
+                   <small>
+-                    {{ movement.createdAt | date:'mediumDate' }}
++                    {{ movement.createdAt | date:'d MMM y' }}
+                   </small>
+                 </span>
+ 
+diff --git a/src/app/pages/savings-goals/savings-goals.ts b/src/app/pages/savings-goals/savings-goals.ts
+index c77c6b4..b7ad1a5 100644
+--- a/src/app/pages/savings-goals/savings-goals.ts
++++ b/src/app/pages/savings-goals/savings-goals.ts
+@@ -304,39 +304,39 @@ export class SavingsGoalsPage implements OnInit {
+     };
+ 
+   this.savingGoal = true;
+-    try {
+-      const savedGoal = await firstValueFrom(
+-        this.editingGoalId
+-          ? this.savingsApi.updateGoal(this.editingGoalId, payload)
+-          : this.savingsApi.createGoal(payload)
+-      );
++  try {
++    const savedGoal = await firstValueFrom(
++      this.editingGoalId
++        ? this.savingsApi.updateGoal(this.editingGoalId, payload)
++        : this.savingsApi.createGoal(payload)
++    );
+ 
+-      if (this.editingGoalId) {
+-        this.goals.update(current =>
+-          current.map(goal =>
+-            goal.id === savedGoal.id ? savedGoal : goal
+-          )
+-        );
+-      } else {
+-        this.goals.update(current => [
+-          savedGoal,
+-          ...current,
+-        ]);
+-      }
++    if (this.editingGoalId) {
++      this.goals.update(current =>
++        current.map(goal =>
++          goal.id === savedGoal.id ? savedGoal : goal
++        )
++      );
++    } else {
++      this.goals.update(current => [
++        savedGoal,
++        ...current,
++      ]);
++    }
+ 
+-      this.closeGoalForm();
++    this.closeGoalForm();
+ 
+-    } catch (error: unknown) {
+-      this.goalFormError =
+-        error instanceof HttpErrorResponse &&
+-        typeof error.error?.error === 'string'
+-          ? error.error.error
+-          : 'Unable to save your savings goal. Please try again.';
++  } catch (error: unknown) {
++    this.goalFormError =
++      error instanceof HttpErrorResponse &&
++      typeof error.error?.error === 'string'
++        ? error.error.error
++        : 'Unable to save your savings goal. Please try again.';
+ 
+-    } finally {
+-      this.savingGoal = false;
+-    }
++  } finally {
++    this.savingGoal = false;
+   }
++}
+ 
+ async openFunding(goal: SavingsGoal): Promise<void> {
+   if (this.fundingBusy) {

@@ -64,7 +64,7 @@ def start_bank_oauth():
     )
 
     redirect_uri = current_app.config.get(
-        "MOCK_BANK_OAUTH_REDIRECT_URI"
+        "MOCK_BANK_OAUTH_REDIRECT_URI", "MOCK_BANK_OAUTH_REDIRECT_URI_LOCAL"
     )
 
     if not all([bank_url, client_id, redirect_uri]):
@@ -180,7 +180,7 @@ def bank_oauth_callback():
                 "MOCK_BANK_OAUTH_CLIENT_ID"
             ],
             redirect_uri=current_app.config[
-                "MOCK_BANK_OAUTH_REDIRECT_URI"
+                "MOCK_BANK_OAUTH_REDIRECT_URI", "MOCK_BANK_OAUTH_REDIRECT_URI_LOCAL"
             ],
         )
 
