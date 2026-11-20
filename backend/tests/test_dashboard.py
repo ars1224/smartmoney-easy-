@@ -86,6 +86,45 @@ class DashboardTests(unittest.TestCase):
             self.client.get('/api/dashboard?month=2026-11').headers['Cache-Control'],
         )
 
+    def test_recent_activity_uses_transaction_note_as_title(self):
+        transaction = self.row(
+            '125.00',
+            source='CASH',
+            bank_account_id=None,
+            description='QA Test Income - 1',
+            note='QA Test Income - 1',
+            category='Other',
+            transaction_type='income',
+        )
+
+        dashboard = self.load()
+
+        recent = next(
+            item
+            for item in dashboard['transactions']
+            if item['id'] == transaction.id
+        )
+
+        self.assertEqual(
+            recent['name'],
+            'QA Test Income - 1',
+        )
+
+        self.assertEqual(
+            recent['category'],
+            'Other',
+        )
+
+        self.assertEqual(
+            Decimal(recent['amount']),
+            Decimal('125.00'),
+        )
+
+        self.assertEqual(
+            recent['source'],
+            'cash',
+        )
+
     def test_totals_exactly_match_reports_and_do_not_invent_available_money(self):
         self.row('1000.10', transaction_type='CREDIT', category='Income')
         self.row('-100.20')

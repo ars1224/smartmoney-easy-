@@ -697,6 +697,19 @@ def run_tests():
             assert updated["date"] == "2026-10-22"
             assert updated["note"] == "Returned purchase"
 
+            # Verify that editing the note updates the saved title.
+            with app.app_context():
+                saved_transaction = db.session.get(
+                    Transaction,
+                    expense["id"],
+                )
+
+                assert saved_transaction is not None
+                assert saved_transaction.description == "Returned purchase"
+                assert saved_transaction.category == "Refund"
+
+            print("PASS: Edited transaction title matches its note")
+
             # 100 opening + 50 income + 40 income = 190.
             response = owner.get("/api/cash-wallets")
 

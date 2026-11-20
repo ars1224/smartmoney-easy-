@@ -266,7 +266,7 @@ def create_cash_transaction():
         bank_account_id=None,
         external_transaction_id=None,
         source="CASH",
-        description=category,
+        description=note.strip() or category,
         category=category,
         note=note,
         amount=signed_amount,
@@ -497,15 +497,17 @@ def update_cash_transaction(transaction_id):
 
     transaction.cash_wallet_id = destination_wallet.id
     transaction.bank_account_id = None
+
     transaction.transaction_type = transaction_type
     transaction.amount = new_signed_amount
     transaction.category = category
-    transaction.description = category
     transaction.note = note.strip()
+    transaction.description = transaction.note or category
     transaction.transaction_date = transaction_date
     transaction.currency = destination_wallet.currency
 
     db.session.commit()
+
 
     response = jsonify({
         "message": "Cash transaction updated successfully.",
