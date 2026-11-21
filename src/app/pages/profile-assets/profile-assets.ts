@@ -28,6 +28,7 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 
 import { BankConnectionService } from '../../core/bank/bank-connection.service';
+import { BankAutoSyncService } from '../../core/bank/bank-auto-sync.service';
 
 
 @Component({
@@ -48,6 +49,7 @@ export class ProfileAssetsPage implements OnInit {
   private readonly walletService = inject(CashWalletService);
   private readonly walletApi = inject(CashWalletApiService);
   private readonly bankApi = inject(BankAccountsApiService);
+  private readonly bankAutoSync = inject(BankAutoSyncService);
 
   // Data
   readonly wallets = this.walletService.wallets;
@@ -129,7 +131,9 @@ export class ProfileAssetsPage implements OnInit {
 
 
   ngOnInit(): void {
-    void this.loadAssets();
+    // Refresh remote bank balances before reading the saved accounts.
+    // The shell may already be syncing; the service coalesces both calls.
+    void this.loadAssets(true);
   }
 
 
@@ -146,7 +150,7 @@ export class ProfileAssetsPage implements OnInit {
 
   // Load wallets and connected bank accounts
 
-    async loadAssets(): Promise<void> {
+    async loadAssets(syncBanks = false): Promise<void> {
     if (this.loading()) return;
 
     this.loading.set(true);
@@ -155,6 +159,12 @@ export class ProfileAssetsPage implements OnInit {
     this.archivedWalletError.set('');
 
     try {
+        // Wait for the existing sync before fetching bank balances.
+        // Never hide a sync failure behind previously saved balances.
+        const syncSucceeded = syncBanks
+          ? await this.bankAutoSync.syncOnAppOpen()
+          : true;
+
         const [
         walletResult,
         bankResult,
@@ -175,6 +185,13 @@ export class ProfileAssetsPage implements OnInit {
         // Connected bank accounts
         if (bankResult.status === 'fulfilled') {
         this.bankAccounts.set(bankResult.value);
+
+        if (!syncSucceeded) {
+          this.bankError.set(
+            'Bank synchronisation was incomplete. ' +
+            'Displayed balances may be outdated. Please try again.'
+          );
+        }
         } else {
         this.bankError.set(
             'Unable to load bank accounts. Please try again.'

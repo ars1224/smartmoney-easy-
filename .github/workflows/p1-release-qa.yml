@@ -1,0 +1,59 @@
+name: SmartMoney P1 QA
+
+on:
+  push:
+    branches:
+      - fix/p1-profile-auto-sync-refresh
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Angular tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Unit tests
+        run: npm test -- --watch=false
+      - name: Production build
+        run: npm run build
+
+  backend:
+    name: Flask regression tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: 'sqlite:///:memory:'
+      SECRET_KEY: test-only-p1-release-qa
+      SESSION_COOKIE_SECURE: 'false'
+      MOCK_BANK_API_KEY: test-only
+      MOCK_BANK_API_BASE_URL: https://example.invalid
+      MOCK_BANK_OAUTH_CLIENT_ID: smartmoney-easy
+      MOCK_BANK_OAUTH_REDIRECT_URI: https://smartmoney-easy.duckdns.org/bank/callback
+      BANK_TOKEN_ENCRYPTION_KEY: A7sm4fFjUvAL7vu8qXrftP4zY1SIqO6aus6lRib_G_0=
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Run isolated backend tests
+        run: python -m pytest tests -q

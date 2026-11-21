@@ -75,7 +75,7 @@
     <button
       type="button"
       class="button secondary"
-      (click)="loadAssets()"
+      (click)="loadAssets(true)"
       [disabled]="loading()"
     >
       {{ loading() ? 'Refreshing...' : 'Refresh balances' }}
