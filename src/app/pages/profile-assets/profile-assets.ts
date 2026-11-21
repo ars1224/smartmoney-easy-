@@ -131,7 +131,9 @@ export class ProfileAssetsPage implements OnInit {
 
 
   ngOnInit(): void {
-    void this.loadAssets();
+    // Refresh remote bank balances before reading the saved accounts.
+    // The shell may already be syncing; the service coalesces both calls.
+    void this.loadAssets(true);
   }
 
 
@@ -148,10 +150,8 @@ export class ProfileAssetsPage implements OnInit {
 
   // Load wallets and connected bank accounts
 
-  async loadAssets(): Promise<void> {
-    if (this.loading()) {
-      return;
-    }
+    async loadAssets(syncBanks = false): Promise<void> {
+    if (this.loading()) return;
 
     this.loading.set(true);
     this.walletError.set('');
@@ -159,59 +159,58 @@ export class ProfileAssetsPage implements OnInit {
     this.archivedWalletError.set('');
 
     try {
-      // Await the app-shell sync (if already running), or start
-      // a new sync on page entry. Read bank balances only afterwards.
-      const refreshBankAccounts = async () => {
-        const syncResult = await this.bankAutoSync.syncOnAppOpen();
-        const accounts = await firstValueFrom(this.bankApi.getAccounts());
+        // Wait for the existing sync before fetching bank balances.
+        // Never hide a sync failure behind previously saved balances.
+        const syncSucceeded = syncBanks
+          ? await this.bankAutoSync.syncOnAppOpen()
+          : true;
 
-        return { accounts, syncResult };
-      };
-
-      const [
+        const [
         walletResult,
         bankResult,
         archivedResult,
-      ] = await Promise.allSettled([
+        ] = await Promise.allSettled([
         firstValueFrom(this.walletService.loadWallets()),
-        refreshBankAccounts(),
+        firstValueFrom(this.bankApi.getAccounts()),
         firstValueFrom(this.walletApi.getArchivedWallets()),
-      ]);
+        ]);
 
-      if (walletResult.status === 'rejected') {
+        // Active Cash Wallets
+        if (walletResult.status === 'rejected') {
         this.walletError.set(
-          'Unable to load cash wallets. Please try again.'
+            'Unable to load cash wallets. Please try again.'
         );
-      }
+        }
 
-      if (bankResult.status === 'fulfilled') {
-        this.bankAccounts.set(bankResult.value.accounts);
+        // Connected bank accounts
+        if (bankResult.status === 'fulfilled') {
+        this.bankAccounts.set(bankResult.value);
 
-        if (bankResult.value.syncResult.failed) {
+        if (!syncSucceeded) {
           this.bankError.set(
             'Bank synchronisation was incomplete. ' +
-            'Saved balances may be outdated. Please try refreshing.'
+            'Displayed balances may be outdated. Please try again.'
           );
         }
-      } else {
-        this.bankAccounts.set([]);
+        } else {
         this.bankError.set(
-          'Unable to load bank accounts. Please try again.'
+            'Unable to load bank accounts. Please try again.'
         );
-      }
+        }
 
-      if (archivedResult.status === 'fulfilled') {
+        // Archived Cash Wallets
+        if (archivedResult.status === 'fulfilled') {
         this.archivedWallets.set(archivedResult.value);
-      } else {
+        } else {
         this.archivedWallets.set([]);
         this.archivedWalletError.set(
-          'Unable to load archived wallets. Please try again.'
+            'Unable to load archived wallets. Please try again.'
         );
-      }
+        }
     } finally {
-      this.loading.set(false);
+        this.loading.set(false);
     }
-  }
+    }
 
 
 
