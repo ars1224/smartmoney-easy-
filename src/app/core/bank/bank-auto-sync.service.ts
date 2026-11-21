@@ -26,7 +26,7 @@ export class BankAutoSyncService {
     const operation = this.performSync();
     this.inFlight = operation;
 
-    void operation.finally(() => {
+    void operation.then(() => {
       if (this.inFlight === operation) {
         this.inFlight = null;
       }
