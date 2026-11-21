@@ -148,8 +148,10 @@ export class ProfileAssetsPage implements OnInit {
 
   // Load wallets and connected bank accounts
 
-    async loadAssets(): Promise<void> {
-    if (this.loading()) return;
+  async loadAssets(): Promise<void> {
+    if (this.loading()) {
+      return;
+    }
 
     this.loading.set(true);
     this.walletError.set('');
@@ -157,63 +159,59 @@ export class ProfileAssetsPage implements OnInit {
     this.archivedWalletError.set('');
 
     try {
-        // Wait for any app-shell sync, or start one when this page
-        // is opened later. Bank balances must be fetched afterwards.
-        // Cash wallet requests can run in parallel with bank syncing.
-        const bankRefresh = async () => {
-            const syncResult = await this.bankAutoSync.syncOnAppOpen();
-            const accounts = await firstValueFrom(this.bankApi.getAccounts());
+      // Await the app-shell sync (if already running), or start
+      // a new sync on page entry. Read bank balances only afterwards.
+      const refreshBankAccounts = async () => {
+        const syncResult = await this.bankAutoSync.syncOnAppOpen();
+        const accounts = await firstValueFrom(this.bankApi.getAccounts());
 
-            return { accounts, syncResult };
-        };
+        return { accounts, syncResult };
+      };
 
-        const [
-            walletResult,
-            bankResult,
-            archivedResult,
-        ] = await Promise.allSettled([
-            firstValueFrom(this.walletService.loadWallets()),
-            bankRefresh(),
-            firstValueFrom(this.walletApi.getArchivedWallets()),
-        ]);
+      const [
+        walletResult,
+        bankResult,
+        archivedResult,
+      ] = await Promise.allSettled([
+        firstValueFrom(this.walletService.loadWallets()),
+        refreshBankAccounts(),
+        firstValueFrom(this.walletApi.getArchivedWallets()),
+      ]);
 
-        // Active Cash Wallets
-        if (walletResult.status === 'rejected') {
+      if (walletResult.status === 'rejected') {
         this.walletError.set(
-            'Unable to load cash wallets. Please try again.'
+          'Unable to load cash wallets. Please try again.'
         );
+      }
+
+      if (bankResult.status === 'fulfilled') {
+        this.bankAccounts.set(bankResult.value.accounts);
+
+        if (bankResult.value.syncResult.failed) {
+          this.bankError.set(
+            'Bank synchronisation was incomplete. ' +
+            'Saved balances may be outdated. Please try refreshing.'
+          );
         }
+      } else {
+        this.bankAccounts.set([]);
+        this.bankError.set(
+          'Unable to load bank accounts. Please try again.'
+        );
+      }
 
-        // Connected bank accounts
-        if (bankResult.status === 'fulfilled') {
-            this.bankAccounts.set(bankResult.value.accounts);
-
-            if (bankResult.value.syncResult.failed) {
-                this.bankError.set(
-                    'Bank synchronisation was incomplete. ' +
-                    'Saved balances may be outdated. Please try refreshing.'
-                );
-            }
-        } else {
-            this.bankAccounts.set([]);
-            this.bankError.set(
-                'Unable to load bank accounts. Please try again.'
-            );
-        }
-
-        // Archived Cash Wallets
-        if (archivedResult.status === 'fulfilled') {
+      if (archivedResult.status === 'fulfilled') {
         this.archivedWallets.set(archivedResult.value);
-        } else {
+      } else {
         this.archivedWallets.set([]);
         this.archivedWalletError.set(
-            'Unable to load archived wallets. Please try again.'
+          'Unable to load archived wallets. Please try again.'
         );
-        }
+      }
     } finally {
-        this.loading.set(false);
+      this.loading.set(false);
     }
-    }
+  }
 
 
 
