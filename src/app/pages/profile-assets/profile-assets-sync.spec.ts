@@ -68,7 +68,7 @@ describe('ProfileAssetsPage - bank sync on entry', () => {
 
     fixture.detectChanges();
 
-    return { page, getAccounts, syncOnAppOpen };
+    return { page, getAccounts, syncOnAppOpen, fixture };
   }
 
   it('waits for sync before reading the refreshed bank balance', async () => {
@@ -94,7 +94,7 @@ describe('ProfileAssetsPage - bank sync on entry', () => {
   });
 
   it('requests a new sync when balances are refreshed', async () => {
-    const { page, getAccounts, syncOnAppOpen } =
+    const { page, getAccounts, syncOnAppOpen, fixture } =
       await setup(Promise.resolve(true));
 
     await vi.waitFor(() => {
@@ -102,10 +102,22 @@ describe('ProfileAssetsPage - bank sync on entry', () => {
       expect(getAccounts).toHaveBeenCalledTimes(1);
     });
 
-    await page.loadAssets(true);
+    fixture.detectChanges();
 
-    expect(syncOnAppOpen).toHaveBeenCalledTimes(2);
-    expect(getAccounts).toHaveBeenCalledTimes(2);
+    const buttons = fixture.nativeElement.querySelectorAll(
+      'button'
+    ) as NodeListOf<HTMLButtonElement>;
+    const refreshButton = Array.from(buttons).find(button =>
+      button.textContent?.includes('Refresh balances')
+    );
+
+    expect(refreshButton).toBeDefined();
+    refreshButton?.click();
+
+    await vi.waitFor(() => {
+      expect(syncOnAppOpen).toHaveBeenCalledTimes(2);
+      expect(getAccounts).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('warns when sync fails but still displays saved balances', async () => {
