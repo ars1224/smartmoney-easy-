@@ -93,6 +93,21 @@ describe('ProfileAssetsPage - bank sync on entry', () => {
     });
   });
 
+  it('requests a new sync when balances are refreshed', async () => {
+    const { page, getAccounts, syncOnAppOpen } =
+      await setup(Promise.resolve(true));
+
+    await vi.waitFor(() => {
+      expect(page.loading()).toBe(false);
+      expect(getAccounts).toHaveBeenCalledTimes(1);
+    });
+
+    await page.loadAssets(true);
+
+    expect(syncOnAppOpen).toHaveBeenCalledTimes(2);
+    expect(getAccounts).toHaveBeenCalledTimes(2);
+  });
+
   it('warns when sync fails but still displays saved balances', async () => {
     const { page, getAccounts } = await setup(Promise.resolve(false));
 
