@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Observable, of } from 'rxjs';
+import type { BankSyncResponse } from './bank-accounts-api.service';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BankAccountsApiService } from './bank-accounts-api.service';
@@ -18,9 +19,17 @@ describe('BankAutoSyncService', () => {
     ]));
 
     const syncConnection = vi.fn(
-      (): Observable<unknown> => new Observable(subscriber => {
+      (): Observable<BankSyncResponse> => new Observable(subscriber => {
         void syncGate.then(() => {
-          subscriber.next({ status: 'success' });
+          subscriber.next({
+            status: 'success',
+            accounts_synced: 1,
+            accounts_failed: 0,
+            failed_account_ids: [],
+            transactions_imported: 0,
+            last_synced_at: '2026-11-22T00:00:00Z',
+            transactions_categorised: 0,
+          });
           subscriber.complete();
         });
       })
