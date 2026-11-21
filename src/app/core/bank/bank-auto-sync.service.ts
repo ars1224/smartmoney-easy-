@@ -3,47 +3,36 @@ import { firstValueFrom } from 'rxjs';
 
 import { BankAccountsApiService } from './bank-accounts-api.service';
 
-export interface BankAutoSyncResult {
-  failed: boolean;
-  attempted: boolean;
-}
-
 @Injectable({
   providedIn: 'root',
 })
 export class BankAutoSyncService {
   private readonly bankApi = inject(BankAccountsApiService);
 
-  // A shared promise lets the app shell and Profile & Assets
-  // await the same operation instead of starting overlapping syncs.
-  private inFlight: Promise<BankAutoSyncResult> | null = null;
+  // App-shell startup and Profile & Assets may request a sync together.
+  // Both callers must wait for the same operation rather than starting
+  // overlapping bank requests.
+  private inFlightSync: Promise<boolean> | null = null;
 
-  syncOnAppOpen(): Promise<BankAutoSyncResult> {
-    if (this.inFlight) {
-      return this.inFlight;
+  syncOnAppOpen(): Promise<boolean> {
+    if (this.inFlightSync) {
+      return this.inFlightSync;
     }
 
-    const operation = this.performSync();
-    this.inFlight = operation;
-
-    void operation.then(() => {
-      if (this.inFlight === operation) {
-        this.inFlight = null;
-      }
+    this.inFlightSync = this.syncConnections().finally(() => {
+      this.inFlightSync = null;
     });
 
-    return operation;
+    return this.inFlightSync;
   }
 
-  private async performSync(): Promise<BankAutoSyncResult> {
-    let failed = false;
-    let attempted = false;
-
+  private async syncConnections(): Promise<boolean> {
     try {
       const accounts = await firstValueFrom(
         this.bankApi.getAccounts()
       );
 
+      // Multiple accounts can share a connection. Sync each once.
       const connectionIds = [
         ...new Set(
           accounts
@@ -52,32 +41,38 @@ export class BankAutoSyncService {
         ),
       ];
 
-      for (const connectionId of connectionIds) {
-        attempted = true;
+      let allSucceeded = true;
 
+      // Serial requests avoid concurrent writes to bank account data.
+      for (const connectionId of connectionIds) {
         try {
           const result = await firstValueFrom(
             this.bankApi.syncConnection(connectionId)
           );
 
-          if (result.status === 'partial_success') {
-            failed = true;
+          if (
+            result.status !== 'success' ||
+            result.accounts_failed > 0
+          ) {
+            allSucceeded = false;
           }
         } catch {
-          failed = true;
+          allSucceeded = false;
+
           console.warn(
             'Automatic Mock Bank sync failed. ' +
             'Previously saved transactions remain available.'
           );
         }
       }
+
+      return allSucceeded;
     } catch {
-      failed = true;
       console.warn(
         'Unable to retrieve connected bank accounts for automatic sync.'
       );
-    }
 
-    return { failed, attempted };
+      return false;
+    }
   }
 }
