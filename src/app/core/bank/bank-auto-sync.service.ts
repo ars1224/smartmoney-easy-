@@ -1,10 +1,16 @@
-
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import {
   BankAccountsApiService,
 } from './bank-accounts-api.service';
+
+export interface BankSyncResult {
+  totalConnections: number;
+  successfulConnections: number;
+  failedConnections: number;
+  busy: boolean;
+}
 
 @Injectable({
   providedIn: 'root',
@@ -14,49 +20,79 @@ export class BankAutoSyncService {
 
   private syncing = false;
 
-  async syncOnAppOpen(): Promise<void> {
-    // Prevent overlapping automatic sync operations.
-    if (this.syncing) return;
+  async syncNow(): Promise<BankSyncResult> {
+    if (this.syncing) {
+      return {
+        totalConnections: 0,
+        successfulConnections: 0,
+        failedConnections: 0,
+        busy: true,
+      };
+    }
 
     this.syncing = true;
 
     try {
-      // Retrieve connected accounts from SmartMoney.
       const accounts = await firstValueFrom(
         this.bankApi.getAccounts()
       );
 
-      // Multiple accounts may belong to one connection.
-      // Synchronise each connection only once.
       const connectionIds = [
         ...new Set(
           accounts
             .map(account => account.connectionId)
-            .filter(id => Boolean(id))
+            .filter(
+              (id): id is string => Boolean(id)
+            )
         ),
       ];
 
-      // Process connections sequentially to avoid
-      // overlapping database sync operations.
+      let successfulConnections = 0;
+      let failedConnections = 0;
+
       for (const connectionId of connectionIds) {
         try {
-          await firstValueFrom(
+          const response = await firstValueFrom(
             this.bankApi.syncConnection(connectionId)
           );
+
+          if (
+            response.status === 'partial_success' ||
+            response.accounts_failed > 0
+          ) {
+            failedConnections++;
+          } else {
+            successfulConnections++;
+          }
         } catch {
-          // A failed bank request must not block the app.
-          console.warn(
-            'Automatic Mock Bank sync failed. ' +
-            'Previously saved transactions remain available.'
-          );
+          failedConnections++;
         }
+      }
+
+      return {
+        totalConnections: connectionIds.length,
+        successfulConnections,
+        failedConnections,
+        busy: false,
+      };
+    } finally {
+      this.syncing = false;
+    }
+  }
+
+  async syncOnAppOpen(): Promise<void> {
+    try {
+      const result = await this.syncNow();
+
+      if (result.failedConnections > 0) {
+        console.warn(
+          'Some automatic bank synchronisations failed.'
+        );
       }
     } catch {
       console.warn(
-        'Unable to retrieve connected bank accounts for automatic sync.'
+        'Automatic bank synchronisation is unavailable.'
       );
-    } finally {
-      this.syncing = false;
     }
   }
 }

@@ -75,13 +75,22 @@
     <button
       type="button"
       class="button secondary"
-      (click)="loadAssets()"
-      [disabled]="loading()"
+      (click)="refreshBalances()"
+      [disabled]="loading() || refreshingBalances()"
     >
-      {{ loading() ? 'Refreshing...' : 'Refresh balances' }}
+      {{
+        loading() || refreshingBalances()
+          ? 'Refreshing...'
+          : 'Refresh balances'
+      }}
     </button>
-  </div>
 
+    @if (refreshError()) {
+      <p class="error" role="alert">
+        {{ refreshError() }}
+      </p>
+    }
+  </div>
   <!-- Cash Wallets Section -->
   <section class="asset-section">
 

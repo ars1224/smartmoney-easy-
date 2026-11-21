@@ -29,6 +29,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 import { BankConnectionService } from '../../core/bank/bank-connection.service';
 
+import {
+  BankAutoSyncService,
+} from '../../core/bank/bank-auto-sync.service';
+
 
 @Component({
   selector: 'app-profile-assets',
@@ -48,6 +52,11 @@ export class ProfileAssetsPage implements OnInit {
   private readonly walletService = inject(CashWalletService);
   private readonly walletApi = inject(CashWalletApiService);
   private readonly bankApi = inject(BankAccountsApiService);
+
+  private readonly bankAutoSync = inject(BankAutoSyncService);
+
+  readonly refreshingBalances = signal(false);
+  readonly refreshError = signal('');
 
   // Data
   readonly wallets = this.walletService.wallets;
@@ -190,12 +199,55 @@ export class ProfileAssetsPage implements OnInit {
             'Unable to load archived wallets. Please try again.'
         );
         }
-    } finally {
-        this.loading.set(false);
-    }
+      } finally {
+          this.loading.set(false);
+      }
     }
 
+    async refreshBalances(): Promise<void> {
+      if (this.refreshingBalances() || this.loading()) {
+        return;
+      }
 
+      this.refreshingBalances.set(true);
+      this.refreshError.set('');
+
+      try {
+        let syncSucceeded = false;
+
+        try {
+          const result = await this.bankAutoSync.syncNow();
+
+          if (result.busy) {
+            this.refreshError.set(
+              'Bank synchronisation is already running. Please try again shortly.'
+            );
+          } else if (result.failedConnections > 0) {
+            this.refreshError.set(
+              'Some bank accounts could not be synchronised. ' +
+              'Displayed balances may be outdated.'
+            );
+          } else {
+            syncSucceeded = true;
+          }
+        } catch {
+          this.refreshError.set(
+            'Unable to synchronise bank accounts. ' +
+            'Displayed balances may be outdated.'
+          );
+        }
+
+        await this.loadAssets();
+
+        if (!syncSucceeded) {
+          this.bankError.set(
+            'Bank balances could not be fully refreshed.'
+          );
+        }
+      } finally {
+        this.refreshingBalances.set(false);
+      }
+    }
 
     openCreateWalletModal(): void {
     if (this.savingWallet() || this.disconnectDialog()) {

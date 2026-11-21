@@ -20,6 +20,15 @@ import { CashWalletApiService } from '../../core/services/cash-wallet-api.servic
 import { BankAccountsApiService } from '../../core/bank/bank-accounts-api.service';
 import { BankConnectionService } from '../../core/bank/bank-connection.service';
 
+import {
+  BankAutoSyncService,
+  type BankSyncResult,
+} from '../../core/bank/bank-auto-sync.service';
+
+import type {
+  ConnectedBankAccount,
+} from '../../core/bank/bank-accounts-api.service';
+
 describe('ProfileAssetsPage - Disconnect failure', () => {
   it('shows the API error inside the open dialog', async () => {
     const cancelConnection = vi.fn(() =>
@@ -398,5 +407,157 @@ describe('ProfileAssetsPage - Cash Wallet regression', () => {
     expect(page.archiveWalletNotice()).toContain(
       'restored successfully'
     );
+  });
+  describe('ProfileAssetsPage - Bank balance refresh', () => {
+    async function setupRefreshTest(
+      result: BankSyncResult = {
+        totalConnections: 1,
+        successfulConnections: 1,
+        failedConnections: 0,
+        busy: false,
+      }
+    ) {
+      const wallets = signal<CashWallet[]>([]);
+
+      let savedBalance = 500;
+
+      const account: ConnectedBankAccount = {
+        id: 'account-001',
+        connectionId: 'connection-001',
+        accountName: 'Everyday Account',
+        accountNumberLast4: '1234',
+        accountType: 'CHECKING',
+        currency: 'NZD',
+        balance: 500,
+        status: 'CONNECTED',
+        lastSyncedAt: null,
+      };
+
+      const syncNow = vi.fn(async () => {
+        if (!result.busy && result.failedConnections === 0) {
+          savedBalance = 750;
+        }
+
+        return result;
+      });
+
+      const getAccounts = vi.fn(() =>
+        of([
+          {
+            ...account,
+            balance: savedBalance,
+          },
+        ])
+      );
+
+      const loadWallets = vi.fn(() => of([]));
+
+      const getArchivedWallets = vi.fn(() => of([]));
+
+      await TestBed.configureTestingModule({
+        imports: [ProfileAssetsPage],
+        providers: [
+          provideRouter([]),
+          {
+            provide: CashWalletService,
+            useValue: {
+              wallets,
+              loadWallets,
+            },
+          },
+          {
+            provide: CashWalletApiService,
+            useValue: {
+              getArchivedWallets,
+            },
+          },
+          {
+            provide: BankAccountsApiService,
+            useValue: {
+              getAccounts,
+            },
+          },
+          {
+            provide: BankAutoSyncService,
+            useValue: {
+              syncNow,
+            },
+          },
+          {
+            provide: BankConnectionService,
+            useValue: {},
+          },
+        ],
+      }).compileComponents();
+
+      const fixture = TestBed.createComponent(ProfileAssetsPage);
+      const page = fixture.componentInstance;
+
+      await page.loadAssets();
+
+      return {
+        fixture,
+        page,
+        syncNow,
+        getAccounts,
+      };
+    }
+
+    it('synchronises before loading updated bank balances', async () => {
+      const {
+        page,
+        syncNow,
+        getAccounts,
+      } = await setupRefreshTest();
+
+      expect(page.bankTotal()).toBe(500);
+
+      await page.refreshBalances();
+
+      expect(syncNow).toHaveBeenCalledOnce();
+      expect(getAccounts).toHaveBeenCalledTimes(2);
+      expect(page.bankTotal()).toBe(750);
+      expect(page.combinedTotal()).toBe(750);
+      expect(page.refreshError()).toBe('');
+    });
+
+    it('marks balances unavailable when synchronisation fails', async () => {
+      const {
+        page,
+      } = await setupRefreshTest({
+        totalConnections: 1,
+        successfulConnections: 0,
+        failedConnections: 1,
+        busy: false,
+      });
+
+      await page.refreshBalances();
+
+      expect(page.refreshError()).toContain(
+        'could not be synchronised'
+      );
+
+      expect(page.bankError()).not.toBe('');
+      expect(page.refreshingBalances()).toBe(false);
+    });
+
+    it('does not treat an overlapping sync as a successful refresh', async () => {
+      const {
+        page,
+      } = await setupRefreshTest({
+        totalConnections: 0,
+        successfulConnections: 0,
+        failedConnections: 0,
+        busy: true,
+      });
+
+      await page.refreshBalances();
+
+      expect(page.refreshError()).toContain(
+        'already running'
+      );
+
+      expect(page.bankError()).not.toBe('');
+    });
   });
 });
