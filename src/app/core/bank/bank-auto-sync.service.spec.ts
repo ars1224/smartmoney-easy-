@@ -38,7 +38,9 @@ describe('BankAutoSyncService', () => {
       connectedAccount,
       { ...connectedAccount, id: 'account-2' },
     ]));
-    const syncConnection = vi.fn(() => pending.asObservable());
+    const syncConnection = vi.fn()
+      .mockImplementationOnce(() => pending.asObservable())
+      .mockImplementation(() => of(success));
 
     TestBed.configureTestingModule({
       providers: [
