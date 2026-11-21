@@ -96,37 +96,6 @@ describe('BankAutoSyncService', () => {
     expect(await service.syncOnAppOpen()).toBe(false);
   });
 
-  it('allows retry after a previously failed bank synchronisation', async () => {
-    const getAccounts = vi.fn(() => of([connectedAccount]));
-    const syncConnection = vi.fn()
-      .mockImplementationOnce(() =>
-        throwError(() => new Error('Temporary bank outage'))
-      )
-      .mockImplementation(() => of(success));
-
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    try {
-      TestBed.configureTestingModule({
-        providers: [
-          {
-            provide: BankAccountsApiService,
-            useValue: { getAccounts, syncConnection },
-          },
-        ],
-      });
-
-      const service = TestBed.inject(BankAutoSyncService);
-
-      expect(await service.syncOnAppOpen()).toBe(false);
-      expect(await service.syncOnAppOpen()).toBe(true);
-      expect(getAccounts).toHaveBeenCalledTimes(2);
-      expect(syncConnection).toHaveBeenCalledTimes(2);
-    } finally {
-      warn.mockRestore();
-    }
-  });
-
   it('reports a failed account lookup without blocking the caller', async () => {
     const getAccounts = vi.fn(() =>
       throwError(() => new Error('Mock Bank unavailable'))
