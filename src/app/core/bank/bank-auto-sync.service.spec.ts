@@ -1,44 +1,49 @@
 import { TestBed } from '@angular/core/testing';
-import { Observable, of } from 'rxjs';
-import type { ConnectedBankAccount } from './bank-accounts-api.service';
-import type { BankSyncResponse } from './bank-accounts-api.service';
+import { of, Subject, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
-import { BankAccountsApiService } from './bank-accounts-api.service';
+import {
+  BankAccountsApiService,
+  type BankSyncResponse,
+  type ConnectedBankAccount,
+} from './bank-accounts-api.service';
 import { BankAutoSyncService } from './bank-auto-sync.service';
 
+const connectedAccount: ConnectedBankAccount = {
+  id: 'account-1',
+  connectionId: 'connection-1',
+  accountName: 'Everyday',
+  accountNumberLast4: '1234',
+  accountType: 'CHECKING',
+  currency: 'NZD',
+  balance: 100,
+  status: 'ACTIVE',
+  lastSyncedAt: null,
+};
+
+const success: BankSyncResponse = {
+  status: 'success',
+  accounts_synced: 2,
+  accounts_failed: 0,
+  failed_account_ids: [],
+  transactions_imported: 1,
+  transactions_categorised: 1,
+  last_synced_at: '2026-11-22T00:00:00Z',
+};
+
 describe('BankAutoSyncService', () => {
-  it('deduplicates connections and shares an in-flight sync', async () => {
-    let releaseSync: (() => void) | undefined;
-    const syncGate = new Promise<void>(resolve => {
-      releaseSync = resolve;
-    });
-
+  it('shares an in-flight sync and syncs a connection only once', async () => {
+    const pending = new Subject<BankSyncResponse>();
     const getAccounts = vi.fn(() => of([
-      { connectionId: 'connection-a' },
-      { connectionId: 'connection-a' },
-    ] as ConnectedBankAccount[]));
-
-    const syncConnection = vi.fn(
-      (): Observable<BankSyncResponse> => new Observable(subscriber => {
-        void syncGate.then(() => {
-          subscriber.next({
-            status: 'success',
-            accounts_synced: 1,
-            accounts_failed: 0,
-            failed_account_ids: [],
-            transactions_imported: 0,
-            last_synced_at: '2026-11-22T00:00:00Z',
-            transactions_categorised: 0,
-          });
-          subscriber.complete();
-        });
-      })
-    );
+      connectedAccount,
+      { ...connectedAccount, id: 'account-2' },
+    ]));
+    const syncConnection = vi.fn()
+      .mockImplementationOnce(() => pending.asObservable())
+      .mockImplementation(() => of(success));
 
     TestBed.configureTestingModule({
       providers: [
-        BankAutoSyncService,
         {
           provide: BankAccountsApiService,
           useValue: { getAccounts, syncConnection },
@@ -50,35 +55,101 @@ describe('BankAutoSyncService', () => {
     const first = service.syncOnAppOpen();
     const second = service.syncOnAppOpen();
 
-    expect(first).toBe(second);
+    expect(second).toBe(first);
 
-    releaseSync?.();
-    const results = await Promise.all([first, second]);
+    await Promise.resolve();
 
-    expect(results[0]).toEqual({ attempted: true, failed: false });
     expect(getAccounts).toHaveBeenCalledTimes(1);
     expect(syncConnection).toHaveBeenCalledTimes(1);
-    expect(syncConnection).toHaveBeenCalledWith('connection-a');
+    expect(syncConnection).toHaveBeenCalledWith('connection-1');
+
+    pending.next(success);
+    pending.complete();
+
+    expect(await first).toBe(true);
+
+    // A later page visit is allowed to synchronise again.
+    expect(await service.syncOnAppOpen()).toBe(true);
+    expect(getAccounts).toHaveBeenCalledTimes(2);
   });
 
-  it('reports partial sync without blocking balance refresh', async () => {
+  it('reports a partial bank sync instead of treating it as fresh data', async () => {
+    const getAccounts = vi.fn(() => of([connectedAccount]));
+    const syncConnection = vi.fn(() => of({
+      ...success,
+      status: 'partial_success' as const,
+      accounts_failed: 1,
+      failed_account_ids: ['account-1'],
+    }));
+
     TestBed.configureTestingModule({
       providers: [
-        BankAutoSyncService,
         {
           provide: BankAccountsApiService,
-          useValue: {
-            getAccounts: () => of([
-              { connectionId: 'connection-a' },
-            ] as ConnectedBankAccount[]),
-            syncConnection: () => of({ status: 'partial_success' }),
-          },
+          useValue: { getAccounts, syncConnection },
         },
       ],
     });
 
-    const result = await TestBed.inject(BankAutoSyncService).syncOnAppOpen();
+    const service = TestBed.inject(BankAutoSyncService);
 
-    expect(result).toEqual({ attempted: true, failed: true });
+    expect(await service.syncOnAppOpen()).toBe(false);
+  });
+
+  it('allows retry after a previously failed bank synchronisation', async () => {
+    const getAccounts = vi.fn(() => of([connectedAccount]));
+    const syncConnection = vi.fn()
+      .mockImplementationOnce(() =>
+        throwError(() => new Error('Temporary bank outage'))
+      )
+      .mockImplementation(() => of(success));
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      TestBed.configureTestingModule({
+        providers: [
+          {
+            provide: BankAccountsApiService,
+            useValue: { getAccounts, syncConnection },
+          },
+        ],
+      });
+
+      const service = TestBed.inject(BankAutoSyncService);
+
+      expect(await service.syncOnAppOpen()).toBe(false);
+      expect(await service.syncOnAppOpen()).toBe(true);
+      expect(getAccounts).toHaveBeenCalledTimes(2);
+      expect(syncConnection).toHaveBeenCalledTimes(2);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('reports a failed account lookup without blocking the caller', async () => {
+    const getAccounts = vi.fn(() =>
+      throwError(() => new Error('Mock Bank unavailable'))
+    );
+    const syncConnection = vi.fn();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      TestBed.configureTestingModule({
+        providers: [
+          {
+            provide: BankAccountsApiService,
+            useValue: { getAccounts, syncConnection },
+          },
+        ],
+      });
+
+      const service = TestBed.inject(BankAutoSyncService);
+
+      expect(await service.syncOnAppOpen()).toBe(false);
+      expect(syncConnection).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
