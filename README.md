@@ -214,6 +214,31 @@ There are also targeted development/regression files named `backend/dev_test_*.p
 
 The team's deployed-app manual QA report records **46 passed checks**, with **39 supported by screenshots and 7 confirmed in chat**. It also records **six minor UI observations** and states that wider testing remains pending. This is a **partial manual-testing snapshot**, not a claim of full end-to-end certification. See the assessment QA evidence for individual test IDs, failures, and follow-up decisions.
 
+### Final automated QA and release-stabilisation report — 22 November 2026
+
+The final automated release checks completed after the SME-001 Profile & Assets synchronisation fixes were reviewed. **This is evidence of passing automated tests and a successful build, not certification of the deployed application.**
+
+| QA activity | Verified result | Evidence |
+| --- | --- | --- |
+| Angular frontend unit tests | **188 passed**, 25 test files | [Final SmartMoney CI run](https://github.com/ars1224/smartmoney-easy-/actions/runs/44944060166) |
+| Flask backend regression suite | **122 passed**, plus **56 subtests** | [Final SmartMoney CI run](https://github.com/ars1224/smartmoney-easy-/actions/runs/44944060166) |
+| Angular production build | **Passed**; existing non-blocking SCSS size warnings | [Final SmartMoney CI run](https://github.com/ars1224/smartmoney-easy-/actions/runs/44944060166) |
+| Mock Bank OAuth unit/regression tests | **10 passed**; Python route compilation passed | [Mock Bank OAuth CI run](https://github.com/ars1224/BankMockUpDataAPI/actions/runs/44935926904) |
+| SME-001 merge conflicts | **Resolved**, [PR #55](https://github.com/ars1224/smartmoney-easy-/pull/55) merged into `main` | Merge commit `7aed00c7f2c52144024bf593f013ee2f0d1c7202` |
+
+**P1 issue disposition at submission:**
+
+| Issue | Code and automated-test disposition | Remaining verification |
+| --- | --- | --- |
+| **SME-001 — Profile & Assets balance refresh** | Automatic bank sync is awaited before balances load; manual Refresh requests sync; concurrent sync is deduplicated; failures flag potentially stale data. [PR #56](https://github.com/ars1224/smartmoney-easy-/pull/56) and [PR #55](https://github.com/ars1224/smartmoney-easy-/pull/55) are merged, including a retry-after-failure regression test. | Post-merge deployed balance and Activity checks not performed. |
+| **Mock Bank OAuth** | SmartMoney redirect fix ([PR #54](https://github.com/ars1224/smartmoney-easy-/pull/54)) and Mock Bank administrator account-switch fix (`2958c1e`) merged; OAuth tests passed. | Live account selection, consent approval, and callback not reverified. |
+| **Authentication / account recovery** | [PR #51](https://github.com/ars1224/smartmoney-easy-/pull/51) merged; relevant frontend and isolated backend security/recovery tests passed. | Deployed recovery workflow not reverified. |
+| **Cash wallet opening-balance protection** | [PR #52](https://github.com/ars1224/smartmoney-easy-/pull/52) merged; frontend regression tests passed and backend conflict-handling code reviewed. | Targeted PostgreSQL database-writing wallet tests and deployed checks were not run in this final CI pass. |
+| **Monthly budget allocation** | [PR #53](https://github.com/ars1224/smartmoney-easy-/pull/53) merged; month-specific allocation regression tests passed. | Deployed month-to-month calculations not reverified. |
+| **SME-010 — Session expiry** | Session interceptor, login feedback and backend session-invalidation test coverage passed. | Real browser session-expiry flow not reverified. |
+
+**Test scope and limitations.** The backend CI suite ran against isolated in-memory SQLite test databases and did not modify production PostgreSQL or perform a full bank-to-app browser journey. The 21 November manual QA snapshot above is separate evidence. **No final manual/visual regression test was performed against the post-merge deployment before the 22 November academic submission.** Therefore, the final assessment is **automated QA passed; deployed release verification outstanding**. This README does not claim full end-to-end certification.
+
 ### Current release/documentation status
 
 - The frontend, Flask API, database integrations, and feature modules are present in the repository.
