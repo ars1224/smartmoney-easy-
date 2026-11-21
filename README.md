@@ -1,933 +1,293 @@
 # SmartMoney! Easy
 
-## Development Environment Setup
+**Personal finance tracking, budgeting, savings goals, and financial learning — in one app.**
 
-SmartMoney! Easy is a cloud-based personal finance application developed for the **SD205 project**.
+SmartMoney! Easy is a student-developed, NZD-focused financial wellness web application created for the **SD204B & SD205** software development project. It helps users record transactions, review their finances, set monthly budgets, work toward savings goals, and practise everyday money skills.
 
-This document explains how to prepare the local development environment, install the frontend and backend dependencies, configure PostgreSQL, and run the application locally.
+**Demo:** https://smartmoney-easy.duckdns.org/  
+**Repository:** https://github.com/ars1224/smartmoney-easy-  
+**Project approach:** Agile / Scrum  
+**Documentation snapshot:** 22 November 2026 (NZDT)
 
----
+> **Academic prototype:** SmartMoney! Easy uses a **simulated Mock Bank**, not a real bank connection. Do not enter real online banking credentials, production secrets, or sensitive financial information into a demonstration account. Financial education and AI output are not professional financial advice.
 
-## Technology Stack
+## Contents
 
-### Frontend
+- [Features](#features)
+- [Technology stack](#technology-stack)
+- [Architecture](#architecture)
+- [Local development](#local-development)
+- [Testing and QA](#testing-and-qa)
+- [Project structure](#project-structure)
+- [Deployment notes](#deployment-notes)
+- [Security and limitations](#security-and-limitations)
+- [Team and documentation](#team-and-documentation)
 
-- Ionic
-- Angular
-- TypeScript
-- HTML
-- CSS
+## Features
 
-### Backend
+The repository contains these application modules. Some workflows require a configured database, Mock Bank service, or optional external provider.
 
-- Python
-- Flask
-- Flask-SQLAlchemy
-- Flask-CORS
-- python-dotenv
-- Psycopg
+| Area | What the application supports |
+| --- | --- |
+| Account access | Registration, login/logout, authenticated sessions, password changes, password recovery with a recovery code, and account settings |
+| First-time setup | Guided onboarding |
+| Dashboard | Overview of recorded income, spending, refunds, cash flow, budgets, savings goals, and recent activity |
+| Transactions | View activity, add/edit cash transactions, review imported bank transactions, and categorise transactions |
+| Cash wallets and assets | Manage cash wallets, archive/restore wallets, and view profile/asset information |
+| Mock banking | Simulated OAuth 2.0 / PKCE connection, account selection, account details, synchronisation, and disconnect/reconnect flows |
+| Budgets | Configure and review monthly budgets with month navigation and spending categories |
+| Savings goals | Create and manage goals, classify them by goal group, and track allocations, releases, and progress |
+| Income planning | Monthly/regular income and NZ payroll-related planning modules |
+| Reports | Monthly income, expenses, refunds, net cash flow, category analysis, and source filters |
+| Learn | Short financial-literacy content, quizzes/challenges, and linked learning resources |
+| Thinker | Financial-learning assistant with a no-provider-call demo mode; optional live OpenAI integration when privately configured |
 
-### Database
+**Important accounting distinction:** Reports and dashboard totals describe **recorded data**, not verified available bank funds, future income, or a guaranteed safe-to-spend amount. Reports focus on NZD and disclose data excluded from their calculations; they do not promise complete foreign-exchange conversion.
 
-- PostgreSQL
+## Technology stack
 
-### Version Control and Collaboration
+| Layer | Technologies |
+| --- | --- |
+| Frontend | Ionic 9, Angular 22, TypeScript, HTML, SCSS, RxJS |
+| Mobile-oriented tooling | Capacitor configuration (the current repository is primarily run as a web app) |
+| Backend | Python, Flask, Flask-SQLAlchemy, Flask-CORS |
+| Database | PostgreSQL, SQLAlchemy, Flask-Migrate / Alembic |
+| Mock bank | Separate simulated banking API, OAuth 2.0 with PKCE |
+| Optional AI | OpenAI Responses API through the Flask backend; demo mode by default |
+| Collaboration | GitHub, Trello, Microsoft Teams; Agile Scrum |
+
+Exact frontend dependencies are recorded in `package.json`, and Python packages in `backend/requirements.txt`.
+
+## Architecture
+
+~~~text
+Browser / Ionic + Angular
+          |
+          | HTTP(S), JSON, /api
+          v
+       Flask API
+          |
+          +---- SQLAlchemy ---- PostgreSQL
+          |
+          +---- Mock Bank API (simulated accounts and transactions)
+          |
+          +---- Optional OpenAI API (Thinker live mode only)
+~~~
+
+Development runs the frontend and backend on separate local ports. The production Angular environment uses the same-origin `/api` path; the hosting or reverse-proxy configuration must forward these requests to Flask. The deployed demo address is listed above, but cloud infrastructure details should be confirmed from deployment configuration rather than assumed from older AWS plans.
+
+## Local development
+
+These instructions are written for Windows PowerShell. Commands can be adapted for macOS or Linux.
+
+### 1. Prerequisites
+
+Install:
 
 - Git
-- GitHub
-- Trello
-- Microsoft Teams
+- Node.js and npm (the project has been developed with Node.js 24)
+- Python and pip (the project has been developed with Python 3.14)
+- PostgreSQL (local development has used PostgreSQL 18)
+- Ionic CLI, if you prefer `ionic serve`: `npm install -g @ionic/cli`
 
-### Future Deployment
+The versions above describe the project's development environment; check `package.json` for the committed Angular dependencies and test other runtime versions before relying on them.
 
-The following technologies are part of the planned project architecture but are not required during the initial local development phase:
+### 2. Clone and install the frontend
 
-- AWS EC2
-- AWS RDS
-- AWS S3
-- AWS IAM
-- AWS Security Groups
-- Capacitor mobile packaging
-
-AWS configuration will be completed during the deployment phase.
-
----
-
-# 1. Install Git
-
-Download and install Git:
-
-https://git-scm.com/
-
-Verify the installation:
-
-```powershell
-git --version
-```
-
-Example:
-
-```text
-git version 2.x.x
-```
-
----
-
-# 2. Install Node.js
-
-Ionic and Angular require Node.js and npm.
-
-Download Node.js:
-
-https://nodejs.org/
-
-Verify Node.js:
-
-```powershell
-node -v
-```
-
-Verify npm:
-
-```powershell
-npm -v
-```
-
-Current development environment:
-
-```text
-Node.js: v24.16.0
-npm: 11.13.0
-```
-
----
-
-# 3. Install Ionic CLI
-
-Install the Ionic CLI globally:
-
-```powershell
-npm install -g @ionic/cli
-```
-
-Verify:
-
-```powershell
-ionic --version
-```
-
-Current development environment:
-
-```text
-Ionic CLI: 7.2.1
-```
-
----
-
-# 4. Install Angular CLI
-
-Install Angular CLI globally:
-
-```powershell
-npm install -g @angular/cli
-```
-
-Verify:
-
-```powershell
-ng version
-```
-
-Current development environment:
-
-```text
-Angular CLI: 22.1.8
-Angular: 22.1.7
-```
-
----
-
-# 5. Install Python
-
-Download Python:
-
-https://www.python.org/downloads/
-
-During installation, make sure Python is added to the Windows system `PATH`.
-
-Verify Python:
-
-```powershell
-python --version
-```
-
-Verify pip:
-
-```powershell
-pip --version
-```
-
-Current development environment:
-
-```text
-Python: 3.14.6
-pip: 26.1.2
-```
-
----
-
-# 6. Install PostgreSQL
-
-Download PostgreSQL:
-
-https://www.postgresql.org/download/
-
-Install the following components:
-
-- PostgreSQL Server
-- PostgreSQL command-line tools
-- pgAdmin 4
-
-During installation:
-
-- Keep the default port `5432`
-- Use the default administrator username `postgres`
-- Create and remember the PostgreSQL administrator password
-
-Current development environment:
-
-```text
-PostgreSQL: 18.4
-```
-
-Verify PostgreSQL:
-
-```powershell
-psql --version
-```
-
-## If `psql` Is Not Recognised
-
-On Windows, PostgreSQL may be installed correctly even if `psql` is not available directly from PowerShell.
-
-Find `psql.exe` using:
-
-```powershell
-Get-ChildItem "C:\Program Files\PostgreSQL" -Recurse -Filter psql.exe -ErrorAction SilentlyContinue
-```
-
-Example PostgreSQL 18 location:
-
-```text
-C:\Program Files\PostgreSQL\18\bin\psql.exe
-```
-
-Run it directly using:
-
-```powershell
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres
-```
-
-To temporarily add PostgreSQL to the current PowerShell session:
-
-```powershell
-$env:Path += ";C:\Program Files\PostgreSQL\18\bin"
-```
-
-Then verify:
-
-```powershell
-psql --version
-```
-
-For permanent access, add the PostgreSQL `bin` directory to the Windows `PATH` environment variable.
-
----
-
-# 7. Clone the GitHub Repository
-
-Clone the SmartMoney! Easy repository:
-
-```powershell
-git clone <repository-url>
-```
-
-Move into the repository:
-
-```powershell
+~~~powershell
+git clone https://github.com/ars1224/smartmoney-easy-.git
 cd smartmoney-easy-
-```
+npm ci
+~~~
 
-Check the repository:
+### 3. Create the PostgreSQL database
 
-```powershell
-git status
-```
+Start your local PostgreSQL server. For the default PostgreSQL superuser:
 
----
+~~~powershell
+psql -U postgres -c 'CREATE DATABASE smartmoney_easy;'
+~~~
 
-# 8. Install Frontend Dependencies
+If `psql` is not on your PATH, use the full path to `psql.exe`. If the database already exists, skip creating it again.
 
-From the project root, install the packages defined in `package.json`:
+### 4. Set up the Flask backend
 
-```powershell
-npm install
-```
+From the repository root:
 
-The frontend is located primarily inside:
-
-```text
-src/
-```
-
-The existing Ionic + Angular application should not require any additional setup after `npm install`.
-
----
-
-# 9. Run the Ionic + Angular Application
-
-From the project root:
-
-```powershell
-ionic serve
-```
-
-The frontend should normally become available at:
-
-```text
-http://localhost:8100
-```
-
-Stop the server using:
-
-```text
-Ctrl + C
-```
-
----
-
-# 10. Backend Project Structure
-
-The Flask backend is stored separately from the Ionic + Angular frontend.
-
-Current backend structure:
-
-```text
-backend/
-│
-├── app/
-│   ├── __init__.py
-│   ├── extensions.py
-│   │
-│   ├── models/
-│   │   └── __init__.py
-│   │
-│   ├── routes/
-│   │   ├── __init__.py
-│   │   └── health.py
-│   │
-│   └── services/
-│       └── __init__.py
-│
-├── .env
-├── .env.example
-├── config.py
-├── requirements.txt
-└── run.py
-```
-
-The frontend and backend remain inside the same Git repository but are kept logically separated.
-
----
-
-# 11. Create the Python Virtual Environment
-
-Move into the backend folder:
-
-```powershell
+~~~powershell
 cd backend
-```
-
-Create the virtual environment:
-
-```powershell
 python -m venv .venv
-```
-
-Activate it:
-
-```powershell
 .\.venv\Scripts\Activate.ps1
-```
-
-Once activated, PowerShell should display:
-
-```text
-(.venv)
-```
-
-Example:
-
-```text
-(.venv) PS C:\...\smartmoney-easy-\backend>
-```
-
-The virtual environment must not be committed to GitHub.
-
-The project `.gitignore` should include:
-
-```gitignore
-backend/.venv/
-backend/.env
-__pycache__/
-*.pyc
-```
-
----
-
-# 12. Install Backend Dependencies
-
-The backend dependencies are defined in:
-
-```text
-backend/requirements.txt
-```
-
-Current requirements:
-
-```text
-Flask
-Flask-SQLAlchemy
-Flask-Cors
-python-dotenv
-psycopg[binary]
-```
-
-Install them using:
-
-```powershell
-pip install -r requirements.txt
-```
-
-The packages provide the following functionality:
-
-| Package | Purpose |
-| --- | --- |
-| Flask | Backend REST API framework |
-| Flask-SQLAlchemy | SQLAlchemy integration with Flask |
-| Flask-CORS | Allows the Ionic frontend to communicate with Flask |
-| python-dotenv | Loads environment variables from `.env` |
-| psycopg | PostgreSQL database driver |
-
-Verify Flask:
-
-```powershell
-flask --version
-```
-
-Verify SQLAlchemy:
-
-```powershell
-python -c "import sqlalchemy; print(sqlalchemy.__version__)"
-```
-
-Verify Psycopg:
-
-```powershell
-pip show psycopg
-```
-
----
-
-# 13. Create the PostgreSQL Database
-
-Connect to PostgreSQL:
-
-```powershell
-psql -U postgres
-```
-
-If `psql` is not available through the system `PATH`, use the full executable path:
-
-```powershell
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres
-```
-
-Enter the PostgreSQL administrator password when requested.
-
-Once connected, the terminal should display:
-
-```text
-postgres=#
-```
-
-Create the SmartMoney! Easy database:
-
-```sql
-CREATE DATABASE smartmoney_easy;
-```
-
-List the available databases:
-
-```sql
-\l
-```
-
-Confirm that the following database exists:
-
-```text
-smartmoney_easy
-```
-
-Exit PostgreSQL:
-
-```sql
-\q
-```
-
----
-
-# 14. Configure Backend Environment Variables
-
-Inside the `backend` directory, create the local environment file from the provided example:
-
-```powershell
+python -m pip install -r requirements.txt
 Copy-Item .env.example .env
-```
+~~~
 
-The `.env` file contains local configuration and database credentials.
+Edit `backend/.env` locally. At minimum configure the database URL and a private Flask secret; bank-connection features require additional Mock Bank settings.
 
-Example:
-
-```env
+~~~dotenv
 DATABASE_URL=postgresql+psycopg://postgres:YOUR_PASSWORD@localhost:5432/smartmoney_easy
-```
+SECRET_KEY=REPLACE_WITH_A_LONG_RANDOM_SECRET
+SESSION_COOKIE_SECURE=false
 
-Replace:
+# Simulated bank integration (requires valid service credentials)
+MOCK_BANK_API_BASE_URL=https://smartmoney-mock-bank.onrender.com/api/v1
+MOCK_BANK_API_KEY=YOUR_MOCK_BANK_API_KEY
+MOCK_BANK_OAUTH_CLIENT_ID=smartmoney-easy
+MOCK_BANK_OAUTH_REDIRECT_URI=http://localhost:8100/bank/callback
+BANK_TOKEN_ENCRYPTION_KEY=YOUR_FERNET_KEY
 
-```text
-YOUR_PASSWORD
-```
+# Optional AI: safe default, no provider request
+THINKER_MODE=demo
+OPENAI_API_KEY=
+~~~
 
-with the local PostgreSQL administrator password.
+The committed `.env.example` is the authoritative list of configurable options. For the installed `psycopg` driver, use the explicit `postgresql+psycopg://` SQLAlchemy URL shown above. Never publish an actual secret, database password, or API key.
 
-The `.env` file must never be committed to GitHub.
+Generate development-only key material locally:
 
-Only `.env.example` should be stored in the repository.
+~~~powershell
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+~~~
 
-Example `.env.example`:
+Use the first value for `SECRET_KEY` and the second for `BANK_TOKEN_ENCRYPTION_KEY`. Keep both private and stable for your local environment. The Mock Bank key is **not** generated by these commands; obtain it from the Mock Bank service configuration. Without a running/accessible Mock Bank and valid credentials, banking operations may not work, while unrelated app features can still be developed.
 
-```env
-DATABASE_URL=postgresql+psycopg://postgres:YOUR_PASSWORD@localhost:5432/smartmoney_easy
-```
+Apply the existing database migrations from the `backend` directory:
 
----
+~~~powershell
+python -m flask --app run db upgrade
+~~~
 
-# 15. Flask Database Configuration
+Do not run `flask db init` or delete migration files: this project already tracks its Alembic migrations.
 
-The backend configuration is stored in:
+### 5. Start both development servers
 
-```text
-backend/config.py
-```
+**Terminal 1 — backend**, from the `backend` directory with its virtual environment active:
 
-Current configuration:
-
-```python
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-
-class Config:
-    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-```
-
-SQLAlchemy is initialised in:
-
-```text
-backend/app/extensions.py
-```
-
-```python
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
-```
-
-The Flask application factory is located in:
-
-```text
-backend/app/__init__.py
-```
-
-It is responsible for:
-
-- Creating the Flask application
-- Loading application configuration
-- Initialising CORS
-- Initialising SQLAlchemy
-- Registering API blueprints
-
----
-
-# 16. Run the Flask Backend
-
-Make sure the Python virtual environment is activated:
-
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-```
-
-Start the backend:
-
-```powershell
+~~~powershell
 python run.py
-```
+~~~
 
-The Flask API should normally become available at:
+Backend: http://127.0.0.1:5000
 
-```text
-http://127.0.0.1:5000
-```
+**Terminal 2 — frontend**, from the repository root:
 
-Example terminal output:
-
-```text
-* Running on http://127.0.0.1:5000
-```
-
-Stop the backend using:
-
-```text
-Ctrl + C
-```
-
----
-
-# 17. Test the Flask API
-
-SmartMoney! Easy currently includes a basic health endpoint.
-
-Open:
-
-```text
-http://127.0.0.1:5000/api/health
-```
-
-Expected response:
-
-```json
-{
-  "service": "SmartMoney Easy API",
-  "status": "ok"
-}
-```
-
-This confirms that the Flask REST API is running.
-
----
-
-# 18. Test the PostgreSQL Connection
-
-The backend also includes a database health endpoint.
-
-Open:
-
-```text
-http://127.0.0.1:5000/api/health/database
-```
-
-Expected response:
-
-```json
-{
-  "database": "connected",
-  "status": "ok"
-}
-```
-
-This confirms that the following connection is working:
-
-```text
-Flask
-  ↓
-SQLAlchemy
-  ↓
-Psycopg
-  ↓
-PostgreSQL
-```
-
-If the connection fails, check:
-
-- PostgreSQL Server is running
-- The `smartmoney_easy` database exists
-- The `.env` file exists
-- The PostgreSQL username is correct
-- The PostgreSQL password is correct
-- PostgreSQL is using port `5432`
-- `DATABASE_URL` is correctly configured
-
----
-
-# 19. Running the Full Local Development Environment
-
-SmartMoney! Easy currently requires two development servers.
-
-## Terminal 1 — Frontend
-
-From the project root:
-
-```powershell
+~~~powershell
+npm install -g @ionic/cli
 ionic serve
-```
+~~~
 
-Frontend:
+Frontend: http://localhost:8100
 
-```text
-http://localhost:8100
-```
+Alternatively, use `npm start` (Angular's dev server, commonly on port 4200). If switching ports, ensure the Mock Bank OAuth redirect URI matches the actual browser callback URL and the URI registered with the Mock Bank service.
 
-## Terminal 2 — Backend
+The development frontend uses `http://localhost:5000/api` via `src/environments/environment.ts`. The production build replaces it with `/api` using `src/environments/environment.prod.ts`.
 
-From the backend directory:
+### 6. Verify the backend
 
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-python run.py
-```
+With Flask running:
 
-Backend:
+- API health: http://127.0.0.1:5000/api/health
+- Database health: http://127.0.0.1:5000/api/health/database
 
-```text
-http://127.0.0.1:5000
-```
+A successful health response is a basic connectivity check, **not** proof that every application workflow is healthy.
 
-The intended local communication flow is:
+## Testing and QA
 
-```text
-Ionic + Angular
-       │
-       │ HTTP / REST API
-       ▼
-Flask
-       │
-       │ SQLAlchemy
-       ▼
-PostgreSQL
-```
+From the **repository root**, run the frontend checks:
 
----
+~~~powershell
+npm run lint
+npm test -- --watch=false
+npm run build
+~~~
 
-# 20. Verify the Development Environment
+From the **backend** directory, inside the virtual environment, run the isolated Python test suite:
 
-Run the following commands to confirm that the required development tools are available:
+~~~powershell
+python -m unittest discover -s tests -p "test_*.py"
+~~~
 
-```powershell
-git --version
-node -v
-npm -v
-ionic --version
-ng version
-python --version
-pip --version
-flask --version
-psql --version
-python -c "import sqlalchemy; print(sqlalchemy.__version__)"
-pip show psycopg
-```
+There are also targeted development/regression files named `backend/dev_test_*.py`. Some have special environment or database assumptions: inspect their guards and setup before running them. Avoid pointing destructive test commands at shared or production databases.
 
----
+### Manual QA snapshot — 21 November 2026
 
-# Development Environment Checklist
+The team's deployed-app manual QA report records **46 passed checks**, with **39 supported by screenshots and 7 confirmed in chat**. It also records **six minor UI observations** and states that wider testing remains pending. This is a **partial manual-testing snapshot**, not a claim of full end-to-end certification. See the assessment QA evidence for individual test IDs, failures, and follow-up decisions.
 
-| Technology | Purpose | Status |
-| --- | --- | --- |
-| Git | Version control | ✅ |
-| GitHub | Remote repository | ✅ |
-| Node.js | Ionic/Angular runtime tooling | ✅ |
-| npm | JavaScript package management | ✅ |
-| Ionic CLI | Ionic development | ✅ |
-| Angular CLI | Angular development | ✅ |
-| TypeScript | Frontend programming | ✅ |
-| HTML | Frontend structure | ✅ |
-| CSS | Frontend styling | ✅ |
-| Python | Backend programming | ✅ |
-| pip | Python package management | ✅ |
-| Python Virtual Environment | Backend dependency isolation | ✅ |
-| Flask | Backend REST API | ✅ |
-| Flask-SQLAlchemy | Flask ORM integration | ✅ |
-| Flask-CORS | Frontend/API communication | ✅ |
-| python-dotenv | Environment variable management | ✅ |
-| Psycopg | PostgreSQL driver | ✅ |
-| PostgreSQL | Database | ✅ |
-| Trello | Project/Sprint management | ✅ |
-| Microsoft Teams | Team communication | ✅ |
+### Current release/documentation status
 
----
+- The frontend, Flask API, database integrations, and feature modules are present in the repository.
+- The demo deployment URL has been supplied by the project team; this README does not certify current uptime or production infrastructure.
+- Browser, accessibility, security, performance, and cross-environment coverage should be assessed against the final deployed commit before any broader release claim.
 
-# Not Required During Initial Development
+## Project structure
 
-The following technologies are intentionally excluded from the initial local development setup:
+~~~text
+smartmoney-easy-/
+├── src/
+│   ├── app/
+│   │   ├── pages/             # App screens
+│   │   ├── core/              # Shared services, authentication, guards
+│   │   └── shell/             # App navigation
+│   └── environments/          # Local and production API URLs
+├── backend/
+│   ├── app/
+│   │   ├── models/            # Database models
+│   │   ├── routes/            # Flask API blueprints
+│   │   └── services/          # Application business logic
+│   ├── migrations/            # Existing Alembic migrations
+│   ├── tests/                 # Isolated Python tests
+│   ├── .env.example           # Environment template
+│   ├── config.py
+│   ├── requirements.txt
+│   └── run.py
+├── docs/                      # Feature-specific implementation notes
+├── angular.json
+├── capacitor.config.ts
+├── package.json
+└── README.md
+~~~
 
-```text
-AWS CLI
-AWS EC2 configuration
-AWS RDS configuration
-AWS S3 configuration
-AWS IAM configuration
-AWS Security Groups
-Android Studio
-Java/JDK
-Xcode
-Docker
-```
+## Deployment notes
 
-AWS infrastructure will be configured during the deployment phase.
+- **Demo URL:** https://smartmoney-easy.duckdns.org/
+- **Production frontend API base:** `/api` (same-origin; must be routed to the Flask backend).
+- **Mock banking service:** https://smartmoney-mock-bank.onrender.com/ (a separate simulated service, not a financial institution).
+- **Production secrets:** Configure outside source control; use HTTPS and `SESSION_COOKIE_SECURE=true`.
+- **Database:** Apply tracked migrations to the intended PostgreSQL instance and keep backups before schema changes.
+- **Optional Thinker live mode:** Requires `THINKER_MODE=live` and a private server-side `OPENAI_API_KEY`, plus production-appropriate usage limiting. Default demo mode does not make paid provider requests.
 
-Capacitor remains part of the planned mobile application architecture but is not required for the initial MVP development workflow.
+See `docs/THINKER.md` for live-mode controls and deployment limits. Do not infer an AWS EC2/RDS/S3 deployment from an earlier plan unless the actual deployed configuration verifies it.
 
----
+## Security and limitations
 
-# Current SmartMoney! Easy Architecture
+- **Never commit** `.env` files, passwords, Flask secrets, encryption keys, tokens, or real financial data.
+- The authentication API uses sessions and CSRF checks; recovery and banking workflows should still be tested in the target environment.
+- Banking is **simulated**. Do not use real bank login details.
+- Financial summaries depend on the completeness and classification of imported/entered transactions. Some transfers, refunds, currencies, or unavailable records require review and may be excluded from totals.
+- Savings goal progress is app-recorded progress, not a bank-verified balance.
+- Thinker is educational, not a financial adviser. Live AI is optional and external-provider behaviour should be disclosed to users.
+- This is an academic prototype and is **not presented as a production-ready regulated financial product**.
 
-```text
-┌──────────────────────────────┐
-│       Ionic + Angular        │
-│          Frontend            │
-└──────────────┬───────────────┘
-               │
-               │ HTTP / REST API
-               ▼
-┌──────────────────────────────┐
-│        Flask + Python        │
-│          Backend API         │
-└──────────────┬───────────────┘
-               │
-               │ SQLAlchemy
-               ▼
-┌──────────────────────────────┐
-│          PostgreSQL          │
-│           Database           │
-└──────────────────────────────┘
-```
+## Team and documentation
+
+| Member | Main project responsibilities |
+| --- | --- |
+| Aries | Product ownership; financial features, savings goals, budgets, cash wallets, and Mock Bank integration |
+| Han | Account/security features and bank synchronisation integration |
+| Dhona | Shared UI, app shell/navigation, dashboard, and QA coordination |
+
+The team follows **Agile Scrum**, using GitHub for code review/version control, Trello for backlog and sprint work, and Microsoft Teams for communication.
+
+Additional repository documentation:
+
+- [Dashboard](docs/DASHBOARD.md)
+- [Reports & insights](docs/REPORTS.md)
+- [Learn](docs/LEARN.md)
+- [Learn app guide](docs/LEARN_APP_GUIDE.md)
+- [Thinker](docs/THINKER.md)
 
 ---
 
-# Planned Deployment Architecture
-
-During the deployment phase, the architecture will be extended using AWS infrastructure.
-
-```text
-Ionic + Angular
-       │
-       │ HTTPS / REST API
-       ▼
-Flask API
-       │
-       ├──────────────► AWS S3
-       │
-       ▼
-SQLAlchemy
-       │
-       ▼
-PostgreSQL
-       │
-       ▼
-AWS RDS
-
-Backend Hosting:
-AWS EC2
-
-Supporting AWS Services:
-IAM
-Security Groups
-S3
-RDS
-```
-
----
-
-# Team Workflow
-
-Development work should be coordinated using:
-
-- **GitHub** — source code and version control
-- **Trello** — Product Backlog, sprint tasks, and progress tracking
-- **Microsoft Teams** — team communication and Scrum collaboration
-
-Developers should pull the latest changes before beginning work:
-
-```powershell
-git pull
-```
-
-Developers should work on their own feature branch where appropriate.
-
-Example:
-
-```powershell
-git checkout -b feature/example-feature
-```
-
-After completing a task:
-
-```powershell
-git status
-git add .
-git commit -m "Describe completed work"
-git push
-```
-
-Changes should be reviewed before being merged into the main development branch.
-
----
-
-# Security Notes
-
-The following files or information must never be committed to GitHub:
-
-```text
-.env
-Database passwords
-API keys
-Secret keys
-AWS credentials
-Private access tokens
-```
-
-Use environment variables for sensitive configuration.
-
-The repository should contain `.env.example` only as a configuration template.
-
----
-
-# Current Development Status
-
-The initial local development foundation is now configured.
-
-```text
-Ionic + Angular                  ✅
-Flask REST API                  ✅
-Flask-SQLAlchemy                ✅
-PostgreSQL driver               ✅
-PostgreSQL local database       ✅
-Environment configuration       ✅
-API health endpoint             ✅
-Database connection endpoint    ✅
-```
-
-The next development stage will introduce the SmartMoney! Easy application models, API endpoints, and frontend/backend integration.
-
----
-
-## Project
-
-**Project:** SmartMoney! Easy  
-**Course:** SD205  
-**Development Methodology:** Agile Scrum
+**SmartMoney! Easy — SD204B & SD205**  
+*Last README revision: 22 November 2026 (NZDT).*
