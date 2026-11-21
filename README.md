@@ -2,7 +2,7 @@
 
 **Personal finance tracking, budgeting, savings goals, and financial learning — in one app.**
 
-SmartMoney! Easy is a student-developed, NZD-focused financial wellness web application created for the **SD204B & SD205** software development project. It helps users record transactions, review their finances, set monthly budgets, work toward savings goals, and practise everyday money skills.
+SmartMoney! Easy is a student-developed, NZD-focused financial wellness web application created for the **SD205** software development project. It helps users record transactions, review their finances, set monthly budgets, work toward savings goals, and practise everyday money skills.
 
 **Demo:** https://smartmoney-easy.duckdns.org/  
 **Repository:** https://github.com/ars1224/smartmoney-easy-  
