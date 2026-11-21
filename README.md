@@ -298,9 +298,9 @@ See `docs/THINKER.md` for live-mode controls and deployment limits. Do not infer
 
 | Member | Main project responsibilities |
 | --- | --- |
-| Aries | Product ownership; financial features, savings goals, budgets, cash wallets, and Mock Bank integration |
-| Han | Account/security features and bank synchronisation integration |
-| Dhona | Shared UI, app shell/navigation, dashboard, and QA coordination |
+| Aries Tayao | Product ownership; financial features, savings goals, budgets, cash wallets, and Mock Bank integration |
+| Han Yoo | Account/security features and bank synchronisation integration |
+| Dhona Obina | Shared UI, app shell/navigation, dashboard, and QA coordination |
 
 The team follows **Agile Scrum**, using GitHub for code review/version control, Trello for backlog and sprint work, and Microsoft Teams for communication.
 
