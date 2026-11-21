@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Observable, of } from 'rxjs';
+import type { ConnectedBankAccount } from './bank-accounts-api.service';
 import type { BankSyncResponse } from './bank-accounts-api.service';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -16,7 +17,7 @@ describe('BankAutoSyncService', () => {
     const getAccounts = vi.fn(() => of([
       { connectionId: 'connection-a' },
       { connectionId: 'connection-a' },
-    ]));
+    ] as ConnectedBankAccount[]));
 
     const syncConnection = vi.fn(
       (): Observable<BankSyncResponse> => new Observable(subscriber => {
@@ -67,7 +68,9 @@ describe('BankAutoSyncService', () => {
         {
           provide: BankAccountsApiService,
           useValue: {
-            getAccounts: () => of([{ connectionId: 'connection-a' }]),
+            getAccounts: () => of([
+              { connectionId: 'connection-a' },
+            ] as ConnectedBankAccount[]),
             syncConnection: () => of({ status: 'partial_success' }),
           },
         },
