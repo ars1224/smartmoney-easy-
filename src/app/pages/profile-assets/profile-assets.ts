@@ -28,6 +28,7 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 
 import { BankConnectionService } from '../../core/bank/bank-connection.service';
+import { BankAutoSyncService } from '../../core/bank/bank-auto-sync.service';
 
 
 @Component({
@@ -48,6 +49,7 @@ export class ProfileAssetsPage implements OnInit {
   private readonly walletService = inject(CashWalletService);
   private readonly walletApi = inject(CashWalletApiService);
   private readonly bankApi = inject(BankAccountsApiService);
+  private readonly bankAutoSync = inject(BankAutoSyncService);
 
   // Data
   readonly wallets = this.walletService.wallets;
@@ -155,14 +157,24 @@ export class ProfileAssetsPage implements OnInit {
     this.archivedWalletError.set('');
 
     try {
+        // Wait for any app-shell sync, or start one when this page
+        // is opened later. Bank balances must be fetched afterwards.
+        // Cash wallet requests can run in parallel with bank syncing.
+        const bankRefresh = async () => {
+            const syncResult = await this.bankAutoSync.syncOnAppOpen();
+            const accounts = await firstValueFrom(this.bankApi.getAccounts());
+
+            return { accounts, syncResult };
+        };
+
         const [
-        walletResult,
-        bankResult,
-        archivedResult,
+            walletResult,
+            bankResult,
+            archivedResult,
         ] = await Promise.allSettled([
-        firstValueFrom(this.walletService.loadWallets()),
-        firstValueFrom(this.bankApi.getAccounts()),
-        firstValueFrom(this.walletApi.getArchivedWallets()),
+            firstValueFrom(this.walletService.loadWallets()),
+            bankRefresh(),
+            firstValueFrom(this.walletApi.getArchivedWallets()),
         ]);
 
         // Active Cash Wallets
@@ -174,11 +186,19 @@ export class ProfileAssetsPage implements OnInit {
 
         // Connected bank accounts
         if (bankResult.status === 'fulfilled') {
-        this.bankAccounts.set(bankResult.value);
+            this.bankAccounts.set(bankResult.value.accounts);
+
+            if (bankResult.value.syncResult.failed) {
+                this.bankError.set(
+                    'Bank synchronisation was incomplete. ' +
+                    'Saved balances may be outdated. Please try refreshing.'
+                );
+            }
         } else {
-        this.bankError.set(
-            'Unable to load bank accounts. Please try again.'
-        );
+            this.bankAccounts.set([]);
+            this.bankError.set(
+                'Unable to load bank accounts. Please try again.'
+            );
         }
 
         // Archived Cash Wallets
