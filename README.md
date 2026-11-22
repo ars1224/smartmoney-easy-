@@ -299,8 +299,12 @@ See `docs/THINKER.md` for live-mode controls and deployment limits. Do not infer
 | Member | Main project responsibilities |
 | --- | --- |
 | Aries Tayao | Product ownership; financial features, savings goals, budgets, cash wallets, and Mock Bank integration |
-| Han Yoo | Account/security features and bank synchronisation integration |
-| Dhona Obina | Shared UI, app shell/navigation, dashboard, and QA coordination |
+| **Han Yoo** | Scrum coordination; account management, authentication, password recovery and session security; bank synchronisation integration; AWS Lightsail deployment, HTTPS configuration and troubleshooting |
+| **Dhona Obina** | UX/UI design and Figma wireframing; responsive frontend development, shared UI and navigation; Dashboard, Reports, Learn and Thinker AI; deployed manual QA, evidence recording and project documentation |
+
+All three members contributed to code reviews, integration testing, troubleshooting and delivery coordination.
+
+**[Figma — UX/UI designs and prototypes](https://www.figma.com/design/Xn6yFbhO7ydADeiC24UqAt/SmartMoney--Easy-%E2%80%94-Lo-Fi-Wireframes?node-id=47-98)** — Dhona Obina’s low- and high-fidelity desktop and mobile screens, including page layouts, navigation and user journeys.
 
 The team follows **Agile Scrum**, using GitHub for code review/version control, Trello for backlog and sprint work, and Microsoft Teams for communication.
 
